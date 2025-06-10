@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Student Dashboard{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Welcome, {{ request.user.username }} (Student)</h2>
+
+<div class="card text-bg-info mb-3">
+    <div class="card-body">
+        <h5 class="card-title">My Performance</h5>
+        <p class="card-text">View your grades and performance trends.</p>
+        <a href="#" class="btn btn-light">View Results</a>
+    </div>
+</div>
+{% endblock %}

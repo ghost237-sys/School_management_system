@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Teacher Dashboard{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Welcome, {{ request.user.username }} (Teacher)</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card text-bg-primary mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Assigned Classes</h5>
+                <p class="card-text">View and manage the classes you teach.</p>
+                <a href="#" class="btn btn-light">View Classes</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card text-bg-success mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Enter Grades</h5>
+                <p class="card-text">Input and update student exam scores.</p>
+                <a href="#" class="btn btn-light">Enter Grades</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
