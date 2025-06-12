@@ -1,10 +1,225 @@
 {% extends 'base.html' %}
 {% block title %}Admin Dashboard{% endblock %}
 {% block content %}
+<!-- Display Django messages -->
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  {% endfor %}
+{% endif %}
 <h1 class="mb-4">Admin Dashboard</h1>
-<div class="card">
-  <div class="card-body">
-    <p>Manage classes, teachers, students, and analytics.</p>
-  </div>
+
+<!-- Overview Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-bg-primary mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Total Students</h5>
+                <p class="card-text display-6">{{ total_students }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card text-bg-success mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Average Performance Per Subject</h5>
+                <ul class="list-group">
+                    {% for item in avg_performance %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ item.subject }}
+                            <span class="badge bg-secondary rounded-pill">{{ item.avg_score|floatformat:2 }}</span>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item">No data available.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
 </div>
+
+<!-- Top/Bottom Performers -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card text-bg-info mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Top Performers</h5>
+                <ol class="list-group list-group-numbered">
+                    {% for performer in top_performers %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ performer.student }} ({{ performer.class }})
+                            <span class="badge bg-primary rounded-pill">{{ performer.avg_score|floatformat:2 }}</span>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item">No data available.</li>
+                    {% endfor %}
+                </ol>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card text-bg-warning mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Bottom Performers</h5>
+                <ol class="list-group list-group-numbered">
+                    {% for performer in bottom_performers %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ performer.student }} ({{ performer.class }})
+                            <span class="badge bg-warning rounded-pill">{{ performer.avg_score|floatformat:2 }}</span>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item">No data available.</li>
+                    {% endfor %}
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload/Export Placeholders -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Upload Marksheet</h5>
+                <form method="post" enctype="multipart/form-data" action="#">
+                    {% csrf_token %}
+                    <input type="file" name="marksheet" class="form-control mb-2">
+                    <button type="submit" class="btn btn-success">Upload</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Export Performance Reports</h5>
+                <form method="get" action="#">
+                    <button type="submit" class="btn btn-primary">Export CSV</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Teachers Table -->
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">All Teachers</h5>
+    </div>
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Subjects</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for teacher in teachers %}
+                <tr>
+                    <td>{{ teacher.user.get_full_name|default:teacher.user.username }}</td>
+                    <td>{{ teacher.user.email }}</td>
+                    <td>
+                        {% for subject in teacher.subjects.all %}
+                            <span class="badge bg-secondary">{{ subject.name }}</span>
+                        {% empty %}
+                            <span class="text-muted">No subjects</span>
+                        {% endfor %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="3">No teachers found.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Classes List with Dropdown for Members -->
+<div class="card mb-4">
+    <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0">All Classes</h5>
+    </div>
+    <div class="card-body">
+        <div class="accordion" id="classesAccordion">
+            {% for class in class_list %}
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="heading{{ class.id }}">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ class.id }}" aria-expanded="false" aria-controls="collapse{{ class.id }}">
+                        {{ class.name }} (Level {{ class.level }})
+                    </button>
+                </h2>
+                <div id="collapse{{ class.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ class.id }}" data-bs-parent="#classesAccordion">
+                    <div class="accordion-body">
+                        <p><strong>Class Teacher:</strong> {{ class.class_teacher|default:'Not assigned' }}</p>
+                        <h6>Members:</h6>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Admission No</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for student in class.students %}
+                                <tr>
+                                    <td>{{ student.user.get_full_name|default:student.user.username }}</td>
+                                    <td>{{ student.user.email }}</td>
+                                    <td>{{ student.admission_no }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="3">No students in this class.</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="alert alert-warning">No classes found.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Assign Teacher to Class -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Assign Class Teacher</h5>
+    </div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            {% csrf_token %}
+            <input type="hidden" name="assign_teacher" value="1">
+            <div class="col-md-5">
+                <label for="teacher_id" class="form-label">Select Teacher</label>
+                <select name="teacher_id" id="teacher_id" class="form-select" required>
+                    <option value="">-- Choose Teacher --</option>
+                    {% for teacher in teachers %}
+                        <option value="{{ teacher.id }}">{{ teacher.user.get_full_name|default:teacher.user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <label for="class_id" class="form-label">Select Class</label>
+                <select name="class_id" id="class_id" class="form-select" required>
+                    <option value="">-- Choose Class --</option>
+                    {% for class in classes %}
+                        <option value="{{ class.id }}">{{ class.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-success w-100">Assign</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% endblock %}

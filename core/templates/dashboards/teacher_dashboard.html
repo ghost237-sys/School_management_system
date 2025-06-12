@@ -4,24 +4,132 @@
 {% block content %}
 <h2 class="mb-4">Welcome, {{ request.user.username }} (Teacher)</h2>
 
-<div class="row">
-    <div class="col-md-6">
-        <div class="card text-bg-primary mb-3">
-            <div class="card-body">
-                <h5 class="card-title">Assigned Classes</h5>
-                <p class="card-text">View and manage the classes you teach.</p>
-                <a href="#" class="btn btn-light">View Classes</a>
-            </div>
-        </div>
+<!-- Classes and Students Table -->
+{% for class in class_data %}
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">{{ class.class }}</h5>
+        <form method="get" action="#">
+            <button type="submit" class="btn btn-outline-light btn-sm">Export Results (CSV)</button>
+        </form>
     </div>
-    <div class="col-md-6">
-        <div class="card text-bg-success mb-3">
-            <div class="card-body">
-                <h5 class="card-title">Enter Grades</h5>
-                <p class="card-text">Input and update student exam scores.</p>
-                <a href="#" class="btn btn-light">Enter Grades</a>
+    <div class="card-body">
+        <h6>Students & Performance</h6>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Average Score</th>
+                    <th>Grade Distribution</th>
+                    <th>Input/Edit Scores</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for student in class.students %}
+                <tr>
+                    <td>{{ student.student }}</td>
+                    <td>{{ student.avg_score|floatformat:2 }}</td>
+                    <td>
+                        {% for dist in student.grade_dist %}
+                            <span class="badge bg-info">{{ dist.grade_letter }}: {{ dist.count }}</span>
+                        {% empty %}
+                            <span class="text-muted">No grades</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <!-- Score input/edit modal trigger -->
+                        <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#editScoreModal_{{ class.class }}_{{ student.student }}">Edit</button>
+                        <!-- Modal -->
+                        <div class="modal fade" id="editScoreModal_{{ class.class }}_{{ student.student }}" tabindex="-1" aria-labelledby="editScoreModalLabel_{{ class.class }}_{{ student.student }}" aria-hidden="true">
+                          <div class="modal-dialog">
+                            <div class="modal-content">
+                              <div class="modal-header">
+                                <h5 class="modal-title" id="editScoreModalLabel_{{ class.class }}_{{ student.student }}">Edit Scores for {{ student.student }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                              </div>
+                              <div class="modal-body">
+                                <form method="post" action="#">
+                                  {% csrf_token %}
+                                  <!-- Dynamically generate subject score inputs -->
+                                  {% for subject in class.subjects %}
+                                  <div class="mb-2">
+                                    <label class="form-label">{{ subject.name }}</label>
+                                    <input type="number" name="score_{{ subject.id }}" class="form-control" step="0.01" min="0" max="100" value="">
+                                  </div>
+                                  {% endfor %}
+                                  <button type="submit" class="btn btn-primary mt-2">Save Scores</button>
+                                </form>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4">No students found.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Performance Analysis Section -->
+        <div class="mt-4">
+            <strong>Performance Analysis:</strong>
+            <div class="row">
+                <div class="col-md-6">
+                    <canvas id="barChart_{{ class.class }}"></canvas>
+                </div>
+                <div class="col-md-6">
+                    <canvas id="gradeDistChart_{{ class.class }}"></canvas>
+                </div>
+            </div>
+            <div class="mt-2">
+                <span class="badge bg-secondary">Class Mean: <span id="meanScore_{{ class.class }}">--</span></span>
             </div>
         </div>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script>
+        // Placeholder JS for charts (to be replaced with real data)
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.Chart) {
+                // Bar Chart Example
+                var ctxBar = document.getElementById('barChart_{{ class.class }}');
+                if (ctxBar) {
+                    new Chart(ctxBar, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Student1', 'Student2'],
+                            datasets: [{
+                                label: 'Scores',
+                                data: [70, 85],
+                                backgroundColor: 'rgba(54, 162, 235, 0.7)'
+                            }]
+                        },
+                        options: {responsive: true}
+                    });
+                }
+                // Grade Distribution Pie Example
+                var ctxPie = document.getElementById('gradeDistChart_{{ class.class }}');
+                if (ctxPie) {
+                    new Chart(ctxPie, {
+                        type: 'pie',
+                        data: {
+                            labels: ['A', 'B', 'C'],
+                            datasets: [{
+                                data: [5, 10, 3],
+                                backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc']
+                            }]
+                        },
+                        options: {responsive: true}
+                    });
+                }
+                // Mean calculation placeholder
+                document.getElementById('meanScore_{{ class.class }}').textContent = '78.5';
+            }
+        });
+        </script>
     </div>
 </div>
+{% empty %}
+<div class="alert alert-warning">You are not assigned to any classes.</div>
+{% endfor %}
 {% endblock %}
