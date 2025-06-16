@@ -1,0 +1,20 @@
+<ul class="nav nav-tabs mb-4">
+  <li class="nav-item">
+    <a class="nav-link {% if request.resolver_match.url_name == 'admin_overview' %}active{% endif %}" href="{% url 'admin_overview' %}">Overview</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.resolver_match.url_name == 'admin_teachers' %}active{% endif %}" href="{% url 'admin_teachers' %}">Teachers</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.resolver_match.url_name == 'admin_students' %}active{% endif %}" href="{% url 'admin_students' %}">Students</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.resolver_match.url_name == 'admin_classes' %}active{% endif %}" href="{% url 'admin_classes' %}">Classes</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.resolver_match.url_name == 'admin_analytics' %}active{% endif %}" href="{% url 'admin_analytics' %}">Analytics</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.resolver_match.url_name == 'admin_subjects' %}active{% endif %}" href="{% url 'admin_subjects' %}">Subjects</a>
+  </li>
+</ul>

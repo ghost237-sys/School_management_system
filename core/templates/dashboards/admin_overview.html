@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+<style>
+.scrollable-list-group {
+    max-height: 300px; /* Adjust as needed for your layout */
+    overflow-y: auto;
+    min-width: 100%;
+}
+.card-body {
+    /* Ensures all cards have the same min-height (optional, adjust as needed) */
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+</style>
+{% block title %}Admin Overview{% endblock %}
+{% block content %}
+{% include 'dashboards/admin_navbar.html' %}
+<h1 class="mb-4">Admin Dashboard Overview</h1>
+<!-- Overview Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-bg-primary mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Total Students</h5>
+                <p class="card-text display-6">{{ total_students }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+
+</div>
+<!-- Top/Bottom Performers -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card text-bg-info mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Top Performers</h5>
+                <ol class="list-group list-group-numbered">
+                    {% for performer in top_performers %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ performer.student }} ({{ performer.class }})
+                            <span class="badge bg-primary rounded-pill">{{ performer.avg_score|floatformat:2 }}</span>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item">No data available.</li>
+                    {% endfor %}
+                </ol>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card text-bg-warning mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Bottom Performers</h5>
+                <ol class="list-group list-group-numbered">
+                    {% for performer in bottom_performers %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ performer.student }} ({{ performer.class }})
+                            <span class="badge bg-warning rounded-pill">{{ performer.avg_score|floatformat:2 }}</span>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item">No data available.</li>
+                    {% endfor %}
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Upload/Export Placeholders -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Upload Marksheet</h5>
+                <form method="post" enctype="multipart/form-data" action="#">
+                    {% csrf_token %}
+                    <input type="file" name="marksheet" class="form-control mb-2">
+                    <button type="submit" class="btn btn-success">Upload</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Export Performance Reports</h5>
+                <form method="get" action="#">
+                    <button type="submit" class="btn btn-primary">Export CSV</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

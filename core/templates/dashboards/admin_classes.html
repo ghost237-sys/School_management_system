@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Admin Classes{% endblock %}
+{% block content %}
+{% include 'dashboards/admin_navbar.html' %}
+<h1 class="mb-4">Classes</h1>
+<div class="card mb-4">
+    <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0">All Classes</h5>
+    </div>
+    <div class="card-body">
+        <div class="accordion" id="classesAccordion">
+            {% for class in class_list %}
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="heading{{ class.id }}">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ class.id }}" aria-expanded="false" aria-controls="collapse{{ class.id }}">
+                        {{ class.name }} (Level {{ class.level }})
+                    </button>
+                </h2>
+                <div id="collapse{{ class.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ class.id }}" data-bs-parent="#classesAccordion">
+                    <div class="accordion-body">
+                        <p><strong>Class Teacher:</strong> {{ class.class_teacher|default:'Not assigned' }}</p>
+                        <h6>Members:</h6>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in class.students %}
+                                    <tr>
+                                        <td>{{ student.user.get_full_name|default:student.user.username }}</td>
+                                        <td>{{ student.user.email }}</td>
+                                    </tr>
+                                {% empty %}
+                                    <tr><td colspan="2">No students found.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+                <p>No classes found.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
