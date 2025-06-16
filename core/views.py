@@ -89,16 +89,130 @@ def admin_overview(request):
     return render(request, 'dashboards/admin_overview.html', context)
 
 # Admin Teachers View
+from .forms import AddTeacherForm
+from django.shortcuts import get_object_or_404
+
 @login_required(login_url='login')
 def admin_teachers(request):
     if request.user.role != 'admin':
         return redirect('dashboard')
-    from .models import Teacher
-    teachers = Teacher.objects.select_related('user').all()
+    from .models import Teacher, Department, Subject, User
+    from django.db.models import Q
+    teachers = Teacher.objects.select_related('user', 'department').prefetch_related('subjects', 'teacherclassassignment_set__class_group').all()
+    departments = Department.objects.all()
+    subjects = Subject.objects.all()
+    form = AddTeacherForm()
+
+    # Handle Add Teacher POST
+    if request.method == 'POST' and 'add_teacher' in request.POST:
+        form = AddTeacherForm(request.POST)
+        if form.is_valid():
+            # Create User
+            user = User.objects.create_user(
+                username=form.cleaned_data['username'],
+                email=form.cleaned_data['email'],
+                password=form.cleaned_data['password'],
+                first_name=form.cleaned_data['first_name'],
+                last_name=form.cleaned_data['last_name'],
+                role='teacher',
+            )
+            # Create Teacher
+            teacher = Teacher.objects.create(
+                user=user,
+                tsc_number=form.cleaned_data['tsc_number'],
+                staff_id=form.cleaned_data['staff_id'],
+                phone=form.cleaned_data['phone'],
+                gender=form.cleaned_data['gender'],
+                department=form.cleaned_data['department'],
+            )
+            teacher.subjects.set(form.cleaned_data['subjects'])
+            teacher.save()
+            return redirect('admin_teachers')
+
+    # Filtering
+    search = request.GET.get('search', '').strip()
+    department_id = request.GET.get('department', '')
+    subject_id = request.GET.get('subject', '')
+    gender = request.GET.get('gender', '')
+
+    if search:
+        teachers = teachers.filter(
+            Q(user__first_name__icontains=search) |
+            Q(user__last_name__icontains=search) |
+            Q(user__username__icontains=search) |
+            Q(user__email__icontains=search) |
+            Q(phone__icontains=search) |
+            Q(tsc_number__icontains=search) |
+            Q(staff_id__icontains=search)
+        )
+    if department_id:
+        teachers = teachers.filter(department_id=department_id)
+    if subject_id:
+        teachers = teachers.filter(subjects__id=subject_id)
+    if gender:
+        teachers = teachers.filter(gender=gender)
+    teachers = teachers.distinct()
+
     context = {
         'teachers': teachers,
+        'departments': departments,
+        'subjects': subjects,
+        'add_teacher_form': form,
     }
     return render(request, 'dashboards/admin_teachers.html', context)
+
+
+@login_required(login_url='login')
+def edit_teacher(request, teacher_id):
+    if request.user.role != 'admin':
+        return redirect('dashboard')
+    from .models import Teacher, User
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    user = teacher.user
+    if request.method == 'POST':
+        form = AddTeacherForm(request.POST, instance=teacher)
+        if form.is_valid():
+            # Update user fields
+            user.username = form.cleaned_data['username']
+            user.email = form.cleaned_data['email']
+            user.first_name = form.cleaned_data['first_name']
+            user.last_name = form.cleaned_data['last_name']
+            if form.cleaned_data['password']:
+                user.set_password(form.cleaned_data['password'])
+            user.save()
+            # Update teacher fields
+            teacher.tsc_number = form.cleaned_data['tsc_number']
+            teacher.staff_id = form.cleaned_data['staff_id']
+            teacher.phone = form.cleaned_data['phone']
+            teacher.gender = form.cleaned_data['gender']
+            teacher.department = form.cleaned_data['department']
+            teacher.subjects.set(form.cleaned_data['subjects'])
+            teacher.save()
+            messages.success(request, 'Teacher updated successfully.')
+            return redirect('admin_teachers')
+    else:
+        form = AddTeacherForm(instance=teacher, initial={
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+        })
+    return render(request, 'dashboards/edit_teacher.html', {'form': form, 'teacher': teacher})
+
+
+@login_required(login_url='login')
+def delete_teacher(request, teacher_id):
+    if request.user.role != 'admin':
+        return redirect('dashboard')
+    from .models import Teacher, User
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    user = teacher.user
+    if request.method == 'POST':
+        user.delete()
+        messages.success(request, 'Teacher deleted successfully.')
+        return redirect('admin_teachers')
+    return render(request, 'dashboards/delete_teacher.html', {'teacher': teacher})
+
 
 # Admin Students View
 @login_required(login_url='login')

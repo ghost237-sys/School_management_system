@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}Edit Teacher{% endblock %}
+{% block content %}
+<h2>Edit Teacher: {{ teacher.user.get_full_name|default:teacher.user.username }}</h2>
+<form method="post" autocomplete="off" class="mb-4 p-3 border rounded bg-light">
+  {% csrf_token %}
+  {% if form.errors %}
+    <div class="alert alert-danger">Please fix the errors below.</div>
+  {% endif %}
+  <div class="row g-3">
+    <div class="col-md-6">
+      {{ form.first_name.label_tag }}
+      {{ form.first_name }}{% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ form.last_name.label_tag }}
+      {{ form.last_name }}{% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ form.username.label_tag }}
+      {{ form.username }}{% if form.username.errors %}<div class="text-danger small">{{ form.username.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ form.email.label_tag }}
+      {{ form.email }}{% if form.email.errors %}<div class="text-danger small">{{ form.email.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ form.password.label_tag }}
+      {{ form.password }}{% if form.password.errors %}<div class="text-danger small">{{ form.password.errors }}</div>{% endif %}
+      <small class="form-text text-muted">Leave blank to keep current password.</small>
+    </div>
+    <div class="col-md-6">
+      {{ form.tsc_number.label_tag }}
+      {{ form.tsc_number }}{% if form.tsc_number.errors %}<div class="text-danger small">{{ form.tsc_number.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ form.staff_id.label_tag }}
+      {{ form.staff_id }}{% if form.staff_id.errors %}<div class="text-danger small">{{ form.staff_id.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ form.phone.label_tag }}
+      {{ form.phone }}{% if form.phone.errors %}<div class="text-danger small">{{ form.phone.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ form.gender.label_tag }}
+      {{ form.gender }}{% if form.gender.errors %}<div class="text-danger small">{{ form.gender.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ form.department.label_tag }}
+      {{ form.department }}{% if form.department.errors %}<div class="text-danger small">{{ form.department.errors }}</div>{% endif %}
+    </div>
+    <div class="col-12">
+      {{ form.subjects.label_tag }}
+      {{ form.subjects }}{% if form.subjects.errors %}<div class="text-danger small">{{ form.subjects.errors }}</div>{% endif %}
+    </div>
+  </div>
+  <div class="mt-3">
+    <button type="submit" class="btn btn-primary">Update Teacher</button>
+    <a href="{% url 'admin_teachers' %}" class="btn btn-secondary ms-2">Cancel</a>
+  </div>
+</form>
+{% endblock %}

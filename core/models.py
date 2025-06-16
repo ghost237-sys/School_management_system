@@ -18,13 +18,31 @@ class Subject(models.Model):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=10)
 
+    def __str__(self):
+        return self.name
+
 class Class(models.Model):
     name = models.CharField(max_length=100)
     level = models.CharField(max_length=50)
     class_teacher = models.ForeignKey('Teacher', null=True, blank=True, on_delete=models.SET_NULL)
 
+class Department(models.Model):
+    name = models.CharField(max_length=100)
+    def __str__(self):
+        return self.name
+
 class Teacher(models.Model):
+    GENDER_CHOICES = [
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Other'),
+    ]
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+    tsc_number = models.CharField(max_length=30, blank=True, null=True)
+    staff_id = models.CharField(max_length=30, blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
     subjects = models.ManyToManyField(Subject)
 
 class Student(models.Model):

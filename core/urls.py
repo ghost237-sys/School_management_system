@@ -10,6 +10,8 @@ urlpatterns = [
     # Admin dashboard split pages
     path('admin_overview/', views.admin_overview, name='admin_overview'),
     path('admin_teachers/', views.admin_teachers, name='admin_teachers'),
+    path('admin_teachers/edit/<int:teacher_id>/', views.edit_teacher, name='edit_teacher'),
+    path('admin_teachers/delete/<int:teacher_id>/', views.delete_teacher, name='delete_teacher'),
     path('admin_students/', views.admin_students, name='admin_students'),
     path('admin_classes/', views.admin_classes, name='admin_classes'),
     path('admin_analytics/', views.admin_analytics, name='admin_analytics'),

@@ -3,24 +3,162 @@
 {% block content %}
 {% include 'dashboards/admin_navbar.html' %}
 <h1 class="mb-4">Teachers</h1>
+<h2>Add New Teacher</h2>
+<form method="post" action="" autocomplete="off" class="mb-4 p-3 border rounded bg-light">
+  {% csrf_token %}
+  <input type="hidden" name="add_teacher" value="1">
+  {% if add_teacher_form.errors %}
+    <div class="alert alert-danger">Please fix the errors below.</div>
+  {% endif %}
+  <div class="row g-3">
+    <div class="col-md-6">
+      {{ add_teacher_form.first_name.label_tag }}
+      {{ add_teacher_form.first_name }}{% if add_teacher_form.first_name.errors %}<div class="text-danger small">{{ add_teacher_form.first_name.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ add_teacher_form.last_name.label_tag }}
+      {{ add_teacher_form.last_name }}{% if add_teacher_form.last_name.errors %}<div class="text-danger small">{{ add_teacher_form.last_name.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ add_teacher_form.username.label_tag }}
+      {{ add_teacher_form.username }}{% if add_teacher_form.username.errors %}<div class="text-danger small">{{ add_teacher_form.username.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ add_teacher_form.email.label_tag }}
+      {{ add_teacher_form.email }}{% if add_teacher_form.email.errors %}<div class="text-danger small">{{ add_teacher_form.email.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ add_teacher_form.password.label_tag }}
+      {{ add_teacher_form.password }}{% if add_teacher_form.password.errors %}<div class="text-danger small">{{ add_teacher_form.password.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ add_teacher_form.tsc_number.label_tag }}
+      {{ add_teacher_form.tsc_number }}{% if add_teacher_form.tsc_number.errors %}<div class="text-danger small">{{ add_teacher_form.tsc_number.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ add_teacher_form.staff_id.label_tag }}
+      {{ add_teacher_form.staff_id }}{% if add_teacher_form.staff_id.errors %}<div class="text-danger small">{{ add_teacher_form.staff_id.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ add_teacher_form.phone.label_tag }}
+      {{ add_teacher_form.phone }}{% if add_teacher_form.phone.errors %}<div class="text-danger small">{{ add_teacher_form.phone.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ add_teacher_form.gender.label_tag }}
+      {{ add_teacher_form.gender }}{% if add_teacher_form.gender.errors %}<div class="text-danger small">{{ add_teacher_form.gender.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      {{ add_teacher_form.department.label_tag }}
+      {{ add_teacher_form.department }}{% if add_teacher_form.department.errors %}<div class="text-danger small">{{ add_teacher_form.department.errors }}</div>{% endif %}
+    </div>
+    <div class="col-12">
+      {{ add_teacher_form.subjects.label_tag }}
+      {{ add_teacher_form.subjects }}{% if add_teacher_form.subjects.errors %}<div class="text-danger small">{{ add_teacher_form.subjects.errors }}</div>{% endif %}
+      <div id="selected-subjects" class="mt-2"></div>
+    </div>
+  </div>
+  <div class="mt-3">
+    <button type="submit" class="btn btn-success">Add Teacher</button>
+  </div>
+</form>
+
+<div class="mb-3 d-flex flex-wrap gap-2">
+    <form class="d-flex flex-wrap gap-2" method="get">
+        <input type="text" name="search" class="form-control" placeholder="Search by name, email, phone, TSC/Staff ID..." value="{{ request.GET.search }}" style="max-width: 250px;">
+        <select name="department" class="form-select" style="max-width: 180px;">
+            <option value="">All Departments</option>
+            {% for dept in departments %}
+                <option value="{{ dept.id }}" {% if request.GET.department == dept.id|stringformat:'s' %}selected{% endif %}>{{ dept.name }}</option>
+            {% endfor %}
+        </select>
+        <select name="subject" class="form-select" style="max-width: 180px;">
+            <option value="">All Subjects</option>
+            {% for subject in subjects %}
+                <option value="{{ subject.id }}" {% if request.GET.subject == subject.id|stringformat:'s' %}selected{% endif %}>{{ subject.name }}</option>
+            {% endfor %}
+        </select>
+        <select name="gender" class="form-select" style="max-width: 120px;">
+            <option value="">All Genders</option>
+            <option value="male" {% if request.GET.gender == 'male' %}selected{% endif %}>Male</option>
+            <option value="female" {% if request.GET.gender == 'female' %}selected{% endif %}>Female</option>
+            <option value="other" {% if request.GET.gender == 'other' %}selected{% endif %}>Other</option>
+        </select>
+        <button class="btn btn-primary" type="submit">Search/Filter</button>
+    </form>
+
+</div>
 <div class="card mb-4">
     <div class="card-header bg-info text-white">
         <h5 class="mb-0">All Teachers</h5>
     </div>
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead>
+    <div class="card-body table-responsive">
+        <table class="table table-hover table-bordered align-middle">
+            <thead class="table-light">
                 <tr>
                     <th>Name</th>
+                    <th>TSC Number</th>
+                    <th>Staff ID</th>
                     <th>Email</th>
-                    <th>Subjects</th>
+                    <th>Phone</th>
+                    <th>Gender</th>
+                    <th>Department</th>
+                    <th>Subjects Taught</th>
+                    <th>Current Class/Stream</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
+            <script>
+document.addEventListener('DOMContentLoaded', function() {
+  const select = document.querySelector('select[name="subjects"]');
+  const display = document.getElementById('selected-subjects');
+
+  function updateSelectedSubjects() {
+    const selected = Array.from(select.options)
+      .filter(opt => opt.selected)
+      .map(opt => ({value: opt.value, text: opt.text}));
+    if (selected.length > 0) {
+      display.innerHTML = selected.map(subj =>
+        `<span class="badge bg-primary me-1 mb-1">${subj.text} <span class="remove-subject" data-value="${subj.value}" style="cursor:pointer;">&times;</span></span>`
+      ).join(' ');
+    } else {
+      display.innerHTML = '<span class="text-muted">No subjects selected.</span>';
+    }
+    // Add click listeners to remove buttons
+    display.querySelectorAll('.remove-subject').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        const valueToRemove = btn.getAttribute('data-value');
+        Array.from(select.options).forEach(opt => {
+          if(opt.value === valueToRemove) {
+            opt.selected = false;
+          }
+        });
+        select.dispatchEvent(new Event('change'));
+      });
+    });
+  }
+
+  if (select && display) {
+    select.addEventListener('change', updateSelectedSubjects);
+    updateSelectedSubjects();
+  }
+});
+</script>
             <tbody>
             {% for teacher in teachers %}
                 <tr>
                     <td>{{ teacher.user.get_full_name|default:teacher.user.username }}</td>
+                    <td>{{ teacher.tsc_number }}</td>
+                    <td>{{ teacher.staff_id }}</td>
                     <td>{{ teacher.user.email }}</td>
+                    <td>{{ teacher.phone }}</td>
+                    <td>{{ teacher.get_gender_display }}</td>
+                    <td>
+  {% if teacher.department %}
+    {{ teacher.department.name }}
+  {% else %}
+    <span class="text-muted">None</span>
+  {% endif %}
+</td>
                     <td>
                         {% for subject in teacher.subjects.all %}
                             <span class="badge bg-secondary">{{ subject.name }}</span>
@@ -28,12 +166,72 @@
                             <span class="text-muted">No subjects</span>
                         {% endfor %}
                     </td>
+                    <td>
+                        {% with assignment=teacher.teacherclassassignment_set.first %}
+                            {% if assignment %}{{ assignment.class_group.name }}{% else %}<span class="text-muted">None</span>{% endif %}
+                        {% endwith %}
+                    </td>
+                    <td>
+    <a href="{% url 'edit_teacher' teacher.id %}" class="btn btn-sm btn-primary">Edit</a>
+    <a href="{% url 'delete_teacher' teacher.id %}" class="btn btn-sm btn-danger">Delete</a>
+</td>
                 </tr>
             {% empty %}
-                <tr><td colspan="3">No teachers found.</td></tr>
+                <tr><td colspan="10">No teachers found.</td></tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var form = document.querySelector('#addTeacherModal form');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var submitBtn = form.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      var formData = new FormData(form);
+      fetch('', {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: formData
+      })
+      .then(response => response.text())
+      .then(html => {
+        var tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        var newModal = tempDiv.querySelector('#addTeacherModal .modal-content');
+        if (newModal) {
+          document.querySelector('#addTeacherModal .modal-content').innerHTML = newModal.innerHTML;
+          // If no errors, modal will close and page reload
+          var hasErrors = document.querySelector('#addTeacherModal .alert-danger');
+          if (!hasErrors) {
+            var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('addTeacherModal'));
+            modal.hide();
+            window.location.reload();
+          }
+        } else {
+          window.location.reload();
+        }
+      })
+      .catch(() => window.location.reload())
+      .finally(() => { submitBtn.disabled = false; });
+    });
+  }
+});
+</script>
+
+{% if add_teacher_form.errors %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    var addModal = new bootstrap.Modal(document.getElementById('addTeacherModal'));
+    addModal.show();
+  });
+</script>
+{% endif %}
+
 {% endblock %}
