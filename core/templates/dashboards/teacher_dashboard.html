@@ -2,89 +2,143 @@
 {% block title %}Teacher Dashboard{% endblock %}
 
 {% block content %}
-<h2 class="mb-4">Welcome, {{ request.user.username }} (Teacher)</h2>
+<div class="container-fluid">
+  <!-- Header: Teacher Info & Subject Load -->
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <h2>Welcome, {{ teacher.user.get_full_name|default:teacher.user.username }}</h2>
+      <span class="badge bg-info">Subject Load: {{ teacher.subjects.count }} subject{{ teacher.subjects.count|pluralize }}</span>
+      <span class="badge bg-secondary">Assigned Classes: {{ teacher.class_count }}</span>
+    </div>
+    <div class="col-md-4 text-end">
+      <a href="#" class="btn btn-outline-primary">Export Schedule as PDF</a>
+    </div>
+  </div>
 
-<!-- Classes and Students Table -->
-{% for class in class_data %}
-<div class="card mb-4">
+  <!-- Class & Subject Assignment Section -->
+  <div class="card mb-4">
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">{{ class.class }}</h5>
-        <form method="get" action="#">
-            <button type="submit" class="btn btn-outline-light btn-sm">Export Results (CSV)</button>
-        </form>
+      <span>Class & Subject Assignment</span>
+      <a href="#" class="btn btn-sm btn-light">Assign New</a>
     </div>
     <div class="card-body">
-        <h6>Students & Performance</h6>
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Student</th>
-                    <th>Average Score</th>
-                    <th>Grade Distribution</th>
-                    <th>Input/Edit Scores</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for student in class.students %}
-                <tr>
-                    <td>{{ student.student }}</td>
-                    <td>{{ student.avg_score|floatformat:2 }}</td>
-                    <td>
-                        {% for dist in student.grade_dist %}
-                            <span class="badge bg-info">{{ dist.grade_letter }}: {{ dist.count }}</span>
-                        {% empty %}
-                            <span class="text-muted">No grades</span>
-                        {% endfor %}
-                    </td>
-                    <td>
-                        <!-- Score input/edit modal trigger -->
-                        <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#editScoreModal_{{ class.class }}_{{ student.student }}">Edit</button>
-                        <!-- Modal -->
-                        <div class="modal fade" id="editScoreModal_{{ class.class }}_{{ student.student }}" tabindex="-1" aria-labelledby="editScoreModalLabel_{{ class.class }}_{{ student.student }}" aria-hidden="true">
-                          <div class="modal-dialog">
-                            <div class="modal-content">
-                              <div class="modal-header">
-                                <h5 class="modal-title" id="editScoreModalLabel_{{ class.class }}_{{ student.student }}">Edit Scores for {{ student.student }}</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                              </div>
-                              <div class="modal-body">
-                                <form method="post" action="#">
-                                  {% csrf_token %}
-                                  <!-- Dynamically generate subject score inputs -->
-                                  {% for subject in class.subjects %}
-                                  <div class="mb-2">
-                                    <label class="form-label">{{ subject.name }}</label>
-                                    <input type="number" name="score_{{ subject.id }}" class="form-control" step="0.01" min="0" max="100" value="">
-                                  </div>
-                                  {% endfor %}
-                                  <button type="submit" class="btn btn-primary mt-2">Save Scores</button>
-                                </form>
+      <table class="table table-bordered align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Class/Stream</th>
+            <th>Subjects Assigned</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for assignment in teacher.assignments %}
+          <tr>
+            <td>{{ assignment.class_group.name }}</td>
+            <td>
+              {% for subject in assignment.subjects %}
+                <span class="badge bg-success">{{ subject.name }}</span>
+              {% endfor %}
+            </td>
+            <td>
+              <a href="#" class="btn btn-sm btn-outline-primary">Edit</a>
+              <a href="#" class="btn btn-sm btn-outline-danger">Remove</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3">No assignments yet.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% if teacher.conflicts %}
+      <div class="alert alert-warning mt-3">
+        <strong>Conflicts Detected:</strong>
+        <ul class="mb-0">
+          {% for conflict in teacher.conflicts %}
+            <li>{{ conflict }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Performance & Attendance Section -->
+  <div class="card mb-4">
+    <div class="card-header bg-success text-white">Performance & Attendance</div>
+    <div class="card-body">
+      <table class="table table-striped align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Subject</th>
+            <th>Average Student Score</th>
+            <th>Last Marked</th>
+            <th>Trend</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for perf in teacher.performance %}
+          <tr>
+            <td>{{ perf.subject.name }}</td>
+            <td>{{ perf.avg_score|floatformat:2 }}</td>
+            <td>{{ perf.last_marked|date:'Y-m-d' }}</td>
+            <td>{% if perf.trend == 'up' %}↑{% elif perf.trend == 'down' %}↓{% else %}→{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">No performance data yet.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div class="mt-3">
+        <a href="#" class="btn btn-outline-info">View Detailed Performance</a>
+        <a href="#" class="btn btn-outline-secondary">Mark Attendance</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timetable Integration Section -->
+  <div class="card mb-4">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+      <span>Timetable</span>
+      <a href="#" class="btn btn-sm btn-light">Edit Timetable</a>
+    </div>
+    <div class="card-body">
+      <table class="table table-bordered align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Day</th>
+            <th>8:00-9:00</th>
+            <th>9:00-10:00</th>
+            <th>10:00-11:00</th>
+            <th>11:00-12:00</th>
+            <th>12:00-1:00</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for day, slots in teacher.timetable.items %}
+          <tr>
+            <td>{{ day }}</td>
+            {% for slot in slots %}
+              <td>{% if slot %}{{ slot }}{% else %}-{% endif %}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div class="mt-3">
+        <a href="#" class="btn btn-outline-info">Check Conflicts</a>
+        <a href="#" class="btn btn-outline-primary">Export as PDF</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
                               </div>
                             </div>
                           </div>
                         </div>
                     </td>
                 </tr>
-            {% empty %}
-                <tr><td colspan="4">No students found.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-
-        <!-- Performance Analysis Section -->
-        <div class="mt-4">
-            <strong>Performance Analysis:</strong>
-            <div class="row">
-                <div class="col-md-6">
-                    <canvas id="barChart_{{ class.class }}"></canvas>
-                </div>
-                <div class="col-md-6">
-                    <canvas id="gradeDistChart_{{ class.class }}"></canvas>
-                </div>
-            </div>
-            <div class="mt-2">
-                <span class="badge bg-secondary">Class Mean: <span id="meanScore_{{ class.class }}">--</span></span>
-            </div>
         </div>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script>
@@ -123,13 +177,3 @@
                     });
                 }
                 // Mean calculation placeholder
-                document.getElementById('meanScore_{{ class.class }}').textContent = '78.5';
-            }
-        });
-        </script>
-    </div>
-</div>
-{% empty %}
-<div class="alert alert-warning">You are not assigned to any classes.</div>
-{% endfor %}
-{% endblock %}

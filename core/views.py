@@ -41,7 +41,7 @@ def dashboard(request):
         from django.urls import reverse
         return redirect(reverse('admin_overview'))
     elif request.user.role == 'teacher':
-        return redirect('teacher_dashboard')
+        return redirect('teacher_dashboard', teacher_id=request.user.teacher.id)
     elif request.user.role == 'student':
         return redirect('student_dashboard')
     else:
@@ -213,6 +213,71 @@ def delete_teacher(request, teacher_id):
         return redirect('admin_teachers')
     return render(request, 'dashboards/delete_teacher.html', {'teacher': teacher})
 
+
+# Teacher Dashboard View
+@login_required(login_url='login')
+def teacher_dashboard(request, teacher_id):
+    from .models import Teacher, TeacherClassAssignment, Subject, Grade, Class
+    from django.db.models import Avg, Max
+    teacher = Teacher.objects.select_related('user').prefetch_related('subjects').get(id=teacher_id)
+    # Assignments: classes and subjects
+    assignments = []
+    conflicts = []
+    class_assignments = TeacherClassAssignment.objects.filter(teacher=teacher).select_related('class_group').prefetch_related('subjects')
+    for assign in class_assignments:
+        assignments.append({
+            'class_group': assign.class_group,
+            'subjects': assign.subjects.all()
+        })
+    # Simple conflict check: same subject assigned to multiple teachers in same class
+    for assign in class_assignments:
+        for subject in assign.subjects.all():
+            others = TeacherClassAssignment.objects.filter(class_group=assign.class_group, subjects=subject).exclude(teacher=teacher)
+            if others.exists():
+                for other in others:
+                    conflicts.append(f"Subject {subject.name} for {assign.class_group.name} also assigned to {other.teacher.user.get_full_name()}")
+    # Performance: avg score, last marked, trend
+    performance = []
+    for subject in teacher.subjects.all():
+        # Get grades for this subject in classes the teacher is assigned to
+        class_ids = [a['class_group'].id for a in assignments]
+        grades = Grade.objects.filter(subject=subject, student__class_group_id__in=class_ids)
+        avg_score = grades.aggregate(avg=Avg('score'))['avg']
+        last_marked = None
+        if grades.exists() and hasattr(grades.first(), 'exam'):
+            last_marked = grades.order_by('-exam__id').first().exam.date if hasattr(grades.first().exam, 'date') else None
+        # Dummy trend logic: could be improved with more data
+        trend = 'up' if avg_score and avg_score > 75 else 'down' if avg_score and avg_score < 50 else 'neutral'
+        performance.append({
+            'subject': subject,
+            'avg_score': avg_score or 0,
+            'last_marked': last_marked,
+            'trend': trend,
+        })
+    # Timetable: dummy structure (should be replaced with real timetable logic)
+    timetable = {
+        'Monday':    [None, None, None, None, None],
+        'Tuesday':   [None, None, None, None, None],
+        'Wednesday': [None, None, None, None, None],
+        'Thursday':  [None, None, None, None, None],
+        'Friday':    [None, None, None, None, None],
+    }
+    # Example: fill in timetable slots from assignments (very basic)
+    slot_names = ['8:00-9:00', '9:00-10:00', '10:00-11:00', '11:00-12:00', '12:00-1:00']
+    for i, assign in enumerate(assignments):
+        for j, subject in enumerate(assign['subjects']):
+            day = list(timetable.keys())[i % 5]
+            timetable[day][j % 5] = f"{subject.name} ({assign['class_group'].name})"
+    context = {
+        'teacher': teacher,
+        'teacher_id': teacher.id,
+        'assignments': assignments,
+        'performance': performance,
+        'timetable': timetable,
+        'class_count': class_assignments.count(),
+        'conflicts': conflicts,
+    }
+    return render(request, 'dashboards/teacher_dashboard.html', context)
 
 # Admin Students View
 @login_required(login_url='login')

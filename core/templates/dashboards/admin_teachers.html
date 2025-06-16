@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <tbody>
             {% for teacher in teachers %}
                 <tr>
-                    <td>{{ teacher.user.get_full_name|default:teacher.user.username }}</td>
+                    <td><a href="{% url 'teacher_dashboard' teacher.id %}">{{ teacher.user.get_full_name|default:teacher.user.username }}</a></td>
                     <td>{{ teacher.tsc_number }}</td>
                     <td>{{ teacher.staff_id }}</td>
                     <td>{{ teacher.user.email }}</td>
