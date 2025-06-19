@@ -1,6 +1,18 @@
 {% extends 'base.html' %}
 {% block title %}Edit Teacher{% endblock %}
 {% block content %}
+<style>
+.horizontal-checkbox-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5em 2em;
+}
+.horizontal-checkbox-list label {
+    margin-right: 1.5em;
+    min-width: 160px;
+    white-space: nowrap;
+}
+</style>
 <h2>Edit Teacher: {{ teacher.user.get_full_name|default:teacher.user.username }}</h2>
 <form method="post" autocomplete="off" class="mb-4 p-3 border rounded bg-light">
   {% csrf_token %}
@@ -52,6 +64,12 @@
     <div class="col-12">
       {{ form.subjects.label_tag }}
       {{ form.subjects }}{% if form.subjects.errors %}<div class="text-danger small">{{ form.subjects.errors }}</div>{% endif %}
+    </div>
+    <div class="col-12">
+      <label for="id_class_teacher_of">Class Teacher Of</label>
+      {{ form.class_teacher_of }}
+      <div class="form-text">Hold Ctrl (Cmd on Mac) to select multiple classes. Only selected classes will have this teacher as class teacher.</div>
+      {% if form.class_teacher_of.errors %}<div class="text-danger small">{{ form.class_teacher_of.errors }}</div>{% endif %}
     </div>
   </div>
   <div class="mt-3">

@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
-from .models import User, Teacher, Department, Subject
+from .models import User, Teacher, Department, Subject, Class
 
 class CustomUserCreationForm(UserCreationForm):
     class Meta:
@@ -15,25 +15,48 @@ class AddTeacherForm(forms.ModelForm):
     email = forms.EmailField(required=True)
     password = forms.CharField(widget=forms.PasswordInput, required=True)
     # Teacher fields
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Hide password field if editing (instance exists and has pk)
+        if self.instance and getattr(self.instance, 'pk', None):
+            self.fields.pop('password', None)
     tsc_number = forms.CharField(max_length=30, required=False)
     staff_id = forms.CharField(max_length=30, required=False)
     phone = forms.CharField(max_length=20, required=False)
     gender = forms.ChoiceField(choices=Teacher.GENDER_CHOICES, required=False)
     department = forms.ModelChoiceField(queryset=Department.objects.all(), required=False)
-    subjects = forms.ModelMultipleChoiceField(queryset=Subject.objects.all(), required=False, widget=forms.SelectMultiple)
+    subjects = forms.ModelMultipleChoiceField(
+        queryset=Subject.objects.all(),
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'horizontal-checkbox-list'}),
+        required=False
+    )
+    class_teacher_of = forms.ModelMultipleChoiceField(
+        queryset=Class.objects.all(),
+        required=False,
+        widget=forms.SelectMultiple(attrs={'class': 'form-select'})
+    )
 
     class Meta:
         model = Teacher
-        fields = ['first_name', 'last_name', 'username', 'email', 'password', 'tsc_number', 'staff_id', 'phone', 'gender', 'department', 'subjects']
+        fields = ['first_name', 'last_name', 'username', 'email', 'password', 'tsc_number', 'staff_id', 'phone', 'gender', 'department', 'subjects', 'class_teacher_of']
 
     def clean_username(self):
         username = self.cleaned_data['username']
-        if User.objects.filter(username=username).exists():
+        qs = User.objects.filter(username=username)
+        # Exclude current user when editing
+        if self.instance and getattr(self.instance, 'user_id', None):
+            qs = qs.exclude(pk=self.instance.user_id)
+        if qs.exists():
             raise forms.ValidationError('Username already exists.')
         return username
 
     def clean_email(self):
         email = self.cleaned_data['email']
-        if User.objects.filter(email=email).exists():
+        qs = User.objects.filter(email=email)
+        # Exclude current user when editing
+        if self.instance and getattr(self.instance, 'user_id', None):
+            qs = qs.exclude(pk=self.instance.user_id)
+        if qs.exists():
             raise forms.ValidationError('Email already exists.')
         return email

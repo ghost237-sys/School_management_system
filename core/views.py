@@ -96,11 +96,12 @@ from django.shortcuts import get_object_or_404
 def admin_teachers(request):
     if request.user.role != 'admin':
         return redirect('dashboard')
-    from .models import Teacher, Department, Subject, User
+    from .models import Teacher, Department, Subject, User, Class
     from django.db.models import Q
     teachers = Teacher.objects.select_related('user', 'department').prefetch_related('subjects', 'teacherclassassignment_set__class_group').all()
     departments = Department.objects.all()
     subjects = Subject.objects.all()
+    classes = Class.objects.select_related('class_teacher').all()
     form = AddTeacherForm()
 
     # Handle Add Teacher POST
@@ -177,7 +178,7 @@ def edit_teacher(request, teacher_id):
             user.email = form.cleaned_data['email']
             user.first_name = form.cleaned_data['first_name']
             user.last_name = form.cleaned_data['last_name']
-            if form.cleaned_data['password']:
+            if 'password' in form.cleaned_data and form.cleaned_data['password']:
                 user.set_password(form.cleaned_data['password'])
             user.save()
             # Update teacher fields
@@ -188,6 +189,17 @@ def edit_teacher(request, teacher_id):
             teacher.department = form.cleaned_data['department']
             teacher.subjects.set(form.cleaned_data['subjects'])
             teacher.save()
+
+            # Handle class_teacher_of assignments
+            from .models import Class
+            selected_classes = form.cleaned_data.get('class_teacher_of', [])
+            # Remove this teacher as class_teacher from classes not selected
+            Class.objects.filter(class_teacher=teacher).exclude(id__in=[c.id for c in selected_classes]).update(class_teacher=None)
+            # Assign this teacher as class_teacher for selected classes
+            for c in selected_classes:
+                c.class_teacher = teacher
+                c.save()
+
             messages.success(request, 'Teacher updated successfully.')
             return redirect('admin_teachers')
     else:
@@ -296,10 +308,58 @@ def admin_students(request):
 def admin_classes(request):
     if request.user.role != 'admin':
         return redirect('dashboard')
-    from .models import Class, Student
+    from .models import Class, Student, Subject, Teacher, TeacherClassAssignment
+    from django.contrib import messages
+    # Handle assignment POST
+    if request.method == 'POST':
+        if 'assign_teacher' in request.POST:
+            class_id = request.POST.get('class_id')
+            subject_id = request.POST.get('subject_id')
+            teacher_id = request.POST.get('teacher_id')
+            if class_id and subject_id and teacher_id:
+                try:
+                    class_obj = Class.objects.get(id=class_id)
+                    subject_obj = Subject.objects.get(id=subject_id)
+                    teacher_obj = Teacher.objects.get(id=teacher_id)
+                    # Update or create assignment
+                    assignment, created = TeacherClassAssignment.objects.update_or_create(
+                        class_group=class_obj, subject=subject_obj,
+                        defaults={'teacher': teacher_obj}
+                    )
+                    messages.success(request, f"Assigned {teacher_obj.user.get_full_name()} to {subject_obj.name} for {class_obj.name}.")
+                except (Class.DoesNotExist, Subject.DoesNotExist, Teacher.DoesNotExist):
+                    messages.error(request, "Invalid class, subject, or teacher selection.")
+            else:
+                messages.error(request, "Please select class, subject, and teacher.")
+        elif 'assign_class_teacher' in request.POST:
+            class_id = request.POST.get('class_id')
+            teacher_id = request.POST.get('teacher_id')
+            if class_id and teacher_id:
+                try:
+                    class_obj = Class.objects.get(id=class_id)
+                    teacher_obj = Teacher.objects.get(id=teacher_id)
+                    class_obj.class_teacher = teacher_obj
+                    class_obj.save()
+                    messages.success(request, f"Changed class teacher for {class_obj.name} to {teacher_obj.user.get_full_name()}.")
+                except (Class.DoesNotExist, Teacher.DoesNotExist):
+                    messages.error(request, "Invalid class or teacher selection.")
+            else:
+                messages.error(request, "Please select both class and teacher.")
+    # Prepare data for GET
     classes = Class.objects.all()
+    all_subjects = Subject.objects.all()
+    all_teachers = Teacher.objects.select_related('user').all()
     class_list = []
     for c in classes:
+        # For this class, get all subjects (could be all, or you may want to filter)
+        subjects = Subject.objects.all()  # Adjust if classes have specific subjects
+        subjects_and_teachers = []
+        for subj in subjects:
+            assignment = TeacherClassAssignment.objects.filter(class_group=c, subject=subj).select_related('teacher__user').first()
+            subjects_and_teachers.append({
+                'subject': subj,
+                'teacher': assignment.teacher if assignment else None,
+            })
         class_students = Student.objects.filter(class_group=c).select_related('user')
         class_list.append({
             'id': c.id,
@@ -308,11 +368,15 @@ def admin_classes(request):
             'class_teacher': c.class_teacher.user.get_full_name() if c.class_teacher else None,
             'class_teacher_username': c.class_teacher.user.username if c.class_teacher else None,
             'students': list(class_students),
+            'subjects_and_teachers': subjects_and_teachers,
         })
     context = {
         'class_list': class_list,
+        'all_teachers': all_teachers,
+        'all_subjects': all_subjects,
     }
     return render(request, 'dashboards/admin_classes.html', context)
+
 
 # Admin Analytics View
 @login_required(login_url='login')

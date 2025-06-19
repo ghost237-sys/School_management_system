@@ -18,7 +18,53 @@
                 </h2>
                 <div id="collapse{{ class.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ class.id }}" data-bs-parent="#classesAccordion">
                     <div class="accordion-body">
-                        <p><strong>Class Teacher:</strong> {{ class.class_teacher|default:'Not assigned' }}</p>
+                        <div class="d-flex align-items-center mb-2">
+                            <strong>Class Teacher:</strong>
+                            <span class="ms-2">{{ class.class_teacher|default:'Not assigned' }}</span>
+                            <button type="button" class="btn btn-sm btn-outline-primary ms-2" data-bs-toggle="collapse" data-bs-target="#changeClassTeacherForm{{ class.id }}" aria-expanded="false" aria-controls="changeClassTeacherForm{{ class.id }}">
+                                Change
+                            </button>
+                        </div>
+                        <div class="collapse" id="changeClassTeacherForm{{ class.id }}">
+                            <form method="post" class="d-flex align-items-center mb-2">
+                                {% csrf_token %}
+                                <input type="hidden" name="assign_class_teacher" value="1">
+                                <input type="hidden" name="class_id" value="{{ class.id }}">
+                                <select name="teacher_id" class="form-select form-select-sm me-2" required>
+                                    <option value="">-- Select Teacher --</option>
+                                    {% for teacher in all_teachers %}
+                                        <option value="{{ teacher.id }}">{{ teacher.user.get_full_name|default:teacher.user.username }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-success">Save</button>
+                            </form>
+                        </div>
+
+                        <h6>Subjects & Teachers:</h6>
+                        <table class="table table-bordered table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Subject</th>
+                                    <th>Assigned Teacher</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for st in class.subjects_and_teachers %}
+                                <tr>
+                                    <td>{{ st.subject.name }}</td>
+                                    <td>
+                                        {% if st.teacher %}
+                                            {{ st.teacher.user.get_full_name|default:st.teacher.user.username }}
+                                        {% else %}
+                                            <span class="text-muted">Not assigned</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div class="mb-3"></div>
+
                         <h6>Members:</h6>
                         <table class="table table-sm">
                             <thead>

@@ -26,6 +26,9 @@ class Class(models.Model):
     level = models.CharField(max_length=50)
     class_teacher = models.ForeignKey('Teacher', null=True, blank=True, on_delete=models.SET_NULL)
 
+    def __str__(self):
+        return f"{self.name} (Level {self.level})"
+
 class Department(models.Model):
     name = models.CharField(max_length=100)
     def __str__(self):

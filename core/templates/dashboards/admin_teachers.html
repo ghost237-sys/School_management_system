@@ -1,6 +1,18 @@
 {% extends 'base.html' %}
 {% block title %}Admin Teachers{% endblock %}
 {% block content %}
+<style>
+.horizontal-checkbox-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5em 2em;
+}
+.horizontal-checkbox-list label {
+    margin-right: 1.5em;
+    min-width: 160px;
+    white-space: nowrap;
+}
+</style>
 {% include 'dashboards/admin_navbar.html' %}
 <h1 class="mb-4">Teachers</h1>
 <h2>Add New Teacher</h2>
@@ -103,6 +115,7 @@
                     <th>Gender</th>
                     <th>Department</th>
                     <th>Subjects Taught</th>
+                    <th>Class Teacher Of</th>
                     <th>Current Class/Stream</th>
                     <th>Actions</th>
                 </tr>
@@ -165,6 +178,33 @@ document.addEventListener('DOMContentLoaded', function() {
                         {% empty %}
                             <span class="text-muted">No subjects</span>
                         {% endfor %}
+                    </td>
+                    <td>
+                        {% with class_teacher_of=teacher.class_set.all %}
+                            {% if class_teacher_of %}
+                                {% for c in class_teacher_of %}
+                                    <span class="badge bg-success">{{ c.name }}</span>
+                                {% empty %}
+                                    <span class="text-muted">None</span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">None</span>
+                            {% endif %}
+                        {% endwith %}
+                        <form method="post" class="mt-2 d-flex align-items-center">
+                            {% csrf_token %}
+                            <input type="hidden" name="assign_class_teacher" value="1">
+                            <input type="hidden" name="teacher_id" value="{{ teacher.id }}">
+                            <select name="class_id" class="form-select form-select-sm me-2" required>
+                                <option value="">-- Assign as Class Teacher --</option>
+                                {% for c in classes %}
+                                    {% if not c.class_teacher or c.class_teacher.id == teacher.id %}
+                                        <option value="{{ c.id }}">{{ c.name }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary">Assign</button>
+                        </form>
                     </td>
                     <td>
                         {% with assignment=teacher.teacherclassassignment_set.first %}
