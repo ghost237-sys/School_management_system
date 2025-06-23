@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Class Profile{% endblock %}
+{% block content %}
+<div class="container">
+  <h2>Class Profile: {{ class_obj.name }} (Level {{ class_obj.level }})</h2>
+  <div class="mb-3">
+    <strong>Class Teacher:</strong>
+    {% if class_obj.class_teacher %}
+      {{ class_obj.class_teacher.user.get_full_name|default:class_obj.class_teacher.user.username }}
+    {% else %}
+      Not assigned
+    {% endif %}
+  </div>
+  <h4>Subjects & Assigned Teachers</h4>
+  <table class="table table-bordered">
+    <thead>
+      <tr><th>Subject</th><th>Teacher</th></tr>
+    </thead>
+    <tbody>
+      {% for st in subjects_and_teachers %}
+      <tr>
+        <td>{{ st.subject.name }}</td>
+        <td>{% if st.teacher %}{{ st.teacher.user.get_full_name|default:st.teacher.user.username }}{% else %}<span class="text-muted">Not assigned</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <h4>Students</h4>
+  <table class="table table-striped">
+    <thead><tr><th>Name</th><th>Email</th></tr></thead>
+    <tbody>
+      {% for student in students %}
+      <tr>
+        <td>{{ student.user.get_full_name|default:student.user.username }}</td>
+        <td>{{ student.user.email }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <a href="{% url 'admin_classes' %}" class="btn btn-secondary">Back to Classes</a>
+</div>
+{% endblock %}

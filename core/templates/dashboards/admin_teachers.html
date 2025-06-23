@@ -13,66 +13,70 @@
     white-space: nowrap;
 }
 </style>
-{% include 'dashboards/admin_navbar.html' %}
+
 <h1 class="mb-4">Teachers</h1>
-<h2>Add New Teacher</h2>
-<form method="post" action="" autocomplete="off" class="mb-4 p-3 border rounded bg-light">
-  {% csrf_token %}
-  <input type="hidden" name="add_teacher" value="1">
-  {% if add_teacher_form.errors %}
-    <div class="alert alert-danger">Please fix the errors below.</div>
-  {% endif %}
-  <div class="row g-3">
-    <div class="col-md-6">
-      {{ add_teacher_form.first_name.label_tag }}
-      {{ add_teacher_form.first_name }}{% if add_teacher_form.first_name.errors %}<div class="text-danger small">{{ add_teacher_form.first_name.errors }}</div>{% endif %}
+<button class="btn btn-primary mb-4" type="button" data-bs-toggle="collapse" data-bs-target="#addTeacherFormCollapse" aria-expanded="false" aria-controls="addTeacherFormCollapse">
+  Add New Teacher
+</button>
+<div class="collapse" id="addTeacherFormCollapse">
+  <form method="post" action="" autocomplete="off" class="mb-4 p-3 border rounded bg-light">
+    {% csrf_token %}
+    <input type="hidden" name="add_teacher" value="1">
+    {% if add_teacher_form.errors %}
+      <div class="alert alert-danger">Please fix the errors below.</div>
+    {% endif %}
+    <div class="row g-3">
+      <div class="col-md-6">
+        {{ add_teacher_form.first_name.label_tag }}
+        {{ add_teacher_form.first_name }}{% if add_teacher_form.first_name.errors %}<div class="text-danger small">{{ add_teacher_form.first_name.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-6">
+        {{ add_teacher_form.last_name.label_tag }}
+        {{ add_teacher_form.last_name }}{% if add_teacher_form.last_name.errors %}<div class="text-danger small">{{ add_teacher_form.last_name.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-6">
+        {{ add_teacher_form.username.label_tag }}
+        {{ add_teacher_form.username }}{% if add_teacher_form.username.errors %}<div class="text-danger small">{{ add_teacher_form.username.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-6">
+        {{ add_teacher_form.email.label_tag }}
+        {{ add_teacher_form.email }}{% if add_teacher_form.email.errors %}<div class="text-danger small">{{ add_teacher_form.email.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-6">
+        {{ add_teacher_form.password.label_tag }}
+        {{ add_teacher_form.password }}{% if add_teacher_form.password.errors %}<div class="text-danger small">{{ add_teacher_form.password.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-6">
+        {{ add_teacher_form.tsc_number.label_tag }}
+        {{ add_teacher_form.tsc_number }}{% if add_teacher_form.tsc_number.errors %}<div class="text-danger small">{{ add_teacher_form.tsc_number.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-6">
+        {{ add_teacher_form.staff_id.label_tag }}
+        {{ add_teacher_form.staff_id }}{% if add_teacher_form.staff_id.errors %}<div class="text-danger small">{{ add_teacher_form.staff_id.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-6">
+        {{ add_teacher_form.phone.label_tag }}
+        {{ add_teacher_form.phone }}{% if add_teacher_form.phone.errors %}<div class="text-danger small">{{ add_teacher_form.phone.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-6">
+        {{ add_teacher_form.gender.label_tag }}
+        {{ add_teacher_form.gender }}{% if add_teacher_form.gender.errors %}<div class="text-danger small">{{ add_teacher_form.gender.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-6">
+        {{ add_teacher_form.department.label_tag }}
+        {{ add_teacher_form.department }}{% if add_teacher_form.department.errors %}<div class="text-danger small">{{ add_teacher_form.department.errors }}</div>{% endif %}
+      </div>
+      <div class="col-12">
+        {{ add_teacher_form.subjects.label_tag }}
+        {{ add_teacher_form.subjects }}{% if add_teacher_form.subjects.errors %}<div class="text-danger small">{{ add_teacher_form.subjects.errors }}</div>{% endif %}
+        <div id="selected-subjects" class="mt-2"></div>
+      </div>
     </div>
-    <div class="col-md-6">
-      {{ add_teacher_form.last_name.label_tag }}
-      {{ add_teacher_form.last_name }}{% if add_teacher_form.last_name.errors %}<div class="text-danger small">{{ add_teacher_form.last_name.errors }}</div>{% endif %}
+    <div class="mt-3">
+      <button type="submit" class="btn btn-success">Add Teacher</button>
     </div>
-    <div class="col-md-6">
-      {{ add_teacher_form.username.label_tag }}
-      {{ add_teacher_form.username }}{% if add_teacher_form.username.errors %}<div class="text-danger small">{{ add_teacher_form.username.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ add_teacher_form.email.label_tag }}
-      {{ add_teacher_form.email }}{% if add_teacher_form.email.errors %}<div class="text-danger small">{{ add_teacher_form.email.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ add_teacher_form.password.label_tag }}
-      {{ add_teacher_form.password }}{% if add_teacher_form.password.errors %}<div class="text-danger small">{{ add_teacher_form.password.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ add_teacher_form.tsc_number.label_tag }}
-      {{ add_teacher_form.tsc_number }}{% if add_teacher_form.tsc_number.errors %}<div class="text-danger small">{{ add_teacher_form.tsc_number.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ add_teacher_form.staff_id.label_tag }}
-      {{ add_teacher_form.staff_id }}{% if add_teacher_form.staff_id.errors %}<div class="text-danger small">{{ add_teacher_form.staff_id.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ add_teacher_form.phone.label_tag }}
-      {{ add_teacher_form.phone }}{% if add_teacher_form.phone.errors %}<div class="text-danger small">{{ add_teacher_form.phone.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ add_teacher_form.gender.label_tag }}
-      {{ add_teacher_form.gender }}{% if add_teacher_form.gender.errors %}<div class="text-danger small">{{ add_teacher_form.gender.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ add_teacher_form.department.label_tag }}
-      {{ add_teacher_form.department }}{% if add_teacher_form.department.errors %}<div class="text-danger small">{{ add_teacher_form.department.errors }}</div>{% endif %}
-    </div>
-    <div class="col-12">
-      {{ add_teacher_form.subjects.label_tag }}
-      {{ add_teacher_form.subjects }}{% if add_teacher_form.subjects.errors %}<div class="text-danger small">{{ add_teacher_form.subjects.errors }}</div>{% endif %}
-      <div id="selected-subjects" class="mt-2"></div>
-    </div>
-  </div>
-  <div class="mt-3">
-    <button type="submit" class="btn btn-success">Add Teacher</button>
-  </div>
-</form>
+  </form>
+</div>
 
 <div class="mb-3 d-flex flex-wrap gap-2">
     <form class="d-flex flex-wrap gap-2" method="get">
@@ -99,7 +103,7 @@
     </form>
 
 </div>
-<div class="card mb-4">
+
     <div class="card-header bg-info text-white">
         <h5 class="mb-0">All Teachers</h5>
     </div>
@@ -159,7 +163,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <tbody>
             {% for teacher in teachers %}
                 <tr>
-                    <td><a href="{% url 'teacher_dashboard' teacher.id %}">{{ teacher.user.get_full_name|default:teacher.user.username }}</a></td>
+                    <td><a href="{% url 'teacher_profile' teacher.id %}">{{ teacher.user.get_full_name|default:teacher.user.username }}</a></td>
                     <td>{{ teacher.tsc_number }}</td>
                     <td>{{ teacher.staff_id }}</td>
                     <td>{{ teacher.user.email }}</td>

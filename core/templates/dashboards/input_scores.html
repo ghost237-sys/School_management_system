@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Input/Edit Scores{% endblock %}
+{% block content %}
+<div class="container">
+  <h2 class="mb-3">Input/Edit Scores</h2>
+  <div class="mb-2">
+    <strong>Class:</strong> {{ class_group.name }}<br>
+    <strong>Subject:</strong> {{ subject.name }}<br>
+    <strong>Exam:</strong> {{ exam.name }}<br>
+  </div>
+  <form method="post">
+    {% csrf_token %}
+    <table class="table table-bordered">
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Score</th>
+          <th>Grade Letter</th>
+          <th>Remarks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for form in formset.forms %}
+        <tr>
+          <td>{{ form.instance.student.user.get_full_name|default:form.instance.student.user.username }}</td>
+          <td>{{ form.score }}</td>
+          <td>{{ form.grade_letter }}</td>
+          <td>{{ form.remarks }}</td>
+          {{ form.student }} <!-- hidden field -->
+          {{ form.subject }} <!-- hidden field, if needed -->
+          {{ form.exam }} <!-- hidden field, if needed -->
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit" class="btn btn-success">Save Scores</button>
+  </form>
+  <a href="{% url 'teacher_dashboard' teacher_id=teacher.id %}" class="btn btn-secondary mt-3">Back to Dashboard</a>
+</div>
+{% endblock %}

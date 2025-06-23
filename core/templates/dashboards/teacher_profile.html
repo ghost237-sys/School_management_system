@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Teacher Profile{% endblock %}
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-md-8 mx-auto">
+      <div class="card shadow p-4 mt-4">
+        <div class="d-flex align-items-center mb-4">
+          <div class="me-4">
+            <img src="https://ui-avatars.com/api/?name={{ teacher.user.get_full_name|default:teacher.user.username }}&background=6C2EB7&color=fff&size=100" class="rounded-circle" width="100" height="100" alt="Profile Picture">
+          </div>
+          <div>
+            <h2 class="mb-1">{{ teacher.user.get_full_name|default:teacher.user.username }}</h2>
+            <span class="badge bg-info">TSC No: {{ teacher.tsc_number }}</span>
+            <span class="badge bg-secondary">Staff ID: {{ teacher.staff_id }}</span>
+          </div>
+        </div>
+        <hr>
+        <h5>Personal Information</h5>
+        <ul class="list-group list-group-flush mb-4">
+          <li class="list-group-item"><strong>Email:</strong> {{ teacher.user.email }}</li>
+          <li class="list-group-item"><strong>Phone:</strong> {{ teacher.phone }}</li>
+          <li class="list-group-item"><strong>Gender:</strong> {{ teacher.get_gender_display }}</li>
+          <li class="list-group-item"><strong>Department:</strong> {{ teacher.department.name }}</li>
+        </ul>
+        <h5>Subjects</h5>
+        <ul class="list-group list-group-flush mb-4">
+          {% for subject in teacher.subjects.all %}
+            <li class="list-group-item">{{ subject.name }}</li>
+          {% empty %}
+            <li class="list-group-item text-muted">No subjects assigned</li>
+          {% endfor %}
+        </ul>
+        <h5>Assigned Classes</h5>
+        <ul class="list-group list-group-flush mb-4">
+          {% for class_obj in teacher.class_set.all %}
+            <li class="list-group-item">{{ class_obj.name }}</li>
+          {% empty %}
+            <li class="list-group-item text-muted">No classes assigned</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

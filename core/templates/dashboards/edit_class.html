@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Edit Class{% endblock %}
+{% block content %}
+<div class="container">
+  <h2>Edit Class: {{ class_obj.name }}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label for="className" class="form-label">Stream Name</label>
+      <input type="text" class="form-control" id="className" name="name" value="{{ class_obj.name }}" required>
+    </div>
+    <div class="mb-3">
+      <label for="classLevel" class="form-label">Year/Level</label>
+      <input type="text" class="form-control" id="classLevel" name="level" value="{{ class_obj.level }}" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a href="{% url 'admin_classes' %}" class="btn btn-secondary ms-2">Cancel</a>
+  </form>
+</div>
+{% endblock %}

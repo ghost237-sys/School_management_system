@@ -226,6 +226,18 @@ def delete_teacher(request, teacher_id):
     return render(request, 'dashboards/delete_teacher.html', {'teacher': teacher})
 
 
+# Teacher Profile View
+@login_required(login_url='login')
+def teacher_profile(request, teacher_id):
+    from .models import Teacher
+    from django.shortcuts import get_object_or_404
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    # Only allow admin or the teacher themselves
+    if not (request.user.role == 'admin' or request.user.id == teacher.user.id):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden('You do not have permission to view this profile.')
+    return render(request, 'dashboards/teacher_profile.html', {'teacher': teacher})
+
 # Teacher Dashboard View
 @login_required(login_url='login')
 def teacher_dashboard(request, teacher_id):
@@ -235,19 +247,19 @@ def teacher_dashboard(request, teacher_id):
     # Assignments: classes and subjects
     assignments = []
     conflicts = []
-    class_assignments = TeacherClassAssignment.objects.filter(teacher=teacher).select_related('class_group').prefetch_related('subjects')
+    class_assignments = TeacherClassAssignment.objects.filter(teacher=teacher).select_related('class_group', 'subject')
     for assign in class_assignments:
         assignments.append({
             'class_group': assign.class_group,
-            'subjects': assign.subjects.all()
+            'subjects': [assign.subject]  # single subject per assignment
         })
     # Simple conflict check: same subject assigned to multiple teachers in same class
     for assign in class_assignments:
-        for subject in assign.subjects.all():
-            others = TeacherClassAssignment.objects.filter(class_group=assign.class_group, subjects=subject).exclude(teacher=teacher)
-            if others.exists():
-                for other in others:
-                    conflicts.append(f"Subject {subject.name} for {assign.class_group.name} also assigned to {other.teacher.user.get_full_name()}")
+        subject = assign.subject
+        others = TeacherClassAssignment.objects.filter(class_group=assign.class_group, subject=subject).exclude(teacher=teacher)
+        if others.exists():
+            for other in others:
+                conflicts.append(f"Subject {subject.name} for {assign.class_group.name} also assigned to {other.teacher.user.get_full_name()}")
     # Performance: avg score, last marked, trend
     performance = []
     for subject in teacher.subjects.all():
@@ -352,14 +364,23 @@ def admin_classes(request):
     class_list = []
     for c in classes:
         # For this class, get all subjects (could be all, or you may want to filter)
-        subjects = Subject.objects.all()  # Adjust if classes have specific subjects
-        subjects_and_teachers = []
-        for subj in subjects:
-            assignment = TeacherClassAssignment.objects.filter(class_group=c, subject=subj).select_related('teacher__user').first()
-            subjects_and_teachers.append({
-                'subject': subj,
-                'teacher': assignment.teacher if assignment else None,
+        # Build a mapping of teachers to their assigned subjects for this class
+        assignments = TeacherClassAssignment.objects.filter(class_group=c).select_related('teacher__user', 'subject')
+        teacher_subject_map = {}
+        for assign in assignments:
+            teacher = assign.teacher
+            if teacher not in teacher_subject_map:
+                teacher_subject_map[teacher] = []
+            teacher_subject_map[teacher].append(assign.subject)
+        teachers_and_subjects = []
+        for teacher, subjects in teacher_subject_map.items():
+            teachers_and_subjects.append({
+                'teacher': teacher,
+                'subjects': subjects
             })
+        # For backward compatibility in template, assign to 'subjects_and_teachers'
+        subjects_and_teachers = teachers_and_subjects
+
         class_students = Student.objects.filter(class_group=c).select_related('user')
         class_list.append({
             'id': c.id,
@@ -376,6 +397,59 @@ def admin_classes(request):
         'all_subjects': all_subjects,
     }
     return render(request, 'dashboards/admin_classes.html', context)
+
+@login_required(login_url='login')
+def class_profile(request, class_id):
+    from .models import Class, Student, TeacherClassAssignment, Subject
+    class_obj = Class.objects.select_related('class_teacher').get(id=class_id)
+    students = Student.objects.filter(class_group=class_obj).select_related('user')
+    assignments = TeacherClassAssignment.objects.filter(class_group=class_obj).select_related('teacher__user', 'subject')
+    subjects_and_teachers = []
+    for subj in Subject.objects.all():
+        assignment = assignments.filter(subject=subj).first()
+        subjects_and_teachers.append({
+            'subject': subj,
+            'teacher': assignment.teacher if assignment else None,
+        })
+    context = {
+        'class_obj': class_obj,
+        'students': students,
+        'subjects_and_teachers': subjects_and_teachers,
+    }
+    return render(request, 'dashboards/class_profile.html', context)
+
+@login_required(login_url='login')
+def edit_class(request, class_id):
+    from .models import Class
+    from django.contrib import messages
+    class_obj = Class.objects.get(id=class_id)
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        level = request.POST.get('level')
+        if name and level:
+            class_obj.name = name
+            class_obj.level = level
+            class_obj.save()
+            messages.success(request, 'Class details updated.')
+            return redirect('admin_classes')
+    context = {'class_obj': class_obj}
+    return render(request, 'dashboards/edit_class.html', context)
+
+@login_required(login_url='login')
+def delete_class(request, class_id):
+    from .models import Class, Student, TeacherClassAssignment
+    from django.contrib import messages
+    class_obj = Class.objects.get(id=class_id)
+    if Student.objects.filter(class_group=class_obj).exists() or TeacherClassAssignment.objects.filter(class_group=class_obj).exists():
+        messages.error(request, 'Cannot delete class: class has students or teacher assignments.')
+        return redirect('admin_classes')
+    if request.method == 'POST':
+        class_obj.delete()
+        messages.success(request, 'Class deleted successfully.')
+        return redirect('admin_classes')
+    context = {'class_obj': class_obj}
+    return render(request, 'dashboards/delete_class.html', context)
+
 
 
 # Admin Analytics View
