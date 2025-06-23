@@ -19,7 +19,7 @@
             <tbody>
             {% for student in students %}
                 <tr>
-                    <td>{{ student.user.get_full_name|default:student.user.username }}</td>
+                    <td><a href="{% url 'student_profile' student.id %}">{{ student.user.get_full_name|default:student.user.username }}</a></td>
                     <td>{{ student.user.email }}</td>
                     <td>{{ student.class_group.name }}</td>
                 </tr>

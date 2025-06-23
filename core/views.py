@@ -226,6 +226,23 @@ def delete_teacher(request, teacher_id):
     return render(request, 'dashboards/delete_teacher.html', {'teacher': teacher})
 
 
+# Student Profile View
+@login_required(login_url='login')
+def student_profile(request, student_id):
+    from .models import Student, Class, Teacher
+    from django.shortcuts import get_object_or_404
+    student = get_object_or_404(Student, id=student_id)
+    # Only allow admin, the student themselves, or their class teacher
+    is_admin = request.user.role == 'admin'
+    is_student = hasattr(request.user, 'student') and request.user.student.id == student.id
+    is_class_teacher = False
+    if student.class_group and hasattr(request.user, 'teacher'):
+        is_class_teacher = (student.class_group.class_teacher_id == request.user.teacher.id)
+    if not (is_admin or is_student or is_class_teacher):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden('You do not have permission to view this student profile.')
+    return render(request, 'dashboards/student_profile.html', {'student': student})
+
 # Teacher Profile View
 @login_required(login_url='login')
 def teacher_profile(request, teacher_id):

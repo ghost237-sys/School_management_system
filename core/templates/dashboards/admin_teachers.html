@@ -184,36 +184,31 @@ document.addEventListener('DOMContentLoaded', function() {
                         {% endfor %}
                     </td>
                     <td>
-                        {% with class_teacher_of=teacher.class_set.all %}
-                            {% if class_teacher_of %}
-                                {% for c in class_teacher_of %}
-                                    <span class="badge bg-success">{{ c.name }}</span>
-                                {% empty %}
-                                    <span class="text-muted">None</span>
-                                {% endfor %}
-                            {% else %}
-                                <span class="text-muted">None</span>
-                            {% endif %}
-                        {% endwith %}
-                        <form method="post" class="mt-2 d-flex align-items-center">
-                            {% csrf_token %}
-                            <input type="hidden" name="assign_class_teacher" value="1">
-                            <input type="hidden" name="teacher_id" value="{{ teacher.id }}">
-                            <select name="class_id" class="form-select form-select-sm me-2" required>
-                                <option value="">-- Assign as Class Teacher --</option>
-                                {% for c in classes %}
-                                    {% if not c.class_teacher or c.class_teacher.id == teacher.id %}
-                                        <option value="{{ c.id }}">{{ c.name }}</option>
-                                    {% endif %}
-                                {% endfor %}
-                            </select>
-                            <button type="submit" class="btn btn-sm btn-primary">Assign</button>
-                        </form>
-                    </td>
-                    <td>
-                        {% with assignment=teacher.teacherclassassignment_set.first %}
-                            {% if assignment %}{{ assignment.class_group.name }}{% else %}<span class="text-muted">None</span>{% endif %}
-                        {% endwith %}
+    {% with class_teacher_of=teacher.class_set.all %}
+        {% if class_teacher_of %}
+            {% for c in class_teacher_of %}
+                <span class="badge bg-success">{{ c.name }}</span>
+            {% empty %}
+                <span class="text-muted">None</span>
+            {% endfor %}
+        {% else %}
+            <span class="text-muted">None</span>
+        {% endif %}
+    {% endwith %}
+</td>
+<td>
+    {% with assigned_classes=teacher.teacherclassassignment_set.all %}
+        {% if assigned_classes %}
+            {% for assignment in assigned_classes %}
+                <span class="badge bg-info">{{ assignment.class_group.name }}</span>
+            {% empty %}
+                <span class="text-muted">None</span>
+            {% endfor %}
+        {% else %}
+            <span class="text-muted">None</span>
+        {% endif %}
+    {% endwith %}
+</td>
                     </td>
                     <td>
     <a href="{% url 'edit_teacher' teacher.id %}" class="btn btn-sm btn-primary">Edit</a>
