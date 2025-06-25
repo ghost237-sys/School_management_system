@@ -42,59 +42,121 @@
     </div>
   </form>
 
-  <!-- Summary Cards -->
-  <div class="row mb-4 g-3">
-    <div class="col-12 col-md-3">
-      <div class="card text-bg-primary h-100">
-        <div class="card-body">
-          <h5 class="card-title">Students</h5>
-          <p class="card-text fs-4">{{ total_students }}</p>
-          <i class="bi bi-people-fill"></i>
+  <!-- Modern Square Grid Dashboard -->
+  <div class="card p-4 mb-4">
+    <div class="container-fluid">
+      <div class="row row-cols-1 row-cols-md-4 g-3">
+        <div class="col d-flex">
+          <div class="card text-bg-primary text-center flex-fill">
+            <div class="card-body py-4">
+              <div class="fs-2"><i class="bi bi-people-fill"></i></div>
+              <div class="fw-bold">Students</div>
+              <div class="fs-4">{{ total_students }}</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card text-bg-success h-100">
-        <div class="card-body">
-          <h5 class="card-title">Teachers</h5>
-          <p class="card-text fs-4">{{ total_teachers }}</p>
-          <i class="bi bi-person-badge-fill"></i>
+        <div class="col d-flex">
+          <div class="card text-bg-success text-center flex-fill">
+            <div class="card-body py-4">
+              <div class="fs-2"><i class="bi bi-person-badge-fill"></i></div>
+              <div class="fw-bold">Teachers</div>
+              <div class="fs-4">{{ total_teachers }}</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card text-bg-info h-100">
-        <div class="card-body">
-          <h5 class="card-title">Classes</h5>
-          <p class="card-text fs-4">{{ total_classes }}</p>
-          <i class="bi bi-building"></i>
+        <div class="col d-flex">
+          <div class="card text-bg-info text-center flex-fill">
+            <div class="card-body py-4">
+              <div class="fs-2"><i class="bi bi-building"></i></div>
+              <div class="fw-bold">Classes</div>
+              <div class="fs-4">{{ total_classes }}</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card text-bg-warning h-100">
-        <div class="card-body">
-          <h5 class="card-title">Subjects</h5>
-          <p class="card-text fs-4">{{ total_subjects }}</p>
-          <i class="bi bi-book-fill"></i>
+        <div class="col d-flex">
+          <div class="card text-bg-warning text-center flex-fill">
+            <div class="card-body py-4">
+              <div class="fs-2"><i class="bi bi-book-fill"></i></div>
+              <div class="fw-bold">Subjects</div>
+              <div class="fs-4">{{ total_subjects }}</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card text-bg-secondary h-100">
-        <div class="card-body">
-          <h5 class="card-title">Term</h5>
-          <p class="card-text fs-4">{{ current_term }}</p>
-          <i class="bi bi-calendar-event-fill"></i>
+        <div class="col d-flex">
+          <div class="card text-bg-secondary text-center flex-fill">
+            <div class="card-body py-4">
+              <div class="fs-2"><i class="bi bi-calendar-event-fill"></i></div>
+              <div class="fw-bold">Term</div>
+              <div class="fs-4">{{ current_term }}</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card text-bg-danger h-100">
-        <div class="card-body">
-          <h5 class="card-title">Fees</h5>
-          <p class="card-text fs-4">{{ total_fees }}</p>
-          <i class="bi bi-cash-stack"></i>
+        <div class="col d-flex">
+          <div class="card text-bg-danger text-center flex-fill">
+            <div class="card-body py-4">
+              <div class="fs-2"><i class="bi bi-cash-stack"></i></div>
+              <div class="fw-bold">Fees</div>
+              <div class="fs-4">{{ total_fees }}</div>
+            </div>
+          </div>
+        </div>
+        <!-- Top & Bottom Performers Card -->
+        <div class="col d-flex">
+          <div class="card flex-fill h-100">
+            <div class="card-body">
+              <h6 class="card-title mb-3">Top & Bottom Performers</h6>
+              <div id="performersCarousel" class="carousel slide" data-bs-ride="carousel">
+                <div class="carousel-inner">
+                  {% for performer in top_performers %}
+                  <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:180px;">
+                      <span class="badge bg-success mb-2">Top Performer</span>
+                      <h5>{{ performer.student }}</h5>
+                      <div class="mb-1 small">Class: {{ performer.class }}</div>
+                      <span class="badge bg-primary fs-5">{{ performer.avg_score|floatformat:2 }}</span>
+                    </div>
+                  </div>
+                  {% endfor %}
+                  {% for performer in bottom_performers %}
+                  <div class="carousel-item">
+                    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:180px;">
+                      <span class="badge bg-danger mb-2">Bottom Performer</span>
+                      <h5>{{ performer.student }}</h5>
+                      <div class="mb-1 small">Class: {{ performer.class }}</div>
+                      <span class="badge bg-warning text-dark fs-5">{{ performer.avg_score|floatformat:2 }}</span>
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+                <button class="carousel-control-prev" type="button" data-bs-target="#performersCarousel" data-bs-slide="prev">
+                  <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                  <span class="visually-hidden">Previous</span>
+                </button>
+                <button class="carousel-control-next" type="button" data-bs-target="#performersCarousel" data-bs-slide="next">
+                  <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                  <span class="visually-hidden">Next</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Upcoming Events Card -->
+        <div class="col d-flex">
+          <div class="card flex-fill h-100">
+            <div class="card-body">
+              <h6 class="card-title mb-3">Upcoming Events</h6>
+              <ul class="list-group list-group-flush">
+                {% for event in upcoming_events %}
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-calendar-event me-2"></i>{{ event.title }}</span>
+                    <span class="badge bg-info rounded-pill">{{ event.date }}</span>
+                  </li>
+                {% empty %}
+                  <li class="list-group-item">No upcoming events.</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -157,251 +219,5 @@
         </div>
       </div>
     </div>
-    <div class="col-12 col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Upcoming Events</h5>
-          <ul class="list-group">
-            <li class="list-group-item">Event 1</li>
-            <li class="list-group-item">Event 2</li>
-            <li class="list-group-item">Event 3</li>
-          </ul>
-        </div>
-      </div>
-    </div>
   </div>
-
-  <!-- Activity Logs -->
-  <div class="row mb-4 g-3">
-    <div class="col-12 col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Activity Logs</h5>
-          <ul class="list-group">
-            <li class="list-group-item">Log 1</li>
-            <li class="list-group-item">Log 2</li>
-            <li class="list-group-item">Log 3</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">System Logs</h5>
-          <ul class="list-group">
-            <li class="list-group-item">Log 1</li>
-            <li class="list-group-item">Log 2</li>
-            <li class="list-group-item">Log 3</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Finance -->
-  <div class="row mb-4 g-3">
-    <div class="col-12 col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Financial Summary</h5>
-          <p class="card-text">This is a financial summary.</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Transaction History</h5>
-          <ul class="list-group">
-            <li class="list-group-item">Transaction 1</li>
-            <li class="list-group-item">Transaction 2</li>
-            <li class="list-group-item">Transaction 3</li>
-          </ul>
-  </div>
-</div>
-
-<!-- Alerts -->
-<div class="row mb-4 g-3">
-  <div class="col-12 col-md-6">
-    <div class="alert alert-info">
-      <h5 class="alert-heading">Info Alert</h5>
-      <p>This is an info alert.</p>
-    </div>
-  </div>
-  <div class="col-12 col-md-6">
-    <div class="alert alert-warning">
-      <h5 class="alert-heading">Warning Alert</h5>
-      <p>This is a warning alert.</p>
-    </div>
-  </div>
-</div>
-
-<!-- Quick Actions -->
-<div class="row mb-4 g-3">
-  <div class="col-12 col-md-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Quick Action 1</h5>
-        <p class="card-text">This is a quick action.</p>
-        <button class="btn btn-primary">Take Action</button>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 col-md-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Quick Action 2</h5>
-        <p class="card-text">This is another quick action.</p>
-        <button class="btn btn-primary">Take Action</button>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 col-md-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Quick Action 3</h5>
-        <p class="card-text">This is yet another quick action.</p>
-        <button class="btn btn-primary">Take Action</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Calendar/Events -->
-<div class="row mb-4 g-3">
-  <div class="col-12 col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Calendar</h5>
-        <div id="calendar"></div>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Upcoming Events</h5>
-        <ul class="list-group">
-          <li class="list-group-item">Event 1</li>
-          <li class="list-group-item">Event 2</li>
-          <li class="list-group-item">Event 3</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Activity Logs -->
-<div class="row mb-4 g-3">
-  <div class="col-12 col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Activity Logs</h5>
-        <ul class="list-group">
-          <li class="list-group-item">Log 1</li>
-          <li class="list-group-item">Log 2</li>
-          <li class="list-group-item">Log 3</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">System Logs</h5>
-        <ul class="list-group">
-          <li class="list-group-item">Log 1</li>
-          <li class="list-group-item">Log 2</li>
-          <li class="list-group-item">Log 3</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Finance -->
-<div class="row mb-4 g-3">
-  <div class="col-12 col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Financial Summary</h5>
-        <p class="card-text">This is a financial summary.</p>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Transaction History</h5>
-        <ul class="list-group">
-          <li class="list-group-item">Transaction 1</li>
-          <li class="list-group-item">Transaction 2</li>
-          <li class="list-group-item">Transaction 3</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Performance Carousel & Events -->
-<div class="row mb-4 g-3">
-  <div class="col-12 col-lg-6">
-    <div class="card h-100">
-      <div class="card-body">
-        <h6 class="card-title mb-3">Top & Bottom Performers</h6>
-        <div id="performersCarousel" class="carousel slide" data-bs-ride="carousel">
-          <div class="carousel-inner">
-            {% for performer in top_performers %}
-            <div class="carousel-item {% if forloop.first %}active{% endif %}">
-              <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:180px;">
-                <span class="badge bg-success mb-2">Top Performer</span>
-                <h5>{{ performer.student }}</h5>
-                <div class="mb-1 small">Class: {{ performer.class }}</div>
-                <span class="badge bg-primary fs-5">{{ performer.avg_score|floatformat:2 }}</span>
-              </div>
-            </div>
-            {% endfor %}
-            {% for performer in bottom_performers %}
-            <div class="carousel-item">
-              <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:180px;">
-                <span class="badge bg-danger mb-2">Bottom Performer</span>
-                <h5>{{ performer.student }}</h5>
-                <div class="mb-1 small">Class: {{ performer.class }}</div>
-                <span class="badge bg-warning text-dark fs-5">{{ performer.avg_score|floatformat:2 }}</span>
-              </div>
-            </div>
-            {% endfor %}
-          </div>
-          <button class="carousel-control-prev" type="button" data-bs-target="#performersCarousel" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Previous</span>
-          </button>
-          <button class="carousel-control-next" type="button" data-bs-target="#performersCarousel" data-bs-slide="next">
-            <span class="carousel-control-next-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Next</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 col-lg-6">
-    <div class="card h-100">
-      <div class="card-body">
-        <h6 class="card-title">Upcoming Events</h6>
-        <ul class="list-group list-group-flush">
-          {% for event in upcoming_events %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-calendar-event me-2"></i>{{ event.title }}</span>
-              <span class="badge bg-info rounded-pill">{{ event.date }}</span>
-            </li>
-          {% empty %}
-            <li class="list-group-item">No upcoming events.</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
-  </div>
-</div>
-</div>
 {% endblock %}
