@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block title %}Input Grades{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-2">
+            {% include 'dashboards/teacher_sidebar.html' %}
+        </div>
+        <div class="col-md-10">
+            <h1 class="h3 mb-2 text-gray-800">Input Grades</h1>
+            <p class="mb-4">For <strong>{{ class_group.name }}</strong> - <strong>{{ subject.name }}</strong></p>
+
+            <!-- Exam Selection and Creation -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Select or Create Exam</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Select Existing Exam -->
+                        <div class="col-md-6">
+                            <h5>Select Existing Exam</h5>
+                            <form method="get" id="select_exam_form">
+                                <div class="form-group">
+                                    <label for="exam_select">Exam</label>
+                                    <select class="form-control" id="exam_select" name="exam_id" onchange="this.form.submit()">
+                                        <option value="">-- Select an Exam --</option>
+                                        {% for exam in exams %}
+                                            <option value="{{ exam.id }}" {% if selected_exam.id == exam.id %}selected{% endif %}>{{ exam.name }} ({{ exam.term }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </form>
+                        </div>
+                        <!-- Create New Exam -->
+                        <div class="col-md-6">
+                            <h5>Create New Exam</h5>
+                            <form method="post">
+                                {% csrf_token %}
+                                <div class="form-group">
+                                    <label for="new_exam_name">New Exam Name</label>
+                                    <input type="text" class="form-control" id="new_exam_name" name="new_exam_name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="term_select">Term</label>
+                                    <select class="form-control" id="term_select" name="term" required>
+                                        <option value="">-- Select a Term --</option>
+                                        {% for term in terms %}
+                                            <option value="{{ term.id }}">{{ term }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <button type="submit" name="create_exam" class="btn btn-success">Create Exam</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grade Input Form -->
+            {% if selected_exam %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Enter Grades for {{ selected_exam.name }}</h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>Student Name</th>
+                                        <th>Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for student in students %}
+                                    <tr>
+                                        <td>{{ student.full_name }}</td>
+                                        <td>
+                                            <input type="number" name="score_{{ student.id }}" class="form-control" value="{{ grade_map|get_item:student.id|default:'' }}">
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="submit" name="save_grades" class="btn btn-primary">Save Grades</button>
+                        <a href="{% url 'manage_grades' teacher.id %}" class="btn btn-secondary">Back to Grade Management</a>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

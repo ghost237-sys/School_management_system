@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload Marksheet{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+  <h1 class="mt-4">Upload Marksheet</h1>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card mb-4">
+    <div class="card-header">
+      <i class="fas fa-file-upload me-1"></i>
+      Upload CSV or Excel File
+    </div>
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="file" class="form-label">Select file</label>
+          <input class="form-control" type="file" id="file" name="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
+        </div>
+        <button type="submit" class="btn btn-primary">Upload</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      Instructions
+    </div>
+    <div class="card-body">
+        <p>Your file must be in a <strong>long format</strong>, with one grade per row. It should contain the following columns:</p>
+        <ul>
+            <li><code>student_name</code> (e.g., "John Doe") OR <code>admission_no</code></li>
+            <li><code>subject_name</code> (e.g., "Mathematics") OR <code>subject_code</code> (e.g., "MAT")</li>
+            <li><code>exam_name</code> (e.g., "Mid-Term")</li>
+            <li><code>term</code> (e.g., "Term 2")</li>
+            <li><code>academic_year</code> (e.g., "2025")</li>
+            <li><code>score</code> (e.g., 85)</li>
+        </ul>
+        <p><strong>Example:</strong></p>
+        <p>If your marksheet looks like this (wide format):</p>
+        <table class="table table-bordered table-sm">
+            <thead class="table-light">
+                <tr><th>NAME</th><th>MAT</th><th>ENG</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>John Doe</td><td>85</td><td>92</td></tr>
+                <tr><td>Jane Smith</td><td>78</td><td>88</td></tr>
+            </tbody>
+        </table>
+        <p>You need to convert it to this (long format) before uploading:</p>
+        <table class="table table-bordered table-sm">
+            <thead class="table-light">
+                <tr><th>student_name</th><th>subject_name</th><th>exam_name</th><th>term</th><th>academic_year</th><th>score</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>John Doe</td><td>MAT</td><td>Mid-Term</td><td>Term 2</td><td>2025</td><td>85</td></tr>
+                <tr><td>John Doe</td><td>ENG</td><td>Mid-Term</td><td>Term 2</td><td>2025</td><td>92</td></tr>
+                <tr><td>Jane Smith</td><td>MAT</td><td>Mid-Term</td><td>Term 2</td><td>2025</td><td>78</td></tr>
+                <tr><td>Jane Smith</td><td>ENG</td><td>Mid-Term</td><td>Term 2</td><td>2025</td><td>88</td></tr>
+            </tbody>
+        </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

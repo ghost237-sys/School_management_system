@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Manage Grades{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-2">
+            {% include 'dashboards/teacher_sidebar.html' %}
+        </div>
+        <div class="col-md-10">
+            <h1 class="h3 mb-4 text-gray-800">Manage Grades</h1>
+
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Select a Class to Manage Grades</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>Class</th>
+                                    <th>Subject</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for assignment in assignments %}
+                                <tr>
+                                    <td>{{ assignment.class_group.name }}</td>
+                                    <td>{{ assignment.subject.name }}</td>
+                                    <td>
+                                        <a href="{% url 'input_grades' teacher_id=teacher.id class_id=assignment.class_group.id subject_id=assignment.subject.id %}" class="btn btn-primary">Manage Grades</a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3">No classes assigned.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

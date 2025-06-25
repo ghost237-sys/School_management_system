@@ -88,7 +88,7 @@
                 <form method="post" enctype="multipart/form-data" action="#">
                     {% csrf_token %}
                     <input type="file" name="marksheet" class="form-control mb-2">
-                    <button type="submit" class="btn btn-success">Upload</button>
+                    <button type="submit" class="btn btn-primary">Upload</button>
                 </form>
             </div>
         </div>
@@ -98,7 +98,7 @@
             <div class="card-body">
                 <h5 class="card-title">Export Performance Reports</h5>
                 <form method="get" action="#">
-                    <button type="submit" class="btn btn-primary">Export CSV</button>
+                    <button type="submit" class="btn btn-secondary">Export CSV</button>
                 </form>
             </div>
         </div>

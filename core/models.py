@@ -17,9 +17,10 @@ class User(AbstractUser):
 class Subject(models.Model):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=10)
+    department = models.ForeignKey('Department', null=True, blank=True, on_delete=models.SET_NULL, related_name='subjects')
 
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.department})" if self.department else self.name
 
 class Class(models.Model):
     name = models.CharField(max_length=100)
@@ -49,11 +50,21 @@ class Teacher(models.Model):
     subjects = models.ManyToManyField(Subject)
 
 class Student(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     admission_no = models.CharField(max_length=20, unique=True)
-    class_group = models.ForeignKey(Class, on_delete=models.SET_NULL, null=True)
+    class_group = models.ForeignKey('Class', on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
     gender = models.CharField(max_length=10)
     birthdate = models.DateField()
+
+    @property
+    def full_name(self):
+        if self.user.first_name and self.user.last_name:
+            return f"{self.user.first_name} {self.user.last_name}"
+        return self.user.username
+
+    @property
+    def is_profile_complete(self):
+        return bool(self.user.first_name and self.user.last_name)
 
 class AcademicYear(models.Model):
     year = models.CharField(max_length=10)
@@ -79,3 +90,40 @@ class TeacherClassAssignment(models.Model):
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
     class_group = models.ForeignKey(Class, on_delete=models.CASCADE)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('teacher', 'class_group', 'subject')
+
+    def __str__(self):
+        return f'{self.teacher} - {self.class_group} - {self.subject}'
+
+class Attendance(models.Model):
+    STATUS_CHOICES = [
+        ('present', 'Present'),
+        ('absent', 'Absent'),
+        ('late', 'Late'),
+        ('excused', 'Excused'),
+    ]
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
+    class_group = models.ForeignKey(Class, on_delete=models.CASCADE)
+    date = models.DateField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES)
+
+    class Meta:
+        unique_together = ('student', 'subject', 'date')
+
+    def __str__(self):
+        return f"{self.student} - {self.subject.name} - {self.date} - {self.status}"
+
+class Deadline(models.Model):
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    due_date = models.DateTimeField()
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
+    class_group = models.ForeignKey(Class, on_delete=models.CASCADE)
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"{self.title} for {self.class_group.name} ({self.subject.name})"

@@ -1,30 +1,40 @@
 {# Teacher Sidebar Navigation - Bootstrap Vertical Pills #}
-<nav class="sidebar-custom p-3 d-flex flex-column justify-content-between" style="width: 200px; min-height: 100vh; background: linear-gradient(160deg, #6C2EB7 0%, #4e73df 100%);">
+<nav class="sidebar-custom p-3 d-flex flex-column justify-content-between" style="width: 220px; min-height: 100vh; background: var(--sidebar-gradient); color: #fff;">
     <h4 class="mb-4" style="font-size:1.3rem;">Teacher Panel</h4>
     <ul class="nav nav-pills flex-column mb-auto">
         <li class="nav-item mb-2">
-            <a class="nav-link {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}" href="{% url 'teacher_dashboard' teacher_id=teacher.id %}">
+            <a class="nav-link text-white {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}" href="{% url 'teacher_dashboard' teacher_id=teacher.id %}">
                 Dashboard
             </a>
         </li>
         <li class="nav-item mb-2">
-            <a class="nav-link {% if request.resolver_match.url_name == 'input_scores' %}active{% endif %}" href="#">
-                Input Scores
+            <a class="nav-link text-white {% if request.resolver_match.url_name == 'manage_grades' %}active{% endif %}" href="{% url 'manage_grades' teacher_id=teacher.id %}">
+                Manage Grades
             </a>
         </li>
         <li class="nav-item mb-2">
-            <a class="nav-link {% if request.resolver_match.url_name == 'view_timetable' %}active{% endif %}" href="#">
+            <a class="nav-link text-white {% if request.resolver_match.url_name == 'view_timetable' %}active{% endif %}" href="#">
                 Timetable
             </a>
         </li>
         <li class="nav-item mb-2">
-            <a class="nav-link {% if request.resolver_match.url_name == 'teacher_profile' %}active{% endif %}" href="{% url 'teacher_profile' teacher_id=teacher.id %}">
+            <a class="nav-link text-white {% if request.resolver_match.url_name == 'upload_marksheet' %}active{% endif %}" href="{% url 'upload_marksheet' %}">
+                Upload Marksheet
+            </a>
+        </li>
+        <li class="nav-item mb-2">
+            <a class="nav-link text-white {% if request.resolver_match.url_name == 'manage_attendance' %}active{% endif %}" href="{% url 'manage_attendance' teacher_id=teacher.id %}">
+                Attendance
+            </a>
+        </li>
+        <li class="nav-item mb-2">
+            <a class="nav-link text-white {% if request.resolver_match.url_name == 'teacher_profile' %}active{% endif %}" href="{% url 'teacher_profile' teacher_id=teacher.id %}">
                 Profile
             </a>
         </li>
     </ul>
     <form method="post" action="{% url 'logout' %}" class="mt-4">
         {% csrf_token %}
-        <button type="submit" class="btn btn-outline-light w-100">Logout</button>
+        <button type="submit" class="btn btn-secondary w-100">Logout</button>
     </form>
 </nav>

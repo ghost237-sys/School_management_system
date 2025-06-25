@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Edit Teacher{% endblock %}
 {% block content %}
-<style>
+
 .horizontal-checkbox-list {
     display: flex;
     flex-wrap: wrap;
@@ -12,7 +12,7 @@
     min-width: 160px;
     white-space: nowrap;
 }
-</style>
+
 <h2>Edit Teacher: {{ teacher.user.get_full_name|default:teacher.user.username }}</h2>
 <form method="post" autocomplete="off" class="mb-4 p-3 border rounded bg-light">
   {% csrf_token %}

@@ -4,10 +4,14 @@ from . import views
 
 urlpatterns = [
     path('teacher_dashboard/<int:teacher_id>/', views.teacher_dashboard, name='teacher_dashboard'),
+    path('teacher/<int:teacher_id>/attendance/', views.manage_attendance, name='manage_attendance'),
+    path('teacher/<int:teacher_id>/attendance/<int:class_id>/<int:subject_id>/', views.take_attendance, name='take_attendance'),
+    path('teacher/<int:teacher_id>/grades/', views.manage_grades, name='manage_grades'),
+    path('teacher/<int:teacher_id>/grades/<int:class_id>/<int:subject_id>/', views.input_grades, name='input_grades'),
     path('teacher_profile/<int:teacher_id>/', views.teacher_profile, name='teacher_profile'),
     path('student_profile/<int:student_id>/', views.student_profile, name='student_profile'),
-    path('login/', auth_views.LoginView.as_view(template_name='auth/login.html'), name='login'),
-    path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),
+    path('login/', views.custom_login_view, name='login'),
+    path('logout/', views.custom_logout_view, name='logout'),
     path('register/', views.register_view, name='register'),
     path('', views.dashboard, name='dashboard'),
     # Admin dashboard split pages
@@ -22,5 +26,7 @@ urlpatterns = [
     path('delete_class/<int:class_id>/', views.delete_class, name='delete_class'),
     path('admin_analytics/', views.admin_analytics, name='admin_analytics'),
     path('admin_subjects/', views.admin_subjects, name='admin_subjects'),
+    path('admin_exams/', views.admin_exams, name='admin_exams'),
+    path('teacher/upload_marksheet/', views.upload_marksheet, name='upload_marksheet'),
 ]
 

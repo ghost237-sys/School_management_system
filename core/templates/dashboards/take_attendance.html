@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block title %}Take Attendance{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-2">
+            {% include 'dashboards/teacher_sidebar.html' %}
+        </div>
+        <div class="col-md-10">
+            <h1 class="h3 mb-2 text-gray-800">Take Attendance</h1>
+            <p class="mb-4">For <strong>{{ class_group.name }}</strong> - <strong>{{ subject.name }}</strong> on <strong>{{ today|date:"F d, Y" }}</strong></p>
+
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Student List</h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>Student Name</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for student in students %}
+                                    <tr>
+                                        <td>{{ student.full_name }}</td>
+                                        <td>
+                                            {% with current_status=attendance_map|get_item:student.id %}
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="status_{{ student.id }}" id="present_{{ student.id }}" value="present" {% if current_status == 'present' or not current_status %}checked{% endif %}>
+                                                <label class="form-check-label" for="present_{{ student.id }}">Present</label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="status_{{ student.id }}" id="absent_{{ student.id }}" value="absent" {% if current_status == 'absent' %}checked{% endif %}>
+                                                <label class="form-check-label" for="absent_{{ student.id }}">Absent</label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="status_{{ student.id }}" id="late_{{ student.id }}" value="late" {% if current_status == 'late' %}checked{% endif %}>
+                                                <label class="form-check-label" for="late_{{ student.id }}">Late</label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="status_{{ student.id }}" id="excused_{{ student.id }}" value="excused" {% if current_status == 'excused' %}checked{% endif %}>
+                                                <label class="form-check-label" for="excused_{{ student.id }}">Excused</label>
+                                            </div>
+                                            {% endwith %}
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="2">No students in this class.</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Attendance</button>
+                        <a href="{% url 'manage_attendance' teacher.id %}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

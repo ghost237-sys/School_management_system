@@ -3,6 +3,37 @@
 {% block content %}
 
 <h1 class="mb-4">Classes</h1>
+<!-- Add New Class Button & Form -->
+<div class="mb-4">
+  <button class="btn btn-primary mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#addClassFormCollapse" aria-expanded="false" aria-controls="addClassFormCollapse">
+    <i class="bi bi-plus-circle me-1"></i> Add New Class
+  </button>
+  <div class="collapse" id="addClassFormCollapse">
+    <div class="card card-body">
+      <form method="post" action="" class="row g-3">
+        {% csrf_token %}
+        <input type="hidden" name="add_class" value="1">
+        <div class="col-md-6">
+          <label for="id_name" class="form-label">Stream Name</label>
+          {{ add_class_form.name }}
+          {% if add_class_form.name.errors %}
+            <div class="text-danger small">{{ add_class_form.name.errors.0 }}</div>
+          {% endif %}
+        </div>
+        <div class="col-md-6">
+          <label for="id_level" class="form-label">Year/Level</label>
+          {{ add_class_form.level }}
+          {% if add_class_form.level.errors %}
+            <div class="text-danger small">{{ add_class_form.level.errors.0 }}</div>
+          {% endif %}
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-success">Add Class</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 <div class="card mb-4">
     <div class="card-header bg-secondary text-white">
         <h5 class="mb-0">All Classes</h5>
@@ -198,22 +229,22 @@
                         </table>
                         <div class="mb-3"></div>
 
-                        <h6>Members:</h6>
+                        <h6>Subject Performance:</h6>
                         <table class="table table-sm">
                             <thead>
                                 <tr>
-                                    <th>Name</th>
-                                    <th>Email</th>
+                                    <th>Subject</th>
+                                    <th>Average Score</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for student in class.students %}
+                                {% for perf in class.subject_performance %}
                                     <tr>
-                                        <td>{{ student.user.get_full_name|default:student.user.username }}</td>
-                                        <td>{{ student.user.email }}</td>
+                                        <td>{{ perf.subject }}</td>
+                                        <td>{{ perf.avg_score|floatformat:2 }}</td>
                                     </tr>
                                 {% empty %}
-                                    <tr><td colspan="2">No students found.</td></tr>
+                                    <tr><td colspan="2">No subject data.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
