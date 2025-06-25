@@ -169,15 +169,110 @@
           <div class="card flex-fill h-100">
             <div class="card-body">
               <h6 class="card-title mb-3">Upcoming Events</h6>
+<button id="showHiddenEventsBtn" class="btn btn-sm btn-outline-primary mb-2" style="display:none;">Show Hidden Events</button>
               <ul class="list-group list-group-flush">
                 {% for event in upcoming_events %}
-                  <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-calendar-event me-2"></i>{{ event.title }}</span>
+                  {% with event_date=event.date|date:'Y-m-d' %}
+                  <li class="list-group-item d-flex justify-content-between align-items-center upcoming-event-item">
+                    <span>
+                      <i class="bi bi-calendar-event me-2"></i>{{ event.title }}
+                      {% if event_date < '2025-06-25' %}
+                        <i class="bi bi-x-circle-fill text-danger ms-2" title="Event has passed"></i>
+                      {% endif %}
+                    </span>
                     <span class="badge bg-info rounded-pill">{{ event.date }}</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary ms-2 edit-event-btn" title="Edit event">
+  <i class="bi bi-pencil"></i>
+</button>
+<button type="button" class="btn btn-sm btn-outline-danger ms-1 delete-event-btn" title="Delete event">
+  <i class="bi bi-trash"></i>
+</button>
                   </li>
+                  {% endwith %}
                 {% empty %}
                   <li class="list-group-item">No upcoming events.</li>
                 {% endfor %}
+<script>
+function updateUpcomingEventsList() {
+  // Optionally, refetch or reload the list via AJAX if you want it to be dynamic
+  location.reload(); // Simple solution: reload page after event change
+}
+document.addEventListener('DOMContentLoaded', function() {
+  // Edit event from list
+  document.querySelectorAll('.edit-event-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      var li = btn.closest('.upcoming-event-item');
+      if (!li) return;
+      var title = li.querySelector('.bi-calendar-event').nextSibling.textContent.trim();
+      var date = li.querySelector('.badge').textContent.trim();
+      // Try to find event in calendar events
+      var event = null;
+      var calendarApi = window.calendar;
+      if (calendarApi) {
+        var events = calendarApi.getEvents();
+        event = events.find(ev => ev.title === title && ev.start && ev.start.toISOString().slice(0,10) === date);
+      }
+      if (event) {
+        // Prefill modal with event details
+        document.getElementById('eventId').value = event.id;
+        document.getElementById('eventTitle').value = event.title;
+        document.getElementById('eventStartDate').value = event.start.toISOString().slice(0,10);
+        document.getElementById('eventStartTime').value = event.start.toTimeString().slice(0,5);
+        if (event.end) {
+          document.getElementById('eventEndDate').value = event.end.toISOString().slice(0,10);
+          document.getElementById('eventEndTime').value = event.end.toTimeString().slice(0,5);
+        } else {
+          document.getElementById('eventEndDate').value = '';
+          document.getElementById('eventEndTime').value = '';
+        }
+        document.getElementById('eventAllDay').checked = event.allDay;
+        document.getElementById('deleteEventBtn').style.display = '';
+        var modal = new bootstrap.Modal(document.getElementById('eventModal'));
+        modal.show();
+      } else {
+        alert('Could not find event to edit.');
+      }
+    });
+  });
+  // Delete event from list
+  document.querySelectorAll('.delete-event-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (!confirm('Delete this event? This will remove it from both the list and the calendar.')) return;
+      var li = btn.closest('.upcoming-event-item');
+      var title = li.querySelector('.bi-calendar-event').nextSibling.textContent.trim();
+      var date = li.querySelector('.badge').textContent.trim();
+      // Find event in calendar
+      var event = null;
+      var calendarApi = window.calendar;
+      if (calendarApi) {
+        var events = calendarApi.getEvents();
+        event = events.find(ev => ev.title === title && ev.start && ev.start.toISOString().slice(0,10) === date);
+      }
+      if (event) {
+        // Delete via AJAX
+        var data = new FormData();
+        data.append('id', event.id);
+        fetch('/dashboard/events/delete/', {
+          method: 'POST',
+          headers: {'X-Requested-With': 'XMLHttpRequest'},
+          body: data
+        }).then(res => res.json()).then(function(resp) {
+          if (resp.success) {
+            li.remove();
+            if (calendarApi) calendarApi.refetchEvents();
+          } else {
+            alert(resp.error || 'Error deleting event.');
+          }
+        });
+      } else {
+        alert('Could not find event to delete.');
+      }
+    });
+  });
+});
+</script>
               </ul>
             </div>
           </div>
@@ -395,8 +490,10 @@ document.addEventListener('DOMContentLoaded', function() {
   var eventForm = document.getElementById('eventForm');
   var eventId = document.getElementById('eventId');
   var eventTitle = document.getElementById('eventTitle');
-  var eventStart = document.getElementById('eventStart');
-  var eventEnd = document.getElementById('eventEnd');
+  var eventStartDate = document.getElementById('eventStartDate');
+  var eventStartTime = document.getElementById('eventStartTime');
+  var eventEndDate = document.getElementById('eventEndDate');
+  var eventEndTime = document.getElementById('eventEndTime');
   var eventAllDay = document.getElementById('eventAllDay');
   var deleteBtn = document.getElementById('deleteEventBtn');
 
@@ -408,26 +505,50 @@ document.addEventListener('DOMContentLoaded', function() {
     eventClick: function(info) {
       eventId.value = info.event.id;
       eventTitle.value = info.event.title;
-      eventStart.value = info.event.start ? info.event.start.toISOString().slice(0,16) : '';
-      eventEnd.value = info.event.end ? info.event.end.toISOString().slice(0,16) : '';
+      if (info.event.start) {
+        eventStartDate.value = info.event.start.toISOString().slice(0,10);
+        eventStartTime.value = info.event.start.toTimeString().slice(0,5);
+      } else {
+        eventStartDate.value = '';
+        eventStartTime.value = '';
+      }
+      if (info.event.end) {
+        eventEndDate.value = info.event.end.toISOString().slice(0,10);
+        eventEndTime.value = info.event.end.toTimeString().slice(0,5);
+      } else {
+        eventEndDate.value = '';
+        eventEndTime.value = '';
+      }
       eventAllDay.checked = info.event.allDay;
       deleteBtn.style.display = '';
       modal.show();
     },
     select: function(info) {
-      eventId.value = '';
-      eventTitle.value = '';
-      eventStart.value = info.startStr.slice(0,16);
-      eventEnd.value = info.endStr ? info.endStr.slice(0,16) : '';
-      eventAllDay.checked = info.allDay;
-      deleteBtn.style.display = 'none';
-      modal.show();
-    },
+  eventId.value = '';
+  eventTitle.value = '';
+  eventStartDate.value = info.startStr.slice(0,10);
+  eventStartTime.value = info.startStr.slice(11,16);
+  eventEndDate.value = info.endStr ? info.endStr.slice(0,10) : '';
+  eventEndTime.value = info.endStr ? info.endStr.slice(11,16) : '';
+  eventAllDay.checked = info.allDay;
+  deleteBtn.style.display = 'none';
+  modal.show();
+},
     eventDrop: function(info) {
       updateEvent(info.event);
     },
     eventResize: function(info) {
       updateEvent(info.event);
+    },
+    eventDidMount: function(info) {
+      var now = new Date('2025-06-25T00:00:00');
+      var startDate = new Date(info.event.start);
+      if (startDate < now) {
+        var cross = document.createElement('i');
+        cross.className = 'bi bi-x-circle-fill text-danger ms-2';
+        cross.title = 'Event has passed';
+        info.el.querySelector('.fc-event-title')?.appendChild(cross);
+      }
     }
   });
   calendar.render();
@@ -437,8 +558,14 @@ document.addEventListener('DOMContentLoaded', function() {
     var id = eventId.value;
     var data = new FormData();
     data.append('title', eventTitle.value);
-    data.append('start', eventStart.value);
-    data.append('end', eventEnd.value);
+    // Compose ISO datetime string from date+time fields
+    var start = eventStartDate.value + 'T' + eventStartTime.value;
+    data.append('start', start);
+    var end = '';
+    if (eventEndDate.value && eventEndTime.value) {
+      end = eventEndDate.value + 'T' + eventEndTime.value;
+    }
+    data.append('end', end);
     data.append('allDay', eventAllDay.checked);
     var url = id ? '/dashboard/events/update/' : '/dashboard/events/create/';
     if (id) data.append('id', id);
@@ -450,6 +577,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (resp.success) {
         modal.hide();
         calendar.refetchEvents();
+        updateUpcomingEventsList();
       } else {
         alert(resp.error || 'Error saving event.');
       }
