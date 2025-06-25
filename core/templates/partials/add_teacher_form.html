@@ -1,0 +1,32 @@
+{% load crispy_forms_tags %}
+<form method="post" action="/dashboard/teachers/add/" id="addTeacherForm">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  {{ form.first_name|as_crispy_field }}
+  {{ form.last_name|as_crispy_field }}
+  {{ form.username|as_crispy_field }}
+  {{ form.email|as_crispy_field }}
+  {{ form.password|as_crispy_field }}
+  {{ form.tsc_number|as_crispy_field }}
+  {{ form.staff_id|as_crispy_field }}
+  {{ form.phone|as_crispy_field }}
+  {{ form.gender|as_crispy_field }}
+  {{ form.department|as_crispy_field }}
+  <div class="mb-3">
+    <label class="form-label">Subjects</label>
+    <div class="row row-cols-2 row-cols-md-3 g-1">
+      {% for checkbox in form.subjects %}
+        <div class="col">
+          <div class="form-check">
+            {{ checkbox.tag }} {{ checkbox.choice_label }}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+    {% if form.subjects.errors %}
+      <div class="text-danger small">{{ form.subjects.errors }}</div>
+    {% endif %}
+  </div>
+  <button type="submit" class="btn btn-primary w-100">Add Teacher</button>
+</form>
+

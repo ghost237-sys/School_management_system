@@ -15,6 +15,25 @@
 
 {% block title %}Admin Overview{% endblock %}
 {% block content %}
+<style>
+  /* Modal form improvements */
+  .modal-xl { max-width: 700px; }
+  .modal-body form { max-width: 600px; margin: 0 auto; }
+  .modal-body label { font-weight: 500; }
+  .modal-body input, .modal-body select, .modal-body textarea {
+    font-size: 0.98rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 0.3rem;
+  }
+  .modal-body .form-group, .modal-body .mb-3, .modal-body .mb-2 {
+    margin-bottom: 0.7rem !important;
+  }
+  .modal-body .form-check {
+    margin-bottom: 0.5rem;
+  }
+  .modal-body .btn { min-width: 120px; }
+  .modal-body { max-height: 80vh; overflow-y: auto; }
+</style>
 <div class="container-fluid px-2">
   <h1 class="mb-4">Admin Dashboard Overview</h1>
 
@@ -42,366 +61,422 @@
     </div>
   </form>
 
-  <!-- Summary Cards -->
-  <div class="row mb-4 g-3">
-    <div class="col-12 col-md-3">
-      <div class="card text-bg-primary h-100">
-        <div class="card-body">
-          <h5 class="card-title">Students</h5>
-          <p class="card-text fs-4">{{ total_students }}</p>
-          <i class="bi bi-people-fill"></i>
+  <!-- Modern Square Grid Dashboard -->
+  <div class="card p-4 mb-4">
+    <div class="container-fluid">
+      <div class="row row-cols-1 row-cols-md-4 g-3">
+        <div class="col d-flex">
+          <div class="card text-bg-primary text-center flex-fill">
+            <div class="card-body py-4">
+              <div class="fs-2"><i class="bi bi-people-fill"></i></div>
+              <div class="fw-bold">Students</div>
+              <div class="fs-4">{{ total_students }}</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card text-bg-success h-100">
-        <div class="card-body">
-          <h5 class="card-title">Teachers</h5>
-          <p class="card-text fs-4">{{ total_teachers }}</p>
-          <i class="bi bi-person-badge-fill"></i>
+        <div class="col d-flex">
+          <div class="card text-bg-success text-center flex-fill">
+            <div class="card-body py-4">
+              <div class="fs-2"><i class="bi bi-person-badge-fill"></i></div>
+              <div class="fw-bold">Teachers</div>
+              <div class="fs-4">{{ total_teachers }}</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card text-bg-info h-100">
-        <div class="card-body">
-          <h5 class="card-title">Classes</h5>
-          <p class="card-text fs-4">{{ total_classes }}</p>
-          <i class="bi bi-building"></i>
+        <div class="col d-flex">
+          <div class="card text-bg-info text-center flex-fill">
+            <div class="card-body py-4">
+              <div class="fs-2"><i class="bi bi-building"></i></div>
+              <div class="fw-bold">Classes</div>
+              <div class="fs-4">{{ total_classes }}</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card text-bg-warning h-100">
-        <div class="card-body">
-          <h5 class="card-title">Subjects</h5>
-          <p class="card-text fs-4">{{ total_subjects }}</p>
-          <i class="bi bi-book-fill"></i>
+        <div class="col d-flex">
+          <div class="card text-bg-warning text-center flex-fill">
+            <div class="card-body py-4">
+              <div class="fs-2"><i class="bi bi-book-fill"></i></div>
+              <div class="fw-bold">Subjects</div>
+              <div class="fs-4">{{ total_subjects }}</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card text-bg-secondary h-100">
-        <div class="card-body">
-          <h5 class="card-title">Term</h5>
-          <p class="card-text fs-4">{{ current_term }}</p>
-          <i class="bi bi-calendar-event-fill"></i>
+        <div class="col d-flex">
+          <div class="card text-bg-secondary text-center flex-fill">
+            <div class="card-body py-4">
+              <div class="fs-2"><i class="bi bi-calendar-event-fill"></i></div>
+              <div class="fw-bold">Term</div>
+              <div class="fs-4">{{ current_term }}</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card text-bg-danger h-100">
-        <div class="card-body">
-          <h5 class="card-title">Fees</h5>
-          <p class="card-text fs-4">{{ total_fees }}</p>
-          <i class="bi bi-cash-stack"></i>
+        <div class="col d-flex">
+          <div class="card text-bg-danger text-center flex-fill">
+            <div class="card-body py-4">
+              <div class="fs-2"><i class="bi bi-cash-stack"></i></div>
+              <div class="fw-bold">Fees</div>
+              <div class="fs-4">{{ total_fees }}</div>
+            </div>
+          </div>
+        </div>
+        <!-- Top & Bottom Performers Card -->
+        <div class="col d-flex">
+          <div class="card flex-fill h-100">
+            <div class="card-body">
+              <h6 class="card-title mb-3">Subject Average Scores</h6>
+              <div id="subjectAveragesCarousel" class="carousel slide" data-bs-ride="carousel">
+                <div class="carousel-inner">
+                  {% for subject in subject_averages %}
+                  <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:180px;">
+                      <span class="badge bg-info mb-2">Subject</span>
+                      <h5>{{ subject.subject }}</h5>
+                      <span class="badge bg-primary fs-5">Avg: {{ subject.avg_score|floatformat:2 }}</span>
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+                <button class="carousel-control-prev" type="button" data-bs-target="#performersCarousel" data-bs-slide="prev">
+                  <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                  <span class="visually-hidden">Previous</span>
+                </button>
+                <button class="carousel-control-next" type="button" data-bs-target="#performersCarousel" data-bs-slide="next">
+                  <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                  <span class="visually-hidden">Next</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Upcoming Events Card -->
+        <div class="col d-flex">
+          <div class="card flex-fill h-100">
+            <div class="card-body">
+              <h6 class="card-title mb-3">Upcoming Events</h6>
+              <ul class="list-group list-group-flush">
+                {% for event in upcoming_events %}
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-calendar-event me-2"></i>{{ event.title }}</span>
+                    <span class="badge bg-info rounded-pill">{{ event.date }}</span>
+                  </li>
+                {% empty %}
+                  <li class="list-group-item">No upcoming events.</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
-
-  <!-- Alerts -->
-  <div class="row mb-4 g-3">
-    <div class="col-12 col-md-6">
-      <div class="alert alert-info">
-        <h5 class="alert-heading">Info Alert</h5>
-        <p>This is an info alert.</p>
-      </div>
-    </div>
-    <div class="col-12 col-md-6">
-      <div class="alert alert-warning">
-        <h5 class="alert-heading">Warning Alert</h5>
-        <p>This is a warning alert.</p>
-      </div>
-    </div>
-  </div>
-
   <!-- Quick Actions -->
   <div class="row mb-4 g-3">
     <div class="col-12 col-md-3">
       <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Quick Action 1</h5>
-          <p class="card-text">This is a quick action.</p>
-          <button class="btn btn-primary">Take Action</button>
+        <div class="card-body text-center">
+          <button class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#addStudentModal">
+            <i class="bi bi-person-plus me-1"></i> Add Student
+          </button>
         </div>
       </div>
     </div>
     <div class="col-12 col-md-3">
       <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Quick Action 2</h5>
-          <p class="card-text">This is another quick action.</p>
-          <button class="btn btn-primary">Take Action</button>
+        <div class="card-body text-center">
+          <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addTeacherModal">
+            <i class="bi bi-person-badge me-1"></i> Add Teacher
+          </button>
         </div>
       </div>
     </div>
     <div class="col-12 col-md-3">
       <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Quick Action 3</h5>
-          <p class="card-text">This is yet another quick action.</p>
-          <button class="btn btn-primary">Take Action</button>
+        <div class="card-body text-center">
+          <button class="btn btn-info w-100" data-bs-toggle="modal" data-bs-target="#addClassModal">
+            <i class="bi bi-building-add me-1"></i> Add Class
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card">
+        <div class="card-body text-center">
+          <button class="btn btn-warning w-100" data-bs-toggle="modal" data-bs-target="#addSubjectModal">
+            <i class="bi bi-bookmark-plus me-1"></i> Add Subject
+          </button>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Add Student Modal -->
+  <div class="modal fade" id="addStudentModal" tabindex="-1" aria-labelledby="addStudentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addStudentModalLabel">Add New Student</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="addStudentFormContainer">
+            <!-- Student form will be loaded here -->
+            <div class="text-center text-muted">Loading form...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Teacher Modal -->
+  <div class="modal fade" id="addTeacherModal" tabindex="-1" aria-labelledby="addTeacherModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addTeacherModalLabel">Add New Teacher</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="addTeacherFormContainer" style="min-width:0;">
+            <!-- Teacher form will be loaded here -->
+            <div class="text-center text-muted">Loading form...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Class Modal -->
+  <div class="modal fade" id="addClassModal" tabindex="-1" aria-labelledby="addClassModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addClassModalLabel">Add New Class</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="addClassFormContainer">
+            <!-- Class form will be loaded here -->
+            <div class="text-center text-muted">Loading form...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Subject Modal -->
+  <div class="modal fade" id="addSubjectModal" tabindex="-1" aria-labelledby="addSubjectModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addSubjectModalLabel">Add New Subject</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="addSubjectFormContainer">
+            <!-- Subject form will be loaded here -->
+            <div class="text-center text-muted">Loading form...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Placeholder for AJAX form loading and submission
+    // You will need to implement AJAX endpoints for each form
+    document.addEventListener('DOMContentLoaded', function() {
+      // Example: Load form HTML into modal body on modal show
+      const loadForm = (modalId, containerId, url, redirectUrl) => {
+        const modal = document.getElementById(modalId);
+        modal.addEventListener('show.bs.modal', function() {
+          const container = document.getElementById(containerId);
+          fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(res => res.json())
+            .then(data => {
+              container.innerHTML = data.form_html;
+              attachFormHandler(container, redirectUrl);
+            });
+        });
+      };
+      // Attach AJAX form submission handler
+      const attachFormHandler = (container, redirectUrl) => {
+        const form = container.querySelector('form');
+        if (!form) return;
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const formData = new FormData(form);
+          fetch(form.action, {method: 'POST', body: formData, headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                window.location.href = redirectUrl;
+              } else if (data.form_html) {
+                container.innerHTML = data.form_html;
+                attachFormHandler(container, redirectUrl);
+              }
+            });
+        });
+      };
+      // Setup for each modal
+      loadForm('addStudentModal', 'addStudentFormContainer', '/dashboard/students/add/', '/admin/students/');
+      loadForm('addTeacherModal', 'addTeacherFormContainer', '/dashboard/teachers/add/', '/admin/teachers/');
+      loadForm('addClassModal', 'addClassFormContainer', '/dashboard/classes/add/', '/admin/classes/');
+      loadForm('addSubjectModal', 'addSubjectFormContainer', '/dashboard/subjects/add/', '/admin/subjects/');
+    });
+  </script>
 
   <!-- Calendar/Events -->
   <div class="row mb-4 g-3">
-    <div class="col-12 col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Calendar</h5>
-          <div id="calendar"></div>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Upcoming Events</h5>
-          <ul class="list-group">
-            <li class="list-group-item">Event 1</li>
-            <li class="list-group-item">Event 2</li>
-            <li class="list-group-item">Event 3</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Activity Logs -->
-  <div class="row mb-4 g-3">
-    <div class="col-12 col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Activity Logs</h5>
-          <ul class="list-group">
-            <li class="list-group-item">Log 1</li>
-            <li class="list-group-item">Log 2</li>
-            <li class="list-group-item">Log 3</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">System Logs</h5>
-          <ul class="list-group">
-            <li class="list-group-item">Log 1</li>
-            <li class="list-group-item">Log 2</li>
-            <li class="list-group-item">Log 3</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Finance -->
-  <div class="row mb-4 g-3">
-    <div class="col-12 col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Financial Summary</h5>
-          <p class="card-text">This is a financial summary.</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Transaction History</h5>
-          <ul class="list-group">
-            <li class="list-group-item">Transaction 1</li>
-            <li class="list-group-item">Transaction 2</li>
-            <li class="list-group-item">Transaction 3</li>
-          </ul>
-  </div>
-</div>
-
-<!-- Alerts -->
-<div class="row mb-4 g-3">
-  <div class="col-12 col-md-6">
-    <div class="alert alert-info">
-      <h5 class="alert-heading">Info Alert</h5>
-      <p>This is an info alert.</p>
-    </div>
-  </div>
-  <div class="col-12 col-md-6">
-    <div class="alert alert-warning">
-      <h5 class="alert-heading">Warning Alert</h5>
-      <p>This is a warning alert.</p>
+    <div class="col-12 col-md-8">
+  <div class="card h-100">
+    <div class="card-body">
+      <h5 class="card-title mb-3">School Event Calendar</h5>
+      <div id="calendar"></div>
     </div>
   </div>
 </div>
-
-<!-- Quick Actions -->
-<div class="row mb-4 g-3">
-  <div class="col-12 col-md-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Quick Action 1</h5>
-        <p class="card-text">This is a quick action.</p>
-        <button class="btn btn-primary">Take Action</button>
+<!-- Event Modal -->
+<div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="eventModalLabel">Event</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-    </div>
-  </div>
-  <div class="col-12 col-md-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Quick Action 2</h5>
-        <p class="card-text">This is another quick action.</p>
-        <button class="btn btn-primary">Take Action</button>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 col-md-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Quick Action 3</h5>
-        <p class="card-text">This is yet another quick action.</p>
-        <button class="btn btn-primary">Take Action</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Calendar/Events -->
-<div class="row mb-4 g-3">
-  <div class="col-12 col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Calendar</h5>
-        <div id="calendar"></div>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Upcoming Events</h5>
-        <ul class="list-group">
-          <li class="list-group-item">Event 1</li>
-          <li class="list-group-item">Event 2</li>
-          <li class="list-group-item">Event 3</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Activity Logs -->
-<div class="row mb-4 g-3">
-  <div class="col-12 col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Activity Logs</h5>
-        <ul class="list-group">
-          <li class="list-group-item">Log 1</li>
-          <li class="list-group-item">Log 2</li>
-          <li class="list-group-item">Log 3</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">System Logs</h5>
-        <ul class="list-group">
-          <li class="list-group-item">Log 1</li>
-          <li class="list-group-item">Log 2</li>
-          <li class="list-group-item">Log 3</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Finance -->
-<div class="row mb-4 g-3">
-  <div class="col-12 col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Financial Summary</h5>
-        <p class="card-text">This is a financial summary.</p>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Transaction History</h5>
-        <ul class="list-group">
-          <li class="list-group-item">Transaction 1</li>
-          <li class="list-group-item">Transaction 2</li>
-          <li class="list-group-item">Transaction 3</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Performance Carousel & Events -->
-<div class="row mb-4 g-3">
-  <div class="col-12 col-lg-6">
-    <div class="card h-100">
-      <div class="card-body">
-        <h6 class="card-title mb-3">Top & Bottom Performers</h6>
-        <div id="performersCarousel" class="carousel slide" data-bs-ride="carousel">
-          <div class="carousel-inner">
-            {% for performer in top_performers %}
-            <div class="carousel-item {% if forloop.first %}active{% endif %}">
-              <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:180px;">
-                <span class="badge bg-success mb-2">Top Performer</span>
-                <h5>{{ performer.student }}</h5>
-                <div class="mb-1 small">Class: {{ performer.class }}</div>
-                <span class="badge bg-primary fs-5">{{ performer.avg_score|floatformat:2 }}</span>
-              </div>
-            </div>
-            {% endfor %}
-            {% for performer in bottom_performers %}
-            <div class="carousel-item">
-              <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:180px;">
-                <span class="badge bg-danger mb-2">Bottom Performer</span>
-                <h5>{{ performer.student }}</h5>
-                <div class="mb-1 small">Class: {{ performer.class }}</div>
-                <span class="badge bg-warning text-dark fs-5">{{ performer.avg_score|floatformat:2 }}</span>
-              </div>
-            </div>
-            {% endfor %}
+      <div class="modal-body">
+        <form id="eventForm">
+          <input type="hidden" id="eventId">
+          <div class="mb-3">
+            <label for="eventTitle" class="form-label">Title</label>
+            <input type="text" class="form-control" id="eventTitle" required>
           </div>
-          <button class="carousel-control-prev" type="button" data-bs-target="#performersCarousel" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Previous</span>
-          </button>
-          <button class="carousel-control-next" type="button" data-bs-target="#performersCarousel" data-bs-slide="next">
-            <span class="carousel-control-next-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Next</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 col-lg-6">
-    <div class="card h-100">
-      <div class="card-body">
-        <h6 class="card-title">Upcoming Events</h6>
-        <ul class="list-group list-group-flush">
-          {% for event in upcoming_events %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-calendar-event me-2"></i>{{ event.title }}</span>
-              <span class="badge bg-info rounded-pill">{{ event.date }}</span>
-            </li>
-          {% empty %}
-            <li class="list-group-item">No upcoming events.</li>
-          {% endfor %}
-        </ul>
+          <div class="mb-3">
+            <label for="eventStart" class="form-label">Start</label>
+            <input type="datetime-local" class="form-control" id="eventStart" required>
+          </div>
+          <div class="mb-3">
+            <label for="eventEnd" class="form-label">End</label>
+            <input type="datetime-local" class="form-control" id="eventEnd">
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="eventAllDay">
+            <label class="form-check-label" for="eventAllDay">All Day</label>
+          </div>
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-danger ms-2" id="deleteEventBtn" style="display:none;">Delete</button>
+        </form>
       </div>
     </div>
   </div>
 </div>
-</div>
+<!-- FullCalendar JS/CSS -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var calendarEl = document.getElementById('calendar');
+  var modal = new bootstrap.Modal(document.getElementById('eventModal'));
+  var eventForm = document.getElementById('eventForm');
+  var eventId = document.getElementById('eventId');
+  var eventTitle = document.getElementById('eventTitle');
+  var eventStart = document.getElementById('eventStart');
+  var eventEnd = document.getElementById('eventEnd');
+  var eventAllDay = document.getElementById('eventAllDay');
+  var deleteBtn = document.getElementById('deleteEventBtn');
+
+  var calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'dayGridMonth',
+    editable: true,
+    selectable: true,
+    events: '/dashboard/events/json/',
+    eventClick: function(info) {
+      eventId.value = info.event.id;
+      eventTitle.value = info.event.title;
+      eventStart.value = info.event.start ? info.event.start.toISOString().slice(0,16) : '';
+      eventEnd.value = info.event.end ? info.event.end.toISOString().slice(0,16) : '';
+      eventAllDay.checked = info.event.allDay;
+      deleteBtn.style.display = '';
+      modal.show();
+    },
+    select: function(info) {
+      eventId.value = '';
+      eventTitle.value = '';
+      eventStart.value = info.startStr.slice(0,16);
+      eventEnd.value = info.endStr ? info.endStr.slice(0,16) : '';
+      eventAllDay.checked = info.allDay;
+      deleteBtn.style.display = 'none';
+      modal.show();
+    },
+    eventDrop: function(info) {
+      updateEvent(info.event);
+    },
+    eventResize: function(info) {
+      updateEvent(info.event);
+    }
+  });
+  calendar.render();
+
+  eventForm.onsubmit = function(e) {
+    e.preventDefault();
+    var id = eventId.value;
+    var data = new FormData();
+    data.append('title', eventTitle.value);
+    data.append('start', eventStart.value);
+    data.append('end', eventEnd.value);
+    data.append('allDay', eventAllDay.checked);
+    var url = id ? '/dashboard/events/update/' : '/dashboard/events/create/';
+    if (id) data.append('id', id);
+    fetch(url, {
+      method: 'POST',
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+      body: data
+    }).then(res => res.json()).then(function(resp) {
+      if (resp.success) {
+        modal.hide();
+        calendar.refetchEvents();
+      } else {
+        alert(resp.error || 'Error saving event.');
+      }
+    });
+  };
+  deleteBtn.onclick = function() {
+    if (!eventId.value) return;
+    if (!confirm('Delete this event?')) return;
+    var data = new FormData();
+    data.append('id', eventId.value);
+    fetch('/dashboard/events/delete/', {
+      method: 'POST',
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+      body: data
+    }).then(res => res.json()).then(function(resp) {
+      if (resp.success) {
+        modal.hide();
+        calendar.refetchEvents();
+      } else {
+        alert(resp.error || 'Error deleting event.');
+      }
+    });
+  };
+  function updateEvent(event) {
+    var data = new FormData();
+    data.append('id', event.id);
+    data.append('title', event.title);
+    data.append('start', event.start ? event.start.toISOString() : '');
+    data.append('end', event.end ? event.end.toISOString() : '');
+    data.append('allDay', event.allDay);
+    fetch('/dashboard/events/update/', {
+      method: 'POST',
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+      body: data
+    }).then(res => res.json()).then(function(resp) {
+      if (!resp.success) {
+        alert(resp.error || 'Error updating event.');
+        calendar.refetchEvents();
+      }
+    });
+  }
+});
+</script>
+
+  </div>
 {% endblock %}
