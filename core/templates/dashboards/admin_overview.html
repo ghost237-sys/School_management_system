@@ -15,6 +15,16 @@
 
 {% block title %}Admin Overview{% endblock %}
 {% block content %}
+<!-- Display Django messages -->
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  {% endfor %}
+{% endif %}
+
 <style>
   /* Modal form improvements */
   .modal-xl { max-width: 700px; }
@@ -123,28 +133,6 @@
         <div class="col d-flex">
           <div class="card flex-fill h-100">
             <div class="card-body">
-<<<<<<< HEAD
-              <h6 class="card-title mb-3">Top & Bottom Performers</h6>
-              <div id="performersCarousel" class="carousel slide" data-bs-ride="carousel">
-                <div class="carousel-inner">
-                  {% for performer in top_performers %}
-                  <div class="carousel-item {% if forloop.first %}active{% endif %}">
-                    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:180px;">
-                      <span class="badge bg-success mb-2">Top Performer</span>
-                      <h5>{{ performer.student }}</h5>
-                      <div class="mb-1 small">Class: {{ performer.class }}</div>
-                      <span class="badge bg-primary fs-5">{{ performer.avg_score|floatformat:2 }}</span>
-                    </div>
-                  </div>
-                  {% endfor %}
-                  {% for performer in bottom_performers %}
-                  <div class="carousel-item">
-                    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:180px;">
-                      <span class="badge bg-danger mb-2">Bottom Performer</span>
-                      <h5>{{ performer.student }}</h5>
-                      <div class="mb-1 small">Class: {{ performer.class }}</div>
-                      <span class="badge bg-warning text-dark fs-5">{{ performer.avg_score|floatformat:2 }}</span>
-=======
               <h6 class="card-title mb-3">Subject Average Scores</h6>
               <div id="subjectAveragesCarousel" class="carousel slide" data-bs-ride="carousel">
                 <div class="carousel-inner">
@@ -154,7 +142,6 @@
                       <span class="badge bg-info mb-2">Subject</span>
                       <h5>{{ subject.subject }}</h5>
                       <span class="badge bg-primary fs-5">Avg: {{ subject.avg_score|floatformat:2 }}</span>
->>>>>>> testing_branch
                     </div>
                   </div>
                   {% endfor %}
@@ -350,17 +337,6 @@
 
   <!-- Calendar/Events -->
   <div class="row mb-4 g-3">
-<<<<<<< HEAD
-    <div class="col-12 col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Calendar</h5>
-          <div id="calendar"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-=======
     <div class="col-12 col-md-8">
   <div class="card h-100">
     <div class="card-body">
@@ -513,5 +489,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
   </div>
->>>>>>> testing_branch
 {% endblock %}
