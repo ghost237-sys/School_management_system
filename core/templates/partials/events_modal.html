@@ -1,0 +1,26 @@
+<div class="modal fade" id="eventsModal" tabindex="-1" aria-labelledby="eventsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="eventsModalLabel">Manage Upcoming Events</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="eventsForm">
+          <div id="eventsList">
+            <!-- Events will be loaded here -->
+          </div>
+          <div class="mb-3">
+            <label for="newEventTitle" class="form-label">Event Title</label>
+            <input type="text" class="form-control" id="newEventTitle" placeholder="Event Title">
+          </div>
+          <div class="mb-3">
+            <label for="newEventDate" class="form-label">Event Date</label>
+            <input type="date" class="form-control" id="newEventDate">
+          </div>
+          <button type="button" class="btn btn-success mb-2" id="addEventBtn">Add Event</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

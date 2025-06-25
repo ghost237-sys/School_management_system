@@ -1,0 +1,6 @@
+{% load crispy_forms_tags %}
+<form method="post" action="/dashboard/classes/add/" id="addClassForm">
+  {% csrf_token %}
+  {{ form|crispy }}
+  <button type="submit" class="btn btn-info w-100">Add Class</button>
+</form>

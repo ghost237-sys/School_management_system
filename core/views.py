@@ -112,14 +112,16 @@ def admin_overview(request):
     # present_count = attendance_qs.filter(status='present').count()
     # attendance_rate = round((present_count / total_attendance) * 100, 2) if total_attendance else 'N/A'
 
-    # Top/Bottom performers (after filter)
-    top_performers = []
-    for student in students_qs:
-        avg_score = grades_qs.filter(student=student).aggregate(avg=Avg('score'))['avg']
-        if avg_score is not None:
-            top_performers.append({'student': student.full_name, 'class': student.class_group.name if student.class_group else '', 'avg_score': avg_score})
-    top_performers_sorted = sorted(top_performers, key=lambda x: x['avg_score'], reverse=True)[:5]
-    bottom_performers_sorted = sorted(top_performers, key=lambda x: x['avg_score'])[:5]
+    # Subject averages (after filter)
+    subject_averages = (
+        grades_qs.values('subject__name')
+        .annotate(avg_score=Avg('score'))
+        .order_by('-avg_score')
+    )
+    # Prepare as list of dicts: subject, avg_score
+    subject_averages_list = [
+        {'subject': s['subject__name'], 'avg_score': s['avg_score']} for s in subject_averages if s['avg_score'] is not None
+    ]
 
     # New summary stats
     total_teachers = Teacher.objects.count()
@@ -169,8 +171,7 @@ def admin_overview(request):
         'total_students': total_students,
         'average_score': average_score,
         'attendance_rate': attendance_rate,
-        'top_performers': top_performers_sorted,
-        'bottom_performers': bottom_performers_sorted,
+        'subject_averages': subject_averages_list,
         'classes': classes,
         'selected_class_id': int(selected_class_id) if selected_class_id else '',
         'start_date': start_date,
@@ -190,9 +191,222 @@ def admin_overview(request):
     return render(request, 'dashboards/admin_overview.html', context)
 
 
-# Admin Teachers View
-from .forms import AddTeacherForm
+from django.http import JsonResponse
+from django.template.loader import render_to_string
+from .forms import AddTeacherForm, AddStudentForm, AddClassForm, AddSubjectForm
 from django.shortcuts import get_object_or_404
+
+@login_required(login_url='login')
+def add_student_ajax(request):
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    if request.method == 'POST':
+        form = AddStudentForm(request.POST)
+        if form.is_valid():
+            # Save user and student
+            user = form.save_user() if hasattr(form, 'save_user') else None
+            student = form.save(commit=False)
+            if user:
+                student.user = user
+            student.save()
+            return JsonResponse({'success': True})
+        else:
+            html = render_to_string('partials/add_student_form.html', {'form': form}, request=request)
+            return JsonResponse({'success': False, 'form_html': html})
+    else:
+        form = AddStudentForm()
+        html = render_to_string('partials/add_student_form.html', {'form': form}, request=request)
+        return JsonResponse({'form_html': html})
+
+@login_required(login_url='login')
+def add_teacher_ajax(request):
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    if request.method == 'POST':
+        form = AddTeacherForm(request.POST)
+        if form.is_valid():
+            user = form.save_user() if hasattr(form, 'save_user') else None
+            teacher = form.save(commit=False)
+            if user:
+                teacher.user = user
+            teacher.save()
+            if hasattr(form, 'save_m2m'):
+                form.save_m2m()
+            return JsonResponse({'success': True})
+        else:
+            html = render_to_string('partials/add_teacher_form.html', {'form': form}, request=request)
+            return JsonResponse({'success': False, 'form_html': html})
+    else:
+        form = AddTeacherForm()
+        html = render_to_string('partials/add_teacher_form.html', {'form': form}, request=request)
+        return JsonResponse({'form_html': html})
+
+@login_required(login_url='login')
+def add_class_ajax(request):
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    if request.method == 'POST':
+        form = AddClassForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return JsonResponse({'success': True})
+        else:
+            html = render_to_string('partials/add_class_form.html', {'form': form}, request=request)
+            return JsonResponse({'success': False, 'form_html': html})
+    else:
+        form = AddClassForm()
+        html = render_to_string('partials/add_class_form.html', {'form': form}, request=request)
+        return JsonResponse({'form_html': html})
+
+@login_required(login_url='login')
+def add_subject_ajax(request):
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    if request.method == 'POST':
+        form = AddSubjectForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return JsonResponse({'success': True})
+        else:
+            html = render_to_string('partials/add_subject_form.html', {'form': form}, request=request)
+            return JsonResponse({'success': False, 'form_html': html})
+    else:
+        form = AddSubjectForm()
+        html = render_to_string('partials/add_subject_form.html', {'form': form}, request=request)
+        return JsonResponse({'form_html': html})
+
+# FullCalendar Event AJAX Views
+from .models import Event
+from django.views.decorators.http import require_POST
+from django.utils.dateparse import parse_datetime
+
+@login_required(login_url='login')
+def events_feed(request):
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    events = Event.objects.all()
+    data = [
+        {
+            'id': e.id,
+            'title': e.title,
+            'start': e.start.isoformat(),
+            'end': e.end.isoformat() if e.end else None,
+            'allDay': e.all_day,
+        } for e in events
+    ]
+    return JsonResponse(data, safe=False)
+
+@login_required(login_url='login')
+@require_POST
+def event_create(request):
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    title = request.POST.get('title', '').strip()
+    start = parse_datetime(request.POST.get('start', ''))
+    end = parse_datetime(request.POST.get('end', '')) if request.POST.get('end') else None
+    all_day = request.POST.get('allDay', 'false') == 'true'
+    if not title or not start:
+        return JsonResponse({'error': 'Title and start required.'}, status=400)
+    event = Event.objects.create(title=title, start=start, end=end, all_day=all_day)
+    return JsonResponse({'success': True, 'id': event.id})
+
+@login_required(login_url='login')
+@require_POST
+def event_update(request):
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    event_id = request.POST.get('id')
+    try:
+        event = Event.objects.get(id=event_id)
+    except Event.DoesNotExist:
+        return JsonResponse({'error': 'Event not found.'}, status=404)
+    event.title = request.POST.get('title', event.title)
+    event.start = parse_datetime(request.POST.get('start', event.start.isoformat()))
+    event.end = parse_datetime(request.POST.get('end', '')) if request.POST.get('end') else None
+    event.all_day = request.POST.get('allDay', 'false') == 'true'
+    event.save()
+    return JsonResponse({'success': True})
+
+@login_required(login_url='login')
+@require_POST
+def event_delete(request):
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    event_id = request.POST.get('id')
+    try:
+        event = Event.objects.get(id=event_id)
+        event.delete()
+    except Event.DoesNotExist:
+        return JsonResponse({'error': 'Event not found.'}, status=404)
+    return JsonResponse({'success': True})
+
+# FullCalendar AJAX Event Views
+from .models import Event
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+
+@login_required(login_url='login')
+def events_json(request):
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    events = Event.objects.all()
+    data = [{
+        'id': event.id,
+        'title': event.title,
+        'start': event.start.isoformat(),
+        'end': event.end.isoformat() if event.end else None,
+        'allDay': event.all_day,
+    } for event in events]
+    return JsonResponse(data, safe=False)
+
+@login_required(login_url='login')
+@require_POST
+@csrf_exempt
+def event_create(request):
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    title = request.POST.get('title', '').strip()
+    start = request.POST.get('start')
+    end = request.POST.get('end')
+    all_day = request.POST.get('allDay') == 'true'
+    if not title or not start:
+        return JsonResponse({'error': 'Title and start required.'}, status=400)
+    event = Event.objects.create(title=title, start=start, end=end or None, all_day=all_day)
+    return JsonResponse({'success': True, 'id': event.id})
+
+@login_required(login_url='login')
+@require_POST
+@csrf_exempt
+def event_update(request):
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    event_id = request.POST.get('id')
+    try:
+        event = Event.objects.get(id=event_id)
+    except Event.DoesNotExist:
+        return JsonResponse({'error': 'Event not found.'}, status=404)
+    event.title = request.POST.get('title', event.title)
+    event.start = request.POST.get('start', event.start)
+    event.end = request.POST.get('end', event.end)
+    event.all_day = request.POST.get('allDay') == 'true'
+    event.save()
+    return JsonResponse({'success': True})
+
+@login_required(login_url='login')
+@require_POST
+@csrf_exempt
+def event_delete(request):
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    event_id = request.POST.get('id')
+    try:
+        event = Event.objects.get(id=event_id)
+        event.delete()
+    except Event.DoesNotExist:
+        return JsonResponse({'error': 'Event not found.'}, status=404)
+    return JsonResponse({'success': True})
+
+# Admin Teachers View
 
 @login_required(login_url='login')
 def admin_teachers(request):

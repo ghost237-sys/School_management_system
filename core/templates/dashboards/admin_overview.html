@@ -15,6 +15,25 @@
 
 {% block title %}Admin Overview{% endblock %}
 {% block content %}
+<style>
+  /* Modal form improvements */
+  .modal-xl { max-width: 700px; }
+  .modal-body form { max-width: 600px; margin: 0 auto; }
+  .modal-body label { font-weight: 500; }
+  .modal-body input, .modal-body select, .modal-body textarea {
+    font-size: 0.98rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 0.3rem;
+  }
+  .modal-body .form-group, .modal-body .mb-3, .modal-body .mb-2 {
+    margin-bottom: 0.7rem !important;
+  }
+  .modal-body .form-check {
+    margin-bottom: 0.5rem;
+  }
+  .modal-body .btn { min-width: 120px; }
+  .modal-body { max-height: 80vh; overflow-y: auto; }
+</style>
 <div class="container-fluid px-2">
   <h1 class="mb-4">Admin Dashboard Overview</h1>
 
@@ -104,6 +123,7 @@
         <div class="col d-flex">
           <div class="card flex-fill h-100">
             <div class="card-body">
+<<<<<<< HEAD
               <h6 class="card-title mb-3">Top & Bottom Performers</h6>
               <div id="performersCarousel" class="carousel slide" data-bs-ride="carousel">
                 <div class="carousel-inner">
@@ -124,6 +144,17 @@
                       <h5>{{ performer.student }}</h5>
                       <div class="mb-1 small">Class: {{ performer.class }}</div>
                       <span class="badge bg-warning text-dark fs-5">{{ performer.avg_score|floatformat:2 }}</span>
+=======
+              <h6 class="card-title mb-3">Subject Average Scores</h6>
+              <div id="subjectAveragesCarousel" class="carousel slide" data-bs-ride="carousel">
+                <div class="carousel-inner">
+                  {% for subject in subject_averages %}
+                  <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:180px;">
+                      <span class="badge bg-info mb-2">Subject</span>
+                      <h5>{{ subject.subject }}</h5>
+                      <span class="badge bg-primary fs-5">Avg: {{ subject.avg_score|floatformat:2 }}</span>
+>>>>>>> testing_branch
                     </div>
                   </div>
                   {% endfor %}
@@ -161,56 +192,165 @@
       </div>
     </div>
   </div>
-
-  <!-- Alerts -->
-  <div class="row mb-4 g-3">
-    <div class="col-12 col-md-6">
-      <div class="alert alert-info">
-        <h5 class="alert-heading">Info Alert</h5>
-        <p>This is an info alert.</p>
-      </div>
-    </div>
-    <div class="col-12 col-md-6">
-      <div class="alert alert-warning">
-        <h5 class="alert-heading">Warning Alert</h5>
-        <p>This is a warning alert.</p>
-      </div>
-    </div>
-  </div>
-
   <!-- Quick Actions -->
   <div class="row mb-4 g-3">
     <div class="col-12 col-md-3">
       <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Quick Action 1</h5>
-          <p class="card-text">This is a quick action.</p>
-          <button class="btn btn-primary">Take Action</button>
+        <div class="card-body text-center">
+          <button class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#addStudentModal">
+            <i class="bi bi-person-plus me-1"></i> Add Student
+          </button>
         </div>
       </div>
     </div>
     <div class="col-12 col-md-3">
       <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Quick Action 2</h5>
-          <p class="card-text">This is another quick action.</p>
-          <button class="btn btn-primary">Take Action</button>
+        <div class="card-body text-center">
+          <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addTeacherModal">
+            <i class="bi bi-person-badge me-1"></i> Add Teacher
+          </button>
         </div>
       </div>
     </div>
     <div class="col-12 col-md-3">
       <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Quick Action 3</h5>
-          <p class="card-text">This is yet another quick action.</p>
-          <button class="btn btn-primary">Take Action</button>
+        <div class="card-body text-center">
+          <button class="btn btn-info w-100" data-bs-toggle="modal" data-bs-target="#addClassModal">
+            <i class="bi bi-building-add me-1"></i> Add Class
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card">
+        <div class="card-body text-center">
+          <button class="btn btn-warning w-100" data-bs-toggle="modal" data-bs-target="#addSubjectModal">
+            <i class="bi bi-bookmark-plus me-1"></i> Add Subject
+          </button>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- Add Student Modal -->
+  <div class="modal fade" id="addStudentModal" tabindex="-1" aria-labelledby="addStudentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addStudentModalLabel">Add New Student</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="addStudentFormContainer">
+            <!-- Student form will be loaded here -->
+            <div class="text-center text-muted">Loading form...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Teacher Modal -->
+  <div class="modal fade" id="addTeacherModal" tabindex="-1" aria-labelledby="addTeacherModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addTeacherModalLabel">Add New Teacher</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="addTeacherFormContainer" style="min-width:0;">
+            <!-- Teacher form will be loaded here -->
+            <div class="text-center text-muted">Loading form...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Class Modal -->
+  <div class="modal fade" id="addClassModal" tabindex="-1" aria-labelledby="addClassModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addClassModalLabel">Add New Class</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="addClassFormContainer">
+            <!-- Class form will be loaded here -->
+            <div class="text-center text-muted">Loading form...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Subject Modal -->
+  <div class="modal fade" id="addSubjectModal" tabindex="-1" aria-labelledby="addSubjectModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addSubjectModalLabel">Add New Subject</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="addSubjectFormContainer">
+            <!-- Subject form will be loaded here -->
+            <div class="text-center text-muted">Loading form...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Placeholder for AJAX form loading and submission
+    // You will need to implement AJAX endpoints for each form
+    document.addEventListener('DOMContentLoaded', function() {
+      // Example: Load form HTML into modal body on modal show
+      const loadForm = (modalId, containerId, url, redirectUrl) => {
+        const modal = document.getElementById(modalId);
+        modal.addEventListener('show.bs.modal', function() {
+          const container = document.getElementById(containerId);
+          fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(res => res.json())
+            .then(data => {
+              container.innerHTML = data.form_html;
+              attachFormHandler(container, redirectUrl);
+            });
+        });
+      };
+      // Attach AJAX form submission handler
+      const attachFormHandler = (container, redirectUrl) => {
+        const form = container.querySelector('form');
+        if (!form) return;
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const formData = new FormData(form);
+          fetch(form.action, {method: 'POST', body: formData, headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                window.location.href = redirectUrl;
+              } else if (data.form_html) {
+                container.innerHTML = data.form_html;
+                attachFormHandler(container, redirectUrl);
+              }
+            });
+        });
+      };
+      // Setup for each modal
+      loadForm('addStudentModal', 'addStudentFormContainer', '/dashboard/students/add/', '/admin/students/');
+      loadForm('addTeacherModal', 'addTeacherFormContainer', '/dashboard/teachers/add/', '/admin/teachers/');
+      loadForm('addClassModal', 'addClassFormContainer', '/dashboard/classes/add/', '/admin/classes/');
+      loadForm('addSubjectModal', 'addSubjectFormContainer', '/dashboard/subjects/add/', '/admin/subjects/');
+    });
+  </script>
+
   <!-- Calendar/Events -->
   <div class="row mb-4 g-3">
+<<<<<<< HEAD
     <div class="col-12 col-md-6">
       <div class="card">
         <div class="card-body">
@@ -220,4 +360,158 @@
       </div>
     </div>
   </div>
+=======
+    <div class="col-12 col-md-8">
+  <div class="card h-100">
+    <div class="card-body">
+      <h5 class="card-title mb-3">School Event Calendar</h5>
+      <div id="calendar"></div>
+    </div>
+  </div>
+</div>
+<!-- Event Modal -->
+<div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="eventModalLabel">Event</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="eventForm">
+          <input type="hidden" id="eventId">
+          <div class="mb-3">
+            <label for="eventTitle" class="form-label">Title</label>
+            <input type="text" class="form-control" id="eventTitle" required>
+          </div>
+          <div class="mb-3">
+            <label for="eventStart" class="form-label">Start</label>
+            <input type="datetime-local" class="form-control" id="eventStart" required>
+          </div>
+          <div class="mb-3">
+            <label for="eventEnd" class="form-label">End</label>
+            <input type="datetime-local" class="form-control" id="eventEnd">
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="eventAllDay">
+            <label class="form-check-label" for="eventAllDay">All Day</label>
+          </div>
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-danger ms-2" id="deleteEventBtn" style="display:none;">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- FullCalendar JS/CSS -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var calendarEl = document.getElementById('calendar');
+  var modal = new bootstrap.Modal(document.getElementById('eventModal'));
+  var eventForm = document.getElementById('eventForm');
+  var eventId = document.getElementById('eventId');
+  var eventTitle = document.getElementById('eventTitle');
+  var eventStart = document.getElementById('eventStart');
+  var eventEnd = document.getElementById('eventEnd');
+  var eventAllDay = document.getElementById('eventAllDay');
+  var deleteBtn = document.getElementById('deleteEventBtn');
+
+  var calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'dayGridMonth',
+    editable: true,
+    selectable: true,
+    events: '/dashboard/events/json/',
+    eventClick: function(info) {
+      eventId.value = info.event.id;
+      eventTitle.value = info.event.title;
+      eventStart.value = info.event.start ? info.event.start.toISOString().slice(0,16) : '';
+      eventEnd.value = info.event.end ? info.event.end.toISOString().slice(0,16) : '';
+      eventAllDay.checked = info.event.allDay;
+      deleteBtn.style.display = '';
+      modal.show();
+    },
+    select: function(info) {
+      eventId.value = '';
+      eventTitle.value = '';
+      eventStart.value = info.startStr.slice(0,16);
+      eventEnd.value = info.endStr ? info.endStr.slice(0,16) : '';
+      eventAllDay.checked = info.allDay;
+      deleteBtn.style.display = 'none';
+      modal.show();
+    },
+    eventDrop: function(info) {
+      updateEvent(info.event);
+    },
+    eventResize: function(info) {
+      updateEvent(info.event);
+    }
+  });
+  calendar.render();
+
+  eventForm.onsubmit = function(e) {
+    e.preventDefault();
+    var id = eventId.value;
+    var data = new FormData();
+    data.append('title', eventTitle.value);
+    data.append('start', eventStart.value);
+    data.append('end', eventEnd.value);
+    data.append('allDay', eventAllDay.checked);
+    var url = id ? '/dashboard/events/update/' : '/dashboard/events/create/';
+    if (id) data.append('id', id);
+    fetch(url, {
+      method: 'POST',
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+      body: data
+    }).then(res => res.json()).then(function(resp) {
+      if (resp.success) {
+        modal.hide();
+        calendar.refetchEvents();
+      } else {
+        alert(resp.error || 'Error saving event.');
+      }
+    });
+  };
+  deleteBtn.onclick = function() {
+    if (!eventId.value) return;
+    if (!confirm('Delete this event?')) return;
+    var data = new FormData();
+    data.append('id', eventId.value);
+    fetch('/dashboard/events/delete/', {
+      method: 'POST',
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+      body: data
+    }).then(res => res.json()).then(function(resp) {
+      if (resp.success) {
+        modal.hide();
+        calendar.refetchEvents();
+      } else {
+        alert(resp.error || 'Error deleting event.');
+      }
+    });
+  };
+  function updateEvent(event) {
+    var data = new FormData();
+    data.append('id', event.id);
+    data.append('title', event.title);
+    data.append('start', event.start ? event.start.toISOString() : '');
+    data.append('end', event.end ? event.end.toISOString() : '');
+    data.append('allDay', event.allDay);
+    fetch('/dashboard/events/update/', {
+      method: 'POST',
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+      body: data
+    }).then(res => res.json()).then(function(resp) {
+      if (!resp.success) {
+        alert(resp.error || 'Error updating event.');
+        calendar.refetchEvents();
+      }
+    });
+  }
+});
+</script>
+
+  </div>
+>>>>>>> testing_branch
 {% endblock %}
