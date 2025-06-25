@@ -55,6 +55,7 @@ class Student(models.Model):
     class_group = models.ForeignKey('Class', on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
     gender = models.CharField(max_length=10)
     birthdate = models.DateField()
+    graduated = models.BooleanField(default=False)  # Added for graduation status tracking
 
     @property
     def full_name(self):
@@ -71,7 +72,9 @@ class AcademicYear(models.Model):
 
 class Term(models.Model):
     name = models.CharField(max_length=20)
-    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE)
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='terms')
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
 
 class Exam(models.Model):
     name = models.CharField(max_length=50)

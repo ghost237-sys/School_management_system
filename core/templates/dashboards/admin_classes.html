@@ -257,4 +257,35 @@
         </div>
     </div>
 </div>
+
+<div class="card mt-5">
+    <div class="card-header bg-danger text-white">
+        <h5 class="mb-0">Graduated Students</h5>
+    </div>
+    <div class="card-body">
+        {% if graduated_students and graduated_students|length > 0 %}
+        <table class="table table-bordered table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Admission No.</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for info in graduated_info %}
+                <tr>
+                    <td>{{ info.student.user.get_full_name|default:info.student.user.username }}</td>
+                    <td>{{ info.student.admission_no }}</td>
+                    <td>{{ info.status }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p>No graduated students.</p>
+        {% endif %}
+    </div>
+</div>
+
 {% endblock %}

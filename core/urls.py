@@ -26,6 +26,7 @@ urlpatterns = [
     path('delete_class/<int:class_id>/', views.delete_class, name='delete_class'),
     path('admin_analytics/', views.admin_analytics, name='admin_analytics'),
     path('admin_subjects/', views.admin_subjects, name='admin_subjects'),
+    path('admin_academic_years/', views.admin_academic_years, name='admin_academic_years'),
     path('admin_exams/', views.admin_exams, name='admin_exams'),
     path('teacher/upload_marksheet/', views.upload_marksheet, name='upload_marksheet'),
 ]

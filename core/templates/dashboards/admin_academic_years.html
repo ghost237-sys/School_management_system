@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Academic Years & Terms</h2>
+
+{% if current_term %}
+  <div class="alert alert-success">
+    <strong>Current Term:</strong> {{ current_term.name }} ({{ current_term.start_date }} to {{ current_term.end_date }}) in Academic Year {{ current_year.year }}
+  </div>
+{% else %}
+  <div class="alert alert-warning">
+    <strong>No current term</strong> (today is not within any term's date range).
+  </div>
+{% endif %}
+
+{% if graduation_ready and graduation_year %}
+  <div class="alert alert-danger">
+    <strong>The academic year {{ graduation_year.year }} has ended.</strong> It is time to graduate students to the next level.
+    <form method="post" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" name="run_promotion" class="btn btn-danger btn-sm">Graduate & Promote Students</button>
+    </form>
+  </div>
+{% endif %}
+<div class="mb-4">
+    <form method="post">
+        {% csrf_token %}
+        <label for="year">Add Academic Year (e.g. 2024/2025):</label>
+        <input type="text" name="year" required>
+        <button type="submit" name="add_year">Add Year</button>
+    </form>
+</div>
+<hr>
+{% for year in academic_years %}
+    <div class="card mb-3">
+        <div class="card-header bg-primary text-white">
+            Academic Year: <strong>{{ year.year }}</strong>
+        </div>
+        <div class="card-body">
+            <h5>Terms</h5>
+            <ul>
+                {% for term in year.terms.all %}
+                    <li>
+                        <strong>{{ term.name }}</strong>
+                        {% if term.start_date and term.end_date %}
+                            <span class="text-muted"> ({{ term.start_date }} to {{ term.end_date }})</span>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+            <form method="post" class="row g-2 align-items-end">
+                {% csrf_token %}
+                <input type="hidden" name="year_id" value="{{ year.id }}">
+                <div class="col-auto">
+                    <label for="term_name_{{ year.id }}" class="form-label">Add Term:</label>
+                    <input type="text" class="form-control" name="term_name" id="term_name_{{ year.id }}" placeholder="e.g. Term 1" required>
+                </div>
+                <div class="col-auto">
+                    <label for="start_date_{{ year.id }}" class="form-label">Start Date:</label>
+                    <input type="date" class="form-control" name="start_date" id="start_date_{{ year.id }}" required>
+                </div>
+                <div class="col-auto">
+                    <label for="end_date_{{ year.id }}" class="form-label">End Date:</label>
+                    <input type="date" class="form-control" name="end_date" id="end_date_{{ year.id }}" required>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" name="add_term" class="btn btn-primary">Add Term</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endfor %}
+{% endblock %}

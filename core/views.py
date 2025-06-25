@@ -676,7 +676,7 @@ def admin_classes(request):
         # For backward compatibility in template, assign to 'subjects_and_teachers'
         subjects_and_teachers = teachers_and_subjects
 
-        class_students = Student.objects.filter(class_group=c).select_related('user')
+        class_students = Student.objects.filter(class_group=c, graduated=False).select_related('user')
         # Compute subject performance for this class
         from django.db.models import Avg
         subject_performance = []
@@ -692,11 +692,40 @@ def admin_classes(request):
             'subject_performance': subject_performance,
             'subjects_and_teachers': subjects_and_teachers,
         })
+    # Optionally, provide all graduated students for display
+    graduated_students = Student.objects.filter(graduated=True).select_related('user')
+    # Calculate graduation year info
+    import datetime
+    current_year = datetime.date.today().year
+    graduated_info = []
+    for student in graduated_students:
+        # Try to find the last academic year in which the student was active (based on their grades)
+        last_grade = student.grade_set.select_related('exam__term__academic_year').order_by('-exam__term__academic_year__year').first()
+        grad_year = None
+        if last_grade and last_grade.exam and last_grade.exam.term and last_grade.exam.term.academic_year:
+            # Extract the year as int (handles '2024' or '2024/2025')
+            import re
+            match = re.match(r'(\d{4})', str(last_grade.exam.term.academic_year.year))
+            if match:
+                grad_year = int(match.group(1))
+        if grad_year:
+            years_ago = current_year - grad_year
+            if years_ago == 0:
+                status = 'graduated this year'
+            elif years_ago == 1:
+                status = 'graduated last year'
+            else:
+                status = f'graduated {years_ago} years ago'
+        else:
+            status = 'graduation year unknown'
+        graduated_info.append({'student': student, 'status': status})
     context = {
         'class_list': class_list,
-        'all_teachers': all_teachers,
-        'all_subjects': all_subjects,
+        'graduated_students': graduated_students,
+        'graduated_info': graduated_info,
         'add_class_form': add_class_form,
+        'all_subjects': all_subjects,
+        'all_teachers': all_teachers,
     }
     return render(request, 'dashboards/admin_classes.html', context)
 
@@ -753,6 +782,103 @@ def delete_class(request, class_id):
     return render(request, 'dashboards/delete_class.html', context)
 
 
+
+# Admin Academic Years & Terms View
+from .models import AcademicYear, Term
+from django.views.decorators.csrf import csrf_protect
+
+@login_required(login_url='login')
+def admin_academic_years(request):
+    if request.user.role != 'admin':
+        return redirect('dashboard')
+    if request.method == 'POST':
+        if 'add_year' in request.POST:
+            year = request.POST.get('year')
+            if year:
+                academic_year_obj, created = AcademicYear.objects.get_or_create(year=year)
+                # Auto-create terms if none exist for this year
+                if created or academic_year_obj.terms.count() == 0:
+                    # Parse the year (support e.g. '2025' or '2025/2026')
+                    import re
+                    year_match = re.match(r'(\d{4})', year)
+                    if year_match:
+                        base_year = int(year_match.group(1))
+                        # Define terms and holidays
+                        import datetime
+                        terms = [
+                            ('Term 1', datetime.date(base_year, 1, 1), datetime.date(base_year, 3, 31)),
+                            ('Term 2', datetime.date(base_year, 5, 1), datetime.date(base_year, 7, 31)),
+                            ('Term 3', datetime.date(base_year, 9, 1), datetime.date(base_year, 11, 30)),
+                        ]
+                        for name, start, end in terms:
+                            Term.objects.create(name=name, academic_year=academic_year_obj, start_date=start, end_date=end)
+                messages.success(request, f'Academic Year {year} added.')
+                return redirect('admin_academic_years')
+        elif 'add_term' in request.POST:
+            year_id = request.POST.get('year_id')
+            term_name = request.POST.get('term_name')
+            start_date = request.POST.get('start_date')
+            end_date = request.POST.get('end_date')
+            if year_id and term_name and start_date and end_date:
+                academic_year = AcademicYear.objects.get(id=year_id)
+                Term.objects.get_or_create(
+                    name=term_name,
+                    academic_year=academic_year,
+                    defaults={
+                        'start_date': start_date,
+                        'end_date': end_date
+                    }
+                )
+                messages.success(request, f'Term {term_name} added to {academic_year.year}.')
+                return redirect('admin_academic_years')
+        elif 'run_promotion' in request.POST:
+            # Trigger the promote_students management command
+            import subprocess
+            import sys
+            result = subprocess.run([sys.executable, 'manage.py', 'promote_students'], capture_output=True, text=True)
+            if result.returncode == 0:
+                messages.success(request, 'Promotion and graduation process completed successfully.')
+            else:
+                messages.error(request, 'Promotion failed: ' + result.stderr)
+            return redirect('admin_academic_years')
+    import datetime
+    today = datetime.date.today()
+    # Only show years with at least one term whose end_date is today or in the future
+    all_years = AcademicYear.objects.prefetch_related('terms').all().order_by('-year')
+    academic_years = []
+    for year in all_years:
+        terms = year.terms.all()
+        if any(term.end_date and term.end_date >= today for term in terms):
+            academic_years.append(year)
+
+    # Find the current term based on today's date
+    current_term = None
+    current_year = None
+    third_term_ended = False
+    graduation_ready = False
+    graduation_year = None
+    for year in academic_years:
+        terms = sorted(year.terms.all(), key=lambda t: t.start_date or datetime.date.min)
+        for idx, term in enumerate(terms):
+            if term.start_date and term.end_date:
+                if term.start_date <= today <= term.end_date:
+                    current_term = term
+                    current_year = year
+                    break
+        # Graduation: after last term's end date
+        if terms and all(t.end_date for t in terms):
+            last_term = terms[-1]
+            if last_term.end_date < today:
+                graduation_ready = True
+                graduation_year = year
+    context = {
+        'academic_years': academic_years,
+        'current_term': current_term,
+        'current_year': current_year,
+        'graduation_ready': graduation_ready,
+        'graduation_year': graduation_year,
+    }
+    return render(request, 'dashboards/admin_academic_years.html', context)
 
 # Admin Analytics View
 import json
