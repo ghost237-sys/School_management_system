@@ -29,5 +29,21 @@ urlpatterns = [
     path('admin_academic_years/', views.admin_academic_years, name='admin_academic_years'),
     path('admin_exams/', views.admin_exams, name='admin_exams'),
     path('teacher/upload_marksheet/', views.upload_marksheet, name='upload_marksheet'),
+    # --- AJAX Modal Add Endpoints ---
+    path('dashboard/students/add/', views.add_student_ajax, name='add_student_ajax'),
+    path('dashboard/teachers/add/', views.add_teacher_ajax, name='add_teacher_ajax'),
+    path('dashboard/classes/add/', views.add_class_ajax, name='add_class_ajax'),
+    path('dashboard/subjects/add/', views.add_subject_ajax, name='add_subject_ajax'),
+    # --- FullCalendar AJAX Event Endpoints ---
+    path('dashboard/events/json/', views.events_json, name='events_json'),
+    path('dashboard/events/create/', views.event_create, name='event_create'),
+    path('dashboard/events/update/', views.event_update, name='event_update'),
+    path('dashboard/events/delete/', views.event_delete, name='event_delete'),
+    # --- FullCalendar AJAX Event Endpoints ---
+    path('dashboard/events/feed/', views.events_feed, name='events_feed'),
+    path('dashboard/events/create/', views.event_create, name='event_create'),
+    path('dashboard/events/update/', views.event_update, name='event_update'),
+    path('dashboard/events/delete/', views.event_delete, name='event_delete'),
+
 ]
 

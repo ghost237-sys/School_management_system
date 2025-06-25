@@ -130,3 +130,14 @@ class Deadline(models.Model):
 
     def __str__(self):
         return f"{self.title} for {self.class_group.name} ({self.subject.name})"
+
+class Event(models.Model):
+    title = models.CharField(max_length=200)
+    start = models.DateTimeField()
+    end = models.DateTimeField(blank=True, null=True)
+    all_day = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.title} ({self.start:%Y-%m-%d %H:%M})"
