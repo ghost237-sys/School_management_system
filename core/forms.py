@@ -1,6 +1,27 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
-from .models import User, Teacher, Department, Subject, Class, Student
+from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event
+
+class ExamForm(forms.ModelForm):
+    class Meta:
+        model = Exam
+        fields = ['name', 'term', 'level', 'date', 'type']
+
+
+class EventForm(forms.ModelForm):
+    class Meta:
+        model = Event
+        fields = ['title', 'start', 'end', 'all_day', 'is_done', 'comment', 'term', 'category']
+        widgets = {
+            'start': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'end': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'title': forms.TextInput(attrs={'class': 'form-control'}),
+            'all_day': forms.CheckboxInput(),
+            'is_done': forms.CheckboxInput(),
+            'comment': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'term': forms.Select(attrs={'class': 'form-select'}),
+            'category': forms.Select(attrs={'class': 'form-select'}),
+        }
 
 class AddSubjectForm(forms.ModelForm):
     name = forms.CharField(max_length=100, required=True, label='Subject Name')
@@ -11,12 +32,39 @@ class AddSubjectForm(forms.ModelForm):
         fields = ['name', 'department']
 
 class AddClassForm(forms.ModelForm):
-    name = forms.CharField(max_length=100, required=True, label='Stream Name')
-    level = forms.CharField(max_length=50, required=True, label='Year/Level')
+    LEVEL_CHOICES = [(str(i), f"{i}") for i in range(1, 10)]
+    STREAM_CHOICES = [
+        ("East", "East"),
+        ("West", "West"),
+        ("North", "North"),
+        ("South", "South"),
+    ]
+
+    level = forms.ChoiceField(choices=LEVEL_CHOICES, required=True, label='Level (1-9)')
+    stream = forms.ChoiceField(choices=STREAM_CHOICES, required=True, label='Stream')
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .models import Class, Teacher
+        assigned_teacher_ids = Class.objects.exclude(class_teacher=None).values_list('class_teacher', flat=True)
+        self.fields['class_teacher'].queryset = Teacher.objects.exclude(id__in=assigned_teacher_ids)
+        self.fields['class_teacher'].label_from_instance = lambda obj: obj.user.get_full_name() if hasattr(obj.user, 'get_full_name') and obj.user.get_full_name() else obj.user.username
+
+    class_teacher = forms.ModelChoiceField(queryset=Teacher.objects.none(), required=False, label='Class Teacher')
 
     class Meta:
         model = Class
-        fields = ['name', 'level']
+        fields = ['level', 'stream', 'class_teacher']
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        level = self.cleaned_data['level']
+        stream = self.cleaned_data['stream']
+        instance.name = f"Grade {level} {stream}"
+        instance.level = level
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 class CustomUserCreationForm(UserCreationForm):
     class Meta:
@@ -92,6 +140,11 @@ class AddStudentForm(forms.ModelForm):
             raise forms.ValidationError('Email already exists.')
         return email
 
+class EditStudentClassForm(forms.ModelForm):
+    class Meta:
+        model = Student
+        fields = ['class_group']
+
 class AddTeacherForm(forms.ModelForm):
     # User fields
     first_name = forms.CharField(max_length=150, required=True)
@@ -116,15 +169,10 @@ class AddTeacherForm(forms.ModelForm):
         widget=forms.CheckboxSelectMultiple(attrs={'class': 'horizontal-checkbox-list'}),
         required=False
     )
-    class_teacher_of = forms.ModelMultipleChoiceField(
-        queryset=Class.objects.all(),
-        required=False,
-        widget=forms.SelectMultiple(attrs={'class': 'form-select'})
-    )
 
     class Meta:
         model = Teacher
-        fields = ['first_name', 'last_name', 'username', 'email', 'password', 'tsc_number', 'staff_id', 'phone', 'gender', 'department', 'subjects', 'class_teacher_of']
+        fields = ['first_name', 'last_name', 'username', 'email', 'password', 'tsc_number', 'staff_id', 'phone', 'gender', 'department', 'subjects']
 
     def clean_username(self):
         username = self.cleaned_data['username']

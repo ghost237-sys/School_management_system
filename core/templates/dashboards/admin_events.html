@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% block title %}Events | EduTrack School Manager{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4"><i class="bi bi-calendar-event me-2"></i>Events Management</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div></div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#eventModal">
+            <i class="bi bi-plus-circle me-1"></i> Add Event
+        </button>
+    </div>
+    <!-- Events Table -->
+    <!-- Filter Buttons -->
+    <div class="mb-3">
+        <div class="btn-group" role="group" aria-label="Event Filters">
+            <a href="?filter=all" class="btn btn-outline-primary{% if filter_type == 'all' %} active{% endif %}">All Events</a>
+            <a href="?filter=upcoming" class="btn btn-outline-success{% if filter_type == 'upcoming' %} active{% endif %}">Upcoming Events</a>
+            <a href="?filter=done" class="btn btn-outline-info{% if filter_type == 'done' %} active{% endif %}">Done Events</a>
+            <a href="?filter=undone" class="btn btn-outline-warning{% if filter_type == 'undone' %} active{% endif %}">Undone Events</a>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title mb-3">Events</h5>
+
+            {% if past_events %}
+            <div class="alert alert-warning">
+                <strong>Action Required:</strong> The following event(s) have passed. Please mark as done and add comments if needed.
+            </div>
+            <div class="mb-4">
+                {% for event in past_events %}
+                <form method="post" class="row g-2 align-items-center mb-2" style="background: #f8f9fa; padding: 10px; border-radius: 6px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="mark_done_event_id" value="{{ event.id }}">
+                    <div class="col-auto">
+                        <strong>{{ event.title }}</strong> ({{ event.start|date:'Y-m-d H:i' }})
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-check-label">
+                            <input type="checkbox" name="is_done" class="form-check-input" {% if event.is_done %}checked{% endif %}> Done
+                        </label>
+                    </div>
+                    <div class="col-auto">
+                        <input type="text" name="comment" class="form-control" placeholder="Comment (optional)" value="{{ event.comment|default:'' }}">
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-success btn-sm">Save</button>
+                    </div>
+                </form>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Title</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>All Day</th>
+                            <th>Done?</th>
+                            <th>Comment</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for event in filtered_events %}
+                        <tr {% if edit_event and event.id == edit_event.id %}class="table-warning"{% endif %}>
+                            <td>{{ event.title }}</td>
+                            <td>{{ event.start|date:'Y-m-d H:i' }}</td>
+                            <td>{% if event.end %}{{ event.end|date:'Y-m-d H:i' }}{% else %}-{% endif %}</td>
+                            <td>{% if event.all_day %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+                            <td>{% if event.is_done %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-danger">No</span>{% endif %}</td>
+                            <td>{{ event.comment|default:'-' }}</td>
+                            <td>
+                                <a href="{% url 'admin_events' %}?edit={{ event.id }}" class="btn btn-sm btn-outline-secondary me-1" title="Edit"><i class="bi bi-pencil"></i></a>
+                                <a href="{% url 'admin_events' %}?delete={{ event.id }}" class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Delete this event?');"><i class="bi bi-trash"></i></a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="7" class="text-center">No events found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <!-- Django messages -->
+    {% if messages %}
+    <div class="mb-3">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    <!-- Event Modal -->
+    <div class="modal fade{% if edit_event or form.errors %} show{% endif %}" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel"{% if edit_event or form.errors %} aria-modal="true" style="display:block; background:rgba(0,0,0,0.2);"{% else %} aria-hidden="true"{% endif %}>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post" action="">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="eventModalLabel">{% if edit_event %}Edit Event{% else %}Add Event{% endif %}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        {{ form.non_field_errors }}
+                        {% for field in form.visible_fields %}
+                        <div class="mb-3">
+                            {{ field.label_tag }}
+                            {{ field }}
+                            {% if field.errors %}
+                            <div class="text-danger small">{{ field.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">Save Event</button>
+                        <a href="{% url 'admin_events' %}" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% if edit_event or form.errors %}
+    <script>
+      // Auto-show modal if editing or form has errors
+      document.addEventListener('DOMContentLoaded', function() {
+        var modal = document.getElementById('eventModal');
+        if (modal) {
+          modal.classList.add('show');
+          modal.style.display = 'block';
+          modal.removeAttribute('aria-hidden');
+          modal.setAttribute('aria-modal', 'true');
+        }
+      });
+    </script>
+    {% endif %}
+</div>
+{% endblock %}

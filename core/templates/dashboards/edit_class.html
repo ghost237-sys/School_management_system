@@ -3,15 +3,37 @@
 {% block content %}
 <div class="container">
   <h2>Edit Class: {{ class_obj.name }}</h2>
+  <p><strong>Current Class Teacher:</strong> {% if class_obj.class_teacher %}{{ class_obj.class_teacher.user.get_full_name|default:class_obj.class_teacher.user.username }}{% else %}<em>None</em>{% endif %}</p>
   <form method="post">
     {% csrf_token %}
     <div class="mb-3">
-      <label for="className" class="form-label">Stream Name</label>
-      <input type="text" class="form-control" id="className" name="name" value="{{ class_obj.name }}" required>
+      <label for="classLevel" class="form-label">Level</label>
+      <select class="form-select" id="classLevel" name="level" required>
+        {% for i in "123456789" %}
+          <option value="{{ i }}" {% if class_obj.level|stringformat:'s' == i %}selected{% endif %}>{{ i }}</option>
+        {% endfor %}
+      </select>
     </div>
     <div class="mb-3">
-      <label for="classLevel" class="form-label">Year/Level</label>
-      <input type="text" class="form-control" id="classLevel" name="level" value="{{ class_obj.level }}" required>
+      <label for="classStream" class="form-label">Stream</label>
+      <select class="form-select" id="classStream" name="stream" required>
+        <option value="East" {% if class_obj.name and 'East' in class_obj.name %}selected{% endif %}>East</option>
+        <option value="West" {% if class_obj.name and 'West' in class_obj.name %}selected{% endif %}>West</option>
+        <option value="North" {% if class_obj.name and 'North' in class_obj.name %}selected{% endif %}>North</option>
+        <option value="South" {% if class_obj.name and 'South' in class_obj.name %}selected{% endif %}>South</option>
+      </select>
+    </div>
+    <div class="mb-3">
+
+    </div>
+    <div class="mb-3">
+      <label for="classTeacher" class="form-label">Class Teacher</label>
+      <select class="form-select" id="classTeacher" name="class_teacher">
+        <option value="">---------</option>
+        {% for teacher in class_obj._meta.get_field('class_teacher').related_model.objects.all %}
+          <option value="{{ teacher.id }}" {% if class_obj.class_teacher and class_obj.class_teacher.id == teacher.id %}selected{% endif %}>{{ teacher.user.get_full_name|default:teacher.user.username }}</option>
+        {% endfor %}
+      </select>
     </div>
     <button type="submit" class="btn btn-primary">Save</button>
     <a href="{% url 'admin_classes' %}" class="btn btn-secondary ms-2">Cancel</a>

@@ -45,6 +45,20 @@
                     </dl>
                 </div>
             </div>
+            {% if edit_class_form %}
+            <div class="card mt-4">
+                <div class="card-header bg-warning text-dark">
+                    Change Class Assignment
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ edit_class_form.as_p }}
+                        <button type="submit" name="edit_class_group" class="btn btn-primary">Change Class</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

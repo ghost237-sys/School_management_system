@@ -1,6 +1,25 @@
 {% extends 'base.html' %}
 {% block title %}Admin Dashboard{% endblock %}
 {% block content %}
+<!-- Events Schedule Card -->
+<div class="card mb-4">
+    <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">Upcoming Events & Exam Schedules</h5>
+    </div>
+    <div class="card-body">
+        <ul class="list-group">
+            {% for event in events %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>{{ event.title }}</span>
+                    <span class="badge bg-info">{{ event.start|date:"Y-m-d" }}{% if event.end and event.end != event.start %} to {{ event.end|date:"Y-m-d" }}{% endif %}</span>
+                </li>
+            {% empty %}
+                <li class="list-group-item">No upcoming events scheduled.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
 <!-- Display Django messages -->
 {% if messages %}
   {% for message in messages %}

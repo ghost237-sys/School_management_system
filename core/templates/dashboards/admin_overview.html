@@ -26,6 +26,94 @@
 {% endif %}
 
 <style>
+  /* Modern Dashboard Enhancements */
+  body, .container-fluid {
+    background: linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%);
+  }
+  .modern-card {
+    border-radius: 1.2rem;
+    box-shadow: 0 4px 24px 0 rgba(60,72,100,.10), 0 1.5px 4px 0 rgba(60,72,100,.10);
+    transition: box-shadow 0.2s, transform 0.2s;
+    background: #fff;
+    overflow: hidden;
+  }
+  .modern-card:hover {
+    box-shadow: 0 8px 32px 0 rgba(60,72,100,.15), 0 2px 8px 0 rgba(60,72,100,.10);
+    transform: translateY(-3px) scale(1.02);
+  }
+  .modern-card .card-body {
+    border-radius: 1.2rem;
+    padding: 2rem 1rem;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f0f4fa 0%, #e9ecef 100%);
+  }
+  .modern-info {
+    font-size: 2.2rem;
+    margin-bottom: 0.5rem;
+    color: #0d6efd;
+    background: linear-gradient(90deg, #0d6efd 40%, #6dd5ed 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .modern-title {
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #344767;
+  }
+  .modern-value {
+    font-size: 2.1rem;
+    font-weight: 800;
+    color: #344767;
+    margin-bottom: 0.2rem;
+    animation: fadeInUp 0.7s cubic-bezier(.39,.575,.565,1) both;
+  }
+  @keyframes fadeInUp {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .modern-btn {
+    border-radius: 2rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    box-shadow: 0 2px 10px 0 rgba(0,0,0,.07);
+    transition: background 0.2s, color 0.2s;
+  }
+  .modern-btn:hover {
+    background: linear-gradient(90deg,#0d6efd,#6dd5ed);
+    color: #fff;
+  }
+  .modern-section-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #0d6efd;
+    margin-bottom: 1.5rem;
+    letter-spacing: 0.03em;
+  }
+  .modern-list-group .list-group-item {
+    border: none;
+    border-radius: 0.7rem;
+    margin-bottom: 0.4rem;
+    background: #f8fafc;
+    transition: background 0.2s;
+  }
+  .modern-list-group .list-group-item:hover {
+    background: #e3f2fd;
+  }
+  .modern-carousel .carousel-inner {
+    border-radius: 1rem;
+    box-shadow: 0 1px 8px 0 rgba(60,72,100,.10);
+  }
+  .modern-carousel .carousel-item {
+    padding: 1.5rem 0;
+  }
   /* Modal form improvements */
   .modal-xl { max-width: 700px; }
   .modal-body form { max-width: 600px; margin: 0 auto; }
@@ -45,12 +133,18 @@
   .modal-body { max-height: 80vh; overflow-y: auto; }
 </style>
 <div class="container-fluid px-2">
-  <h1 class="mb-4">Admin Dashboard Overview</h1>
-
-  <div class="mb-3">
-    <a href="{% url 'admin_academic_years' %}" class="btn btn-lg btn-info text-white fw-bold">
-      <i class="bi bi-calendar-range"></i> Manage Academic Years & Terms
-    </a>
+  <!-- Hero Welcome Section -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="p-4 mb-3 text-center rounded-4 shadow-lg" style="background: linear-gradient(90deg, #0d6efd 0%, #6dd5ed 100%); color: #fff; position:relative; overflow:hidden;">
+        <div style="position:absolute;right:30px;top:-20px;opacity:0.08;font-size:8rem;pointer-events:none;"><i class="bi bi-mortarboard"></i></div>
+        <h1 class="display-5 fw-bold mb-2 animate__animated animate__fadeInDown">Welcome, Admin!</h1>
+        <p class="lead mb-3 animate__animated animate__fadeInUp">Empower your school. Manage students, teachers, classes, and more with ease and style.</p>
+        <a href="{% url 'admin_academic_years' %}" class="btn btn-lg modern-btn text-white fw-bold shadow animate__animated animate__pulse animate__infinite">
+          <i class="bi bi-calendar-range"></i> Manage Academic Years & Terms
+        </a>
+      </div>
+    </div>
   </div>
 
   <!-- Filter Form -->
@@ -168,30 +262,22 @@
         <div class="col d-flex">
           <div class="card flex-fill h-100">
             <div class="card-body">
-              <h6 class="card-title mb-3">Upcoming Events</h6>
+              <h6 class="card-title mb-3"><a href="{% url 'admin_events' %}" class="text-decoration-none text-primary">Upcoming Events <i class="bi bi-box-arrow-up-right small"></i></a></h6>
 <button id="showHiddenEventsBtn" class="btn btn-sm btn-outline-primary mb-2" style="display:none;">Show Hidden Events</button>
               <ul class="list-group list-group-flush">
                 {% for event in upcoming_events %}
-                  {% with event_date=event.date|date:'Y-m-d' %}
-                  <li class="list-group-item d-flex justify-content-between align-items-center upcoming-event-item">
-                    <span>
-                      <i class="bi bi-calendar-event me-2"></i>{{ event.title }}
-                      {% if event_date < '2025-06-25' %}
-                        <i class="bi bi-x-circle-fill text-danger ms-2" title="Event has passed"></i>
-                      {% endif %}
-                    </span>
-                    <span class="badge bg-info rounded-pill">{{ event.date }}</span>
-                    <button type="button" class="btn btn-sm btn-outline-secondary ms-2 edit-event-btn" title="Edit event">
-  <i class="bi bi-pencil"></i>
-</button>
-<button type="button" class="btn btn-sm btn-outline-danger ms-1 delete-event-btn" title="Delete event">
-  <i class="bi bi-trash"></i>
-</button>
+                  <li class="list-group-item upcoming-event-item">
+                    {{ event.title }}<br>
+                    <small class="text-muted">{{ event.start|date:'Y-m-d' }}{% if event.end and event.end != event.start %} to {{ event.end|date:'Y-m-d' }}{% endif %}</small>
                   </li>
-                  {% endwith %}
+                    <span>
                 {% empty %}
                   <li class="list-group-item">No upcoming events.</li>
                 {% endfor %}
+              </ul>
+              <div class="mt-2 text-end">
+                <a href="{% url 'admin_events' %}" class="btn btn-link p-0 small">View All Events <i class="bi bi-arrow-right"></i></a>
+              </div>
 <script>
 function updateUpcomingEventsList() {
   // Optionally, refetch or reload the list via AJAX if you want it to be dynamic

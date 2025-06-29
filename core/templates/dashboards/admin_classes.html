@@ -14,17 +14,34 @@
         {% csrf_token %}
         <input type="hidden" name="add_class" value="1">
         <div class="col-md-6">
-          <label for="id_name" class="form-label">Stream Name</label>
-          {{ add_class_form.name }}
-          {% if add_class_form.name.errors %}
-            <div class="text-danger small">{{ add_class_form.name.errors.0 }}</div>
-          {% endif %}
+          <label for="id_level" class="form-label">Level</label>
+          <select class="form-select" name="level" required>
+            {% for i in "123456789" %}
+              <option value="{{ i }}">{{ i }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label for="id_stream" class="form-label">Stream</label>
+          <select class="form-select" name="stream" required>
+            <option value="East">East</option>
+            <option value="West">West</option>
+            <option value="North">North</option>
+            <option value="South">South</option>
+          </select>
         </div>
         <div class="col-md-6">
           <label for="id_level" class="form-label">Year/Level</label>
           {{ add_class_form.level }}
           {% if add_class_form.level.errors %}
             <div class="text-danger small">{{ add_class_form.level.errors.0 }}</div>
+          {% endif %}
+        </div>
+        <div class="col-md-6">
+          <label for="id_class_teacher" class="form-label">{{ add_class_form.class_teacher.label }}</label>
+          {{ add_class_form.class_teacher }}
+          {% if add_class_form.class_teacher.errors %}
+            <div class="text-danger small">{{ add_class_form.class_teacher.errors.0 }}</div>
           {% endif %}
         </div>
         <div class="col-12">

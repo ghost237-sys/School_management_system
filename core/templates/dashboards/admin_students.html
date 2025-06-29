@@ -6,68 +6,8 @@
 <button class="btn btn-primary mb-4" type="button" data-bs-toggle="collapse" data-bs-target="#addStudentFormCollapse" aria-expanded="false" aria-controls="addStudentFormCollapse">
   Add New Student
 </button>
-<div class="collapse mb-4" id="addStudentFormCollapse">
-  <form method="post" action="" autocomplete="off" class="add-student-form mb-4 p-4 border rounded-3 bg-white shadow-sm">
-    {% csrf_token %}
-    <input type="hidden" name="add_student" value="1">
-    {% if add_student_form.errors %}
-      <div class="alert alert-danger mb-3">Please fix the errors below.</div>
-    {% endif %}
-    <div class="row g-3">
-      <div class="col-md-6 mb-2">
-        <label for="id_first_name" class="form-label">First Name</label>
-        {{ add_student_form.first_name }}
-        {% if add_student_form.first_name.errors %}<div class="text-danger small">{{ add_student_form.first_name.errors }}</div>{% endif %}
-      </div>
-      <div class="col-md-6 mb-2">
-        <label for="id_last_name" class="form-label">Last Name</label>
-        {{ add_student_form.last_name }}
-        {% if add_student_form.last_name.errors %}<div class="text-danger small">{{ add_student_form.last_name.errors }}</div>{% endif %}
-      </div>
-      <div class="col-md-6 mb-2">
-        <label for="id_username" class="form-label">Username</label>
-        {{ add_student_form.username }}
-        {% if add_student_form.username.errors %}<div class="text-danger small">{{ add_student_form.username.errors }}</div>{% endif %}
-      </div>
-
-      <div class="col-md-6 mb-2">
-        <label for="id_email" class="form-label">Email</label>
-        {{ add_student_form.email }}
-        {% if add_student_form.email.errors %}<div class="text-danger small">{{ add_student_form.email.errors }}</div>{% endif %}
-      </div>
-      <div class="col-md-6 mb-2">
-        <label for="id_password" class="form-label">Password</label>
-        {{ add_student_form.password }}
-        {% if add_student_form.password.errors %}<div class="text-danger small">{{ add_student_form.password.errors }}</div>{% endif %}
-      </div>
-      <div class="col-md-6 mb-2">
-        <label for="id_admission_no" class="form-label">Admission No</label>
-        {{ add_student_form.admission_no }}
-        {% if add_student_form.admission_no.errors %}<div class="text-danger small">{{ add_student_form.admission_no.errors }}</div>{% endif %}
-      </div>
-      <div class="col-md-6 mb-2">
-        <label for="id_class_group" class="form-label">Class</label>
-        {{ add_student_form.class_group }}
-        {% if add_student_form.class_group.errors %}<div class="text-danger small">{{ add_student_form.class_group.errors }}</div>{% endif %}
-      </div>
-      <div class="col-md-6 mb-2">
-        <label for="id_gender" class="form-label">Gender</label>
-        {{ add_student_form.gender }}
-        {% if add_student_form.gender.errors %}<div class="text-danger small">{{ add_student_form.gender.errors }}</div>{% endif %}
-      </div>
-      <div class="col-md-6 mb-2">
-        <label for="id_birthdate" class="form-label">Birthdate</label>
-        {{ add_student_form.birthdate }}
-        {% if add_student_form.birthdate.errors %}<div class="text-danger small">{{ add_student_form.birthdate.errors }}</div>{% endif %}
-      </div>
-    </div>
-    <div class="mt-4 d-grid">
-      <button type="submit" class="btn btn-success btn-lg shadow-sm">
-        Add Student
-      </button>
-    </div>
-  </form>
-</div>
+<div class="collapse mb-4" id="addStudentFormCollapse"></div>
+<div id="toast-container"></div>
 <div class="mb-3 d-flex flex-wrap gap-2">
   <form class="d-flex flex-wrap gap-2" method="get">
     <input type="text" name="search" class="form-control" placeholder="Search by name, email, admission no..." value="{{ request.GET.search }}" style="max-width: 250px;">
@@ -90,8 +30,8 @@
             <tbody>
             {% for student in students %}
                 <tr>
-                    <td><a href="{% url 'student_profile' student.id %}">{{ student.user.get_full_name|default:student.user.username }}</a></td>
-                    <td>{{ student.user.email }}</td>
+                    <td><a href="{% url 'student_profile' student.id %}">{% if student.user %}{{ student.user.get_full_name|default:student.user.username }}{% else %}(No user){% endif %}</a></td>
+                    <td>{% if student.user %}{{ student.user.email }}{% else %}(No email){% endif %}</td>
                     <td>{{ student.class_group.name }}</td>
                 </tr>
             {% empty %}

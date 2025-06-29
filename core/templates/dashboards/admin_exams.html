@@ -6,15 +6,47 @@
         <h2 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>Exams Management</h2>
     </div>
     <div class="card mb-4">
-        <div class="card-body">
-            <form method="post" enctype="multipart/form-data" class="mb-4">
-    {% csrf_token %}
-    <div class="input-group mb-2">
-        <input type="file" name="marksheet" accept=".xlsx,.xls" class="form-control" required>
-        <button type="submit" name="preview" value="1" class="btn btn-secondary me-2"><i class="bi bi-eye me-1"></i>Preview</button>
-        <button type="submit" name="process" value="1" class="btn btn-primary"><i class="bi bi-gear me-1"></i>Process</button>
-    </div>
-</form>
+    <div class="card-body">
+        <!-- Exam Creation Form -->
+        <form method="post" class="mb-4">
+            {% csrf_token %}
+            {{ exam_form.as_p }}
+            <button type="submit" name="add_exam" class="btn btn-success">Add Exam</button>
+        </form>
+        <!-- Exams Table -->
+        {% if exams %}
+            <div class="table-responsive mb-4">
+                <table class="table table-bordered table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Term</th>
+                            <th>Date</th>
+                            <th>Type</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for exam in exams %}
+                        <tr>
+                            <td>{{ exam.name }}</td>
+                            <td>{{ exam.term }}</td>
+                            <td>{{ exam.date }}</td>
+                            <td>{{ exam.get_type_display }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+        <!-- Marksheet Upload Form -->
+        <form method="post" enctype="multipart/form-data" class="mb-4">
+            {% csrf_token %}
+            <div class="input-group mb-2">
+                <input type="file" name="marksheet" accept=".xlsx,.xls" class="form-control" required>
+                <button type="submit" name="preview" value="1" class="btn btn-secondary me-2"><i class="bi bi-eye me-1"></i>Preview</button>
+                <button type="submit" name="process" value="1" class="btn btn-primary"><i class="bi bi-gear me-1"></i>Process</button>
+            </div>
+        </form>
             {% if table_html %}
                 <div class="table-responsive">
                     {{ table_html|safe }}

@@ -77,9 +77,17 @@ class Term(models.Model):
     end_date = models.DateField(null=True, blank=True)
 
 class Exam(models.Model):
+    EXAM_TYPE_CHOICES = [
+        ('opener', 'Opener exams'),
+        ('midterm', 'Mid-term exams'),
+        ('endterm', 'End-Term exams'),
+        ('others', 'Others'),
+    ]
     name = models.CharField(max_length=50)
     term = models.ForeignKey(Term, on_delete=models.CASCADE)
+    level = models.CharField(max_length=50, null=True, blank=True)  # E.g., '6' for Grade 6
     date = models.DateField()
+    type = models.CharField(max_length=10, choices=EXAM_TYPE_CHOICES, default='others')
 
 class Grade(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
@@ -132,10 +140,21 @@ class Deadline(models.Model):
         return f"{self.title} for {self.class_group.name} ({self.subject.name})"
 
 class Event(models.Model):
+    CATEGORY_CHOICES = [
+        ('exam', 'Exam Day'),
+        ('midterm', 'Mid-Term Break'),
+        ('holiday', 'Holiday'),
+        ('sports', 'Games/Sports Day'),
+        ('other', 'Other'),
+    ]
     title = models.CharField(max_length=200)
     start = models.DateTimeField()
     end = models.DateTimeField(blank=True, null=True)
     all_day = models.BooleanField(default=False)
+    is_done = models.BooleanField(default=False)
+    comment = models.TextField(blank=True, null=True)
+    term = models.ForeignKey('Term', on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -1,6 +1,25 @@
 {% load crispy_forms_tags %}
 <form method="post" action="/dashboard/classes/add/" id="addClassForm">
   {% csrf_token %}
-  {{ form|crispy }}
+  <div class="mb-3">
+    <label for="id_level" class="form-label">Level</label>
+    <select class="form-select" name="level" id="id_level" required>
+      {% for i in "123456789" %}
+        <option value="{{ i }}">{{ i }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label for="id_stream" class="form-label">Stream</label>
+    <select class="form-select" name="stream" id="id_stream" required>
+      {% for s in "East,West,North,South".split(',') %}
+        <option value="{{ s }}">{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label for="id_class_teacher" class="form-label">{{ form.class_teacher.label }}</label>
+    {{ form.class_teacher }}
+  </div>
   <button type="submit" class="btn btn-info w-100">Add Class</button>
 </form>

@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import login , authenticate
-from .forms import CustomUserCreationForm, AddStudentForm
+from .forms import CustomUserCreationForm, AddStudentForm, EditStudentClassForm
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -11,30 +11,123 @@ from .models import User
 from django.db.models import Q
 
 
+from django.utils import timezone
+from datetime import datetime, time
+from .models import Event
+
+def create_event(title, date, end_date=None, all_day=True):
+    """
+    Create and store an event in the database.
+    - title: Event title
+    - date: date or datetime (for start)
+    - end_date: date or datetime (optional)
+    - all_day: bool
+    """
+    # Ensure start is timezone-aware datetime
+    if isinstance(date, datetime):
+        start_dt = timezone.make_aware(date) if timezone.is_naive(date) else date
+    else:
+        # If a date, combine with midnight
+        start_dt = timezone.make_aware(datetime.combine(date, time.min))
+    end_dt = None
+    if end_date:
+        if isinstance(end_date, datetime):
+            end_dt = timezone.make_aware(end_date) if timezone.is_naive(end_date) else end_date
+        else:
+            end_dt = timezone.make_aware(datetime.combine(end_date, time.max))
+    return Event.objects.create(title=title, start=start_dt, end=end_dt, all_day=all_day)
+
+from .forms import EventForm
+
+@login_required(login_url='login')
+def admin_events(request):
+    """Admin Events Management Page: add, edit, delete events."""
+    from django.contrib import messages
+    filter_type = request.GET.get('filter', 'all')
+    now = timezone.now()
+    all_events = Event.objects.order_by('-start')
+    if filter_type == 'upcoming':
+        filtered_events = all_events.filter(start__gte=now)
+    elif filter_type == 'done':
+        filtered_events = all_events.filter(is_done=True)
+    elif filter_type == 'undone':
+        filtered_events = all_events.filter(((Q(end__lt=now) | (Q(end__isnull=True) & Q(start__lt=now))) & Q(is_done=False)))
+    else:
+        filtered_events = all_events
+    event_id = request.GET.get('edit')
+    delete_id = request.GET.get('delete')
+    form = None
+    edit_event = None
+
+    # Delete event
+    if delete_id:
+        try:
+            event = Event.objects.get(id=delete_id)
+            event.delete()
+            messages.success(request, 'Event deleted successfully.')
+            return redirect('admin_events')
+        except Event.DoesNotExist:
+            messages.error(request, 'Event not found.')
+            return redirect('admin_events')
+
+    # Edit event
+    if event_id:
+        try:
+            edit_event = Event.objects.get(id=event_id)
+        except Event.DoesNotExist:
+            messages.error(request, 'Event not found.')
+            return redirect('admin_events')
+        form = EventForm(request.POST or None, instance=edit_event)
+    else:
+        form = EventForm(request.POST or None)
+
+    # Mark event as done with comment
+    if request.method == 'POST' and 'mark_done_event_id' in request.POST:
+        try:
+            event = Event.objects.get(id=request.POST['mark_done_event_id'])
+            event.is_done = 'is_done' in request.POST
+            event.comment = request.POST.get('comment', '')
+            event.save()
+            messages.success(request, 'Event status updated.')
+            return redirect('admin_events')
+        except Event.DoesNotExist:
+            messages.error(request, 'Event not found.')
+            return redirect('admin_events')
+
+    # Add or update event
+    if request.method == 'POST' and 'mark_done_event_id' not in request.POST:
+        if form.is_valid():
+            form.save()
+            if edit_event:
+                messages.success(request, 'Event updated successfully!')
+            else:
+                messages.success(request, 'Event created successfully!')
+            return redirect('admin_events')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+
+    # Determine which events have passed and are not done
+    now = timezone.now()
+    past_events = [e for e in all_events if ((e.end and e.end < now) or (not e.end and e.start < now)) and not e.is_done]
+
+    return render(request, 'dashboards/admin_events.html', {
+        'form': form,
+        'all_events': all_events,
+        'filtered_events': filtered_events,
+        'edit_event': edit_event,
+        'past_events': past_events,
+        'filter_type': filter_type,
+    })
+
 class CustomUserCreationForm(UserCreationForm):
     class Meta:
         model = get_user_model()
         fields = ('username', 'email')
 
 
-def register_view(request):
-    if request.method == 'POST':
-        form = CustomUserCreationForm(request.POST)
-        role = request.POST.get('role')
-
-        if form.is_valid():
-            user = form.save(commit=False)
-            user.role = role
-            user.save()
-            # If registering as teacher, create Teacher object
-            if role == 'teacher':
-                from .models import Teacher
-                Teacher.objects.get_or_create(user=user)
-            return redirect('login')
-    else:
-        form = CustomUserCreationForm()
-
-    return render(request, 'auth/register.html', {'form': form})
+# def register_view(request):
+#     # Disabled: Only admin can create users
+#     return redirect('login')
 
 
 
@@ -42,8 +135,11 @@ def register_view(request):
 def dashboard(request):
     # Redirect admin to overview, others to their dashboards
     if request.user.role == 'admin':
+        from .models import Event
+        events = Event.objects.order_by('start')
         from django.urls import reverse
-        return redirect(reverse('admin_overview'))
+        # You may want to aggregate other dashboard data as before, but now add 'events' to context
+        return render(request, 'dashboards/admin_dashboard.html', {'events': events})
     elif request.user.role == 'teacher':
         return redirect('teacher_dashboard', teacher_id=request.user.teacher.id)
     elif request.user.role == 'student':
@@ -137,13 +233,12 @@ def admin_overview(request):
         'balance': 250000,
         'collection_rate': 75,
     }
-    # Upcoming events (mock/sample)
-    upcoming_events = [
-        {'date': '2025-07-01', 'title': 'Opener Exams'},
-        {'date': '2025-07-10', 'title': 'PTA Meeting'},
-        {'date': '2025-07-15', 'title': 'Sports Day'},
-        {'date': '2025-07-20', 'title': 'Timetable Change'},
-    ]
+    # Upcoming events (real)
+    from .models import Event
+    from django.utils import timezone
+    now = timezone.now()
+    upcoming_events = Event.objects.filter(start__gte=now).order_by('start')
+
     # Alerts & notifications (mock/sample)
     alerts = [
         {'type': 'danger', 'msg': 'Overdue fees for 12 students.'},
@@ -532,10 +627,12 @@ def edit_teacher(request, teacher_id):
 def delete_teacher(request, teacher_id):
     if request.user.role != 'admin':
         return redirect('dashboard')
-    from .models import Teacher, User
+    from .models import Teacher, User, Class
     teacher = get_object_or_404(Teacher, id=teacher_id)
     user = teacher.user
     if request.method == 'POST':
+        # Unassign teacher from any classes where they are class_teacher
+        Class.objects.filter(class_teacher=teacher).update(class_teacher=None)
         user.delete()
         messages.success(request, 'Teacher deleted successfully.')
         return redirect('admin_teachers')
@@ -544,6 +641,7 @@ def delete_teacher(request, teacher_id):
 
 # Student Profile View
 @login_required(login_url='login')
+
 def student_profile(request, student_id):
     from .models import Student, Class, Teacher
     from django.shortcuts import get_object_or_404
@@ -557,7 +655,22 @@ def student_profile(request, student_id):
     if not (is_admin or is_student or is_class_teacher):
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden('You do not have permission to view this student profile.')
-    return render(request, 'dashboards/student_profile.html', {'student': student})
+
+    # Handle class change
+    if request.method == 'POST' and 'edit_class_group' in request.POST:
+        form = EditStudentClassForm(request.POST, instance=student)
+        if form.is_valid():
+            form.save()
+            from django.contrib import messages
+            messages.success(request, "Class updated successfully.")
+            return redirect('student_profile', student_id=student.id)
+    else:
+        form = EditStudentClassForm(instance=student)
+
+    return render(request, 'dashboards/student_profile.html', {
+        'student': student,
+        'edit_class_form': form,
+    })
 
 # Teacher Profile View
 @login_required(login_url='login')
@@ -792,22 +905,32 @@ def admin_students(request):
     if request.method == 'POST' and 'add_student' in request.POST:
         add_student_form = AddStudentForm(request.POST)
         if add_student_form.is_valid():
-            # Create user first
-            user = User.objects.create_user(
-                username=add_student_form.cleaned_data['username'],
-                email=add_student_form.cleaned_data['email'],
-                first_name=add_student_form.cleaned_data['first_name'],
-                last_name=add_student_form.cleaned_data['last_name'],
-                role='student',
-                password=add_student_form.cleaned_data['password']
-            )
-            student = add_student_form.save(commit=False)
-            student.user = user
-            student.save()
-            add_student_form = AddStudentForm()  # Reset form
-            from django.contrib import messages
-            messages.success(request, 'Student added successfully!')
-            return redirect('admin_students')
+            from django.db import IntegrityError
+            try:
+                # Create user first
+                user = User.objects.create_user(
+                    username=add_student_form.cleaned_data['username'],
+                    email=add_student_form.cleaned_data['email'],
+                    first_name=add_student_form.cleaned_data['first_name'],
+                    last_name=add_student_form.cleaned_data['last_name'],
+                    role='student',
+                    password=add_student_form.cleaned_data['password']
+                )
+                student = add_student_form.save(commit=False)
+                student.user = user
+                student.save()
+                add_student_form = AddStudentForm()  # Reset form
+                from django.contrib import messages
+                messages.success(request, 'Student added successfully!')
+                return redirect('admin_students')
+            except IntegrityError as e:
+                from django.contrib import messages
+                if 'username' in str(e):
+                    messages.error(request, 'A user with that username already exists. Please choose a different username.')
+                elif 'email' in str(e):
+                    messages.error(request, 'A user with that email already exists. Please choose a different email.')
+                else:
+                    messages.error(request, 'An error occurred while adding the student. Please check the data and try again.')
     context = {
         'students': students,
         'add_student_form': add_student_form,
@@ -965,17 +1088,25 @@ def class_profile(request, class_id):
 
 @login_required(login_url='login')
 def edit_class(request, class_id):
-    from .models import Class
+    from .models import Class, Teacher
     from django.contrib import messages
     class_obj = Class.objects.get(id=class_id)
     if request.method == 'POST':
-        name = request.POST.get('name')
         level = request.POST.get('level')
-        if name and level:
-            class_obj.name = name
+        stream = request.POST.get('stream')
+        class_teacher_id = request.POST.get('class_teacher')
+        if level and stream:
+            class_obj.name = f"Grade {level} {stream}"
             class_obj.level = level
+            if class_teacher_id:
+                try:
+                    class_obj.class_teacher = Teacher.objects.get(id=class_teacher_id)
+                except Teacher.DoesNotExist:
+                    class_obj.class_teacher = None
+            else:
+                class_obj.class_teacher = None
             class_obj.save()
-            messages.success(request, 'Class details updated.')
+            messages.success(request, 'Class updated successfully!')
             return redirect('admin_classes')
     context = {'class_obj': class_obj}
     return render(request, 'dashboards/edit_class.html', context)
@@ -1273,6 +1404,13 @@ def upload_marksheet(request):
     return render(request, 'dashboards/upload_marksheet.html', {'teacher': teacher})
 
 def custom_login_view(request):
+    # Always log out any existing user/session on visiting login page
+    from django.contrib.auth import logout
+    if request.user.is_authenticated:
+        logout(request)
+        # Optionally, add a message
+        # messages.info(request, 'You have been logged out.')
+
     if request.method == 'POST':
         username = request.POST['username']
         password = request.POST['password']
@@ -1302,15 +1440,14 @@ def custom_login_view(request):
 # Admin Exams View
 from django.contrib.auth.decorators import login_required
 import pandas as pd
+from .forms import ExamForm
 
 @login_required(login_url='login')
 def admin_exams(request):
+    table_html = None  # Ensure table_html is always defined
+    from .models import Exam, Term
     if request.user.role != 'admin':
         return redirect('dashboard')
-    from .models import Student, User, Class
-    from django.db import transaction
-    table_html = None
-    summary = {'added': 0, 'removed': 0, 'errors': []}
     subject_map = {
         'KIS': 'Kiswahili',
         'LUG': 'Lugha',

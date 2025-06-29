@@ -12,7 +12,7 @@ urlpatterns = [
     path('student_profile/<int:student_id>/', views.student_profile, name='student_profile'),
     path('login/', views.custom_login_view, name='login'),
     path('logout/', views.custom_logout_view, name='logout'),
-    path('register/', views.register_view, name='register'),
+
     path('', views.dashboard, name='dashboard'),
     # Admin dashboard split pages
     path('admin_overview/', views.admin_overview, name='admin_overview'),
@@ -28,6 +28,7 @@ urlpatterns = [
     path('admin_subjects/', views.admin_subjects, name='admin_subjects'),
     path('admin_academic_years/', views.admin_academic_years, name='admin_academic_years'),
     path('admin_exams/', views.admin_exams, name='admin_exams'),
+    path('admin_events/', views.admin_events, name='admin_events'),
     path('teacher/upload_marksheet/', views.upload_marksheet, name='upload_marksheet'),
     # --- AJAX Modal Add Endpoints ---
     path('dashboard/students/add/', views.add_student_ajax, name='add_student_ajax'),
