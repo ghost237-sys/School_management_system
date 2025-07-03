@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}Fee Management{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4">Fee Management</h2>
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">Set Fee for Term & Level</div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ fee_form.as_p }}
+                        <button type="submit" class="btn btn-success">Save Fee</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-info text-white">Assign Fee to Students</div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ assign_form.as_p }}
+                        <button type="submit" class="btn btn-primary">Assign Fee</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">Fees Overview</div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Level</th>
+                                <th>Term</th>
+                                <th>Amount</th>
+                                <th>Description</th>
+                                <th>Assigned Students</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for fee in fees %}
+                            <tr>
+                                <td>{{ fee.level }}</td>
+                                <td>{{ fee.term }}</td>
+                                <td>{{ fee.amount }}</td>
+                                <td>{{ fee.description }}</td>
+                                <td>{{ fee.student_assignments.count }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="5">No fees set.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">Student Fee Assignments</div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Level</th>
+                                <th>Term</th>
+                                <th>Fee</th>
+                                <th>Status</th>
+                                <th>Paid On</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for assignment in assignments %}
+                            <tr>
+                                <td>{{ assignment.student.user.get_full_name|default:assignment.student.user.username }}</td>
+                                <td>{{ assignment.fee.level }}</td>
+                                <td>{{ assignment.fee.term }}</td>
+                                <td>{{ assignment.fee.amount }}</td>
+                                <td>
+                                    {% if assignment.is_paid %}
+                                        <span class="badge bg-success">Paid</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Unpaid</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ assignment.paid_on|date:'Y-m-d' }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="6">No assignments yet.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

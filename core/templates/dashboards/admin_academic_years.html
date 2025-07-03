@@ -39,13 +39,31 @@
             <h5>Terms</h5>
             <ul>
                 {% for term in year.terms.all %}
-                    <li>
-                        <strong>{{ term.name }}</strong>
-                        {% if term.start_date and term.end_date %}
-                            <span class="text-muted"> ({{ term.start_date }} to {{ term.end_date }})</span>
-                        {% endif %}
-                    </li>
-                {% endfor %}
+    <li>
+        <strong>{{ term.name }}</strong>
+        {% if term.start_date and term.end_date %}
+            <span class="text-muted"> ({{ term.start_date }} to {{ term.end_date }})</span>
+        {% endif %}
+        <form method="post" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="term_id" value="{{ term.id }}">
+            <button type="submit" name="show_edit_term" class="btn btn-sm btn-outline-secondary">Edit</button>
+        </form>
+        {% if edit_term_id and edit_term_id|stringformat:'s' == term.id|stringformat:'s' %}
+            <form method="post" class="mt-2 mb-2 p-2 border rounded bg-light">
+                {% csrf_token %}
+                <input type="hidden" name="term_id" value="{{ term.id }}">
+                {{ edit_term_form.start_date.label_tag }} {{ edit_term_form.start_date }}
+                {{ edit_term_form.end_date.label_tag }} {{ edit_term_form.end_date }}
+                <button type="submit" name="edit_term_dates" class="btn btn-primary btn-sm">Save</button>
+                <a href="{% url 'admin_academic_years' %}" class="btn btn-secondary btn-sm">Cancel</a>
+                {% if edit_term_form.errors %}
+                    <div class="text-danger small mt-1">{{ edit_term_form.errors }}</div>
+                {% endif %}
+            </form>
+        {% endif %}
+    </li>
+{% endfor %}
             </ul>
             <form method="post" class="row g-2 align-items-end">
                 {% csrf_token %}

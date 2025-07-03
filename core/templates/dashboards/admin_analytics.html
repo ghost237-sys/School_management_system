@@ -4,7 +4,21 @@
 
 <h1>Analytics</h1>
 
-<div class="row mb-4">
+<ul class="nav nav-tabs mb-4" id="analyticsTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance" type="button" role="tab" aria-controls="performance" aria-selected="true">
+      Performance
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="fees-tab" data-bs-toggle="tab" data-bs-target="#fees" type="button" role="tab" aria-controls="fees" aria-selected="false">
+      Fees
+    </button>
+  </li>
+</ul>
+<div class="tab-content" id="analyticsTabsContent">
+  <div class="tab-pane fade show active" id="performance" role="tabpanel" aria-labelledby="performance-tab">
+    <!-- Performance Analytics Content -->
   <div class="col-lg-8">
     <div class="card">
       <div class="card-header bg-info text-white">
@@ -41,6 +55,19 @@
   </div>
 </div>
 
+  </div>
+  <div class="tab-pane fade" id="fees" role="tabpanel" aria-labelledby="fees-tab">
+    <!-- Fees Analytics Content -->
+    <div class="card">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">Fee Analytics</h5>
+      </div>
+      <div class="card-body">
+        <p>Fee analytics and visualizations will be displayed here. (Coming soon!)</p>
+      </div>
+    </div>
+  </div>
+</div>
 <!-- Add your analytics content here -->
 <p>More analytics and visualizations can be added here.</p>
 

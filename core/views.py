@@ -1,13 +1,13 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import login , authenticate
-from .forms import CustomUserCreationForm, AddStudentForm, EditStudentClassForm
+from .forms import CustomUserCreationForm, AddStudentForm, EditStudentClassForm, FeeCategoryForm, FeeAssignmentForm
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import logout
 from django.contrib import messages
-from .models import User
+from .models import User, FeeCategory, FeeAssignment, FeePayment, Student, Class, Term
 from django.db.models import Q
 
 
@@ -149,6 +149,103 @@ def dashboard(request):
         messages.error(request, 'Unknown user role. Please contact admin.')
         return redirect('login')
 
+# Student/Parent Fee Dashboard View
+from django.db.models import Sum
+from .models import FeeAssignment, FeePayment, Term, Student
+from django.shortcuts import get_object_or_404
+
+@login_required(login_url='login')
+def student_fees(request):
+    # Get the logged-in user's student profile
+    student = get_object_or_404(Student, user=request.user)
+    # Get current term (latest by start date)
+    current_term = Term.objects.order_by('-start_date').first()
+    fee_assignments = []
+    if student.class_group and current_term:
+        assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term)
+        for assignment in assignments:
+            paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
+            fee_assignments.append({
+                'id': assignment.id,
+                'fee_category': assignment.fee_category,
+                'amount': assignment.amount,
+                'paid': paid,
+                'outstanding': max(assignment.amount - paid, 0),
+            })
+    # Payment history
+    fee_payments = FeePayment.objects.filter(student=student).order_by('-payment_date')
+    # Handle payment submission
+    if request.method == 'POST':
+        assignment_id = request.POST.get('fee_assignment')
+        amount_paid = request.POST.get('amount_paid')
+        payment_method = request.POST.get('payment_method')
+        reference = request.POST.get('reference')
+        if assignment_id and amount_paid:
+            assignment = get_object_or_404(FeeAssignment, id=assignment_id)
+            FeePayment.objects.create(
+                student=student,
+                fee_assignment=assignment,
+                amount_paid=amount_paid,
+                payment_method=payment_method,
+                reference=reference
+            )
+            messages.success(request, 'Payment recorded successfully!')
+            return redirect('student_fees')
+    context = {
+        'fee_assignments': fee_assignments,
+        'fee_payments': fee_payments,
+        'current_term': current_term,
+    }
+    return render(request, 'dashboards/student_fees.html', context)
+
+# Admin Fees Management View
+@login_required(login_url='login')
+def admin_fees(request):
+    if request.user.role != 'admin':
+        return redirect('dashboard')
+
+    # Forms for fee category and assignment
+    fee_form = FeeCategoryForm(request.POST or None, prefix='fee')
+    assign_form = FeeAssignmentForm(request.POST or None, prefix='assign')
+
+    # Handle form submissions
+    if request.method == 'POST':
+        if 'fee-name' in request.POST:  # FeeCategoryForm
+            if fee_form.is_valid():
+                fee_form.save()
+                messages.success(request, 'Fee category saved.')
+                return redirect('admin_fees')
+        elif 'assign-fee_category' in request.POST:  # FeeAssignmentForm
+            if assign_form.is_valid():
+                assign_form.save()
+                messages.success(request, 'Fee assigned to class/term.')
+                return redirect('admin_fees')
+
+    # Fees overview
+    fees = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term').all()
+    # Student assignments overview (simplified for demo)
+    assignments = []
+    for assignment in FeeAssignment.objects.select_related('class_group', 'term', 'fee_category'):
+        students = Student.objects.filter(class_group=assignment.class_group)
+        for student in students:
+            paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
+            is_paid = paid >= assignment.amount
+            paid_on = FeePayment.objects.filter(student=student, fee_assignment=assignment).order_by('-payment_date').first()
+            assignments.append({
+                'student': student,
+                'fee': assignment,
+                'is_paid': is_paid,
+                'paid_on': paid_on.payment_date if paid_on else None,
+            })
+
+    context = {
+        'fee_form': fee_form,
+        'assign_form': assign_form,
+        'fees': fees,
+        'assignments': assignments,
+    }
+    return render(request, 'dashboards/admin_fees.html', context)
+
 # Admin Overview View
 @login_required(login_url='login')
 def admin_overview(request):
@@ -288,7 +385,8 @@ def admin_overview(request):
 
 from django.http import JsonResponse
 from django.template.loader import render_to_string
-from .forms import AddTeacherForm, AddStudentForm, AddClassForm, AddSubjectForm
+from .forms import AddTeacherForm, AddStudentForm, AddClassForm, AddSubjectForm, EditTermDatesForm
+
 from django.shortcuts import get_object_or_404
 
 @login_required(login_url='login')
@@ -667,9 +765,29 @@ def student_profile(request, student_id):
     else:
         form = EditStudentClassForm(instance=student)
 
+    # --- Fee status for this student ---
+    from .models import FeeAssignment, FeePayment, Term
+    from django.db.models import Sum
+    current_term = Term.objects.order_by('-start_date').first()
+    fee_assignments = []
+    if student.class_group and current_term:
+        assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term)
+        for assignment in assignments:
+            paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
+            fee_assignments.append({
+                'id': assignment.id,
+                'fee_category': assignment.fee_category,
+                'amount': assignment.amount,
+                'paid': paid,
+                'outstanding': max(assignment.amount - paid, 0),
+            })
+    fee_payments = FeePayment.objects.filter(student=student).order_by('-payment_date')
     return render(request, 'dashboards/student_profile.html', {
         'student': student,
         'edit_class_form': form,
+        'fee_assignments': fee_assignments,
+        'fee_payments': fee_payments,
+        'current_term': current_term,
     })
 
 # Teacher Profile View
@@ -1136,27 +1254,41 @@ from django.views.decorators.csrf import csrf_protect
 def admin_academic_years(request):
     if request.user.role != 'admin':
         return redirect('dashboard')
+
+    edit_term_id = None
+    edit_term_form = None
+
     if request.method == 'POST':
-        if 'add_year' in request.POST:
+        if 'show_edit_term' in request.POST:
+            edit_term_id = request.POST.get('term_id')
+            if edit_term_id:
+                try:
+                    term = Term.objects.get(id=edit_term_id)
+                    edit_term_form = EditTermDatesForm(instance=term)
+                except Term.DoesNotExist:
+                    messages.error(request, "Term not found.")
+        elif 'add_year' in request.POST:
             year = request.POST.get('year')
             if year:
-                academic_year_obj, created = AcademicYear.objects.get_or_create(year=year)
+                # Check if the year already exists (case insensitive)
+                if AcademicYear.objects.filter(year__iexact=year).exists():
+                    messages.error(request, f"Academic Year '{year}' already exists. If you want to add terms, use the form below.")
+                    return redirect('admin_academic_years')
+                academic_year_obj = AcademicYear.objects.create(year=year)
                 # Auto-create terms if none exist for this year
-                if created or academic_year_obj.terms.count() == 0:
-                    # Parse the year (support e.g. '2025' or '2025/2026')
-                    import re
-                    year_match = re.match(r'(\d{4})', year)
-                    if year_match:
-                        base_year = int(year_match.group(1))
-                        # Define terms and holidays
-                        import datetime
-                        terms = [
-                            ('Term 1', datetime.date(base_year, 1, 1), datetime.date(base_year, 3, 31)),
-                            ('Term 2', datetime.date(base_year, 5, 1), datetime.date(base_year, 7, 31)),
-                            ('Term 3', datetime.date(base_year, 9, 1), datetime.date(base_year, 11, 30)),
-                        ]
-                        for name, start, end in terms:
-                            Term.objects.create(name=name, academic_year=academic_year_obj, start_date=start, end_date=end)
+                import re
+                year_match = re.match(r'(\d{4})', year)
+                if year_match:
+                    base_year = int(year_match.group(1))
+                    # Define terms and holidays
+                    import datetime
+                    terms = [
+                        ('Term 1', datetime.date(base_year, 1, 1), datetime.date(base_year, 3, 31)),
+                        ('Term 2', datetime.date(base_year, 5, 1), datetime.date(base_year, 7, 31)),
+                        ('Term 3', datetime.date(base_year, 9, 1), datetime.date(base_year, 11, 30)),
+                    ]
+                    for name, start, end in terms:
+                        Term.objects.create(name=name, academic_year=academic_year_obj, start_date=start, end_date=end)
                 messages.success(request, f'Academic Year {year} added.')
                 return redirect('admin_academic_years')
         elif 'add_term' in request.POST:
@@ -1176,6 +1308,16 @@ def admin_academic_years(request):
                 )
                 messages.success(request, f'Term {term_name} added to {academic_year.year}.')
                 return redirect('admin_academic_years')
+        elif 'edit_term_dates' in request.POST:
+            edit_term_id = request.POST.get('term_id')
+            term = Term.objects.get(id=edit_term_id)
+            edit_term_form = EditTermDatesForm(request.POST, instance=term)
+            if edit_term_form.is_valid():
+                edit_term_form.save()
+                messages.success(request, f"Updated dates for {term.name}.")
+                return redirect('admin_academic_years')
+            else:
+                messages.error(request, "Failed to update term dates. Please check the form.")
         elif 'run_promotion' in request.POST:
             # Trigger the promote_students management command
             import subprocess
@@ -1186,6 +1328,7 @@ def admin_academic_years(request):
             else:
                 messages.error(request, 'Promotion failed: ' + result.stderr)
             return redirect('admin_academic_years')
+
     import datetime
     today = datetime.date.today()
     # Only show years with at least one term whose end_date is today or in the future
@@ -1199,7 +1342,6 @@ def admin_academic_years(request):
     # Find the current term based on today's date
     current_term = None
     current_year = None
-    third_term_ended = False
     graduation_ready = False
     graduation_year = None
     for year in academic_years:
@@ -1222,6 +1364,8 @@ def admin_academic_years(request):
         'current_year': current_year,
         'graduation_ready': graduation_ready,
         'graduation_year': graduation_year,
+        'edit_term_id': edit_term_id,
+        'edit_term_form': edit_term_form,
     }
     return render(request, 'dashboards/admin_academic_years.html', context)
 

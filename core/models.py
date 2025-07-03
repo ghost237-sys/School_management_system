@@ -76,6 +76,9 @@ class Term(models.Model):
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
 
+    def __str__(self):
+        return f"{self.name} - {self.academic_year.year}"
+
 class Exam(models.Model):
     EXAM_TYPE_CHOICES = [
         ('opener', 'Opener exams'),
@@ -96,6 +99,41 @@ class Grade(models.Model):
     score = models.FloatField()
     grade_letter = models.CharField(max_length=2, blank=True, null=True)
     remarks = models.TextField(blank=True)
+
+# --- Fee Management Models ---
+
+class FeeCategory(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+class FeeAssignment(models.Model):
+    fee_category = models.ForeignKey(FeeCategory, on_delete=models.CASCADE, related_name='assignments')
+    class_group = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='fee_assignments')
+    term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name='fee_assignments')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        unique_together = ('fee_category', 'class_group', 'term')
+
+    def __str__(self):
+        return f"{self.fee_category} - {self.class_group} - {self.term}"
+
+class FeePayment(models.Model):
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='fee_payments')
+    fee_assignment = models.ForeignKey(FeeAssignment, on_delete=models.CASCADE, related_name='payments')
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_date = models.DateTimeField(auto_now_add=True)
+    payment_method = models.CharField(max_length=50, blank=True, null=True)  # e.g., cash, bank, mobile money
+    reference = models.CharField(max_length=100, blank=True, null=True)  # e.g., transaction ID
+
+    def __str__(self):
+        return f"{self.student} paid {self.amount_paid} for {self.fee_assignment} on {self.payment_date}"
+
+    class Meta:
+        ordering = ['-payment_date']
 
 class TeacherClassAssignment(models.Model):
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)

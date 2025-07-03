@@ -16,13 +16,72 @@
 {% block title %}Admin Overview{% endblock %}
 {% block content %}
 <!-- Display Django messages -->
+<style>
+  #toast-container {
+    position: fixed;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    min-width: 320px;
+    max-width: 90vw;
+  }
+  .floating-toast {
+    min-width: 320px;
+    max-width: 90vw;
+    background: #fff;
+    color: #222;
+    border-radius: 10px;
+    box-shadow: 0 4px 32px rgba(0,0,0,0.25);
+    padding: 1.2rem 2rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    opacity: 0;
+    transform: translateY(-30px);
+    transition: opacity 0.4s, transform 0.4s;
+    margin-bottom: 10px;
+  }
+  .floating-toast.success { border-left: 8px solid #198754; }
+  .floating-toast.error { border-left: 8px solid #dc3545; }
+  .floating-toast.info { border-left: 8px solid #0dcaf0; }
+  .floating-toast.warning { border-left: 8px solid #ffc107; }
+  .floating-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .floating-toast.hide {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+</style>
+<div id="toast-container"></div>
 {% if messages %}
-  {% for message in messages %}
-    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-      {{ message }}
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-  {% endfor %}
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var toastContainer = document.getElementById('toast-container');
+      {% for message in messages %}
+        var tag = '{{ message.tags }}';
+        var msg = `{{ message|escapejs }}`;
+        var toast = document.createElement('div');
+        toast.className = 'floating-toast show ' + (tag || 'info');
+        toast.innerHTML = msg;
+        toastContainer.appendChild(toast);
+        setTimeout(function() {
+          toast.classList.remove('show');
+          toast.classList.add('hide');
+          setTimeout(function() { toast.remove(); }, 400);
+        }, 5000);
+      {% endfor %}
+    });
+  </script>
 {% endif %}
 
 <style>

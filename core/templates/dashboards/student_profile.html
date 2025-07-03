@@ -59,6 +59,62 @@
                 </div>
             </div>
             {% endif %}
+            <!-- Fee Status Section -->
+            <div class="card mt-4">
+                <div class="card-header bg-info text-white">
+                    Fee Status ({{ current_term.name }} - {{ current_term.academic_year.year }})
+                </div>
+                <div class="card-body">
+                    <h6>Assigned Fees</h6>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Fee Category</th>
+                                <th>Amount</th>
+                                <th>Paid</th>
+                                <th>Outstanding</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for assignment in fee_assignments %}
+                            <tr>
+                                <td>{{ assignment.fee_category.name }}</td>
+                                <td>{{ assignment.amount }}</td>
+                                <td>{{ assignment.paid }}</td>
+                                <td>{{ assignment.outstanding }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="4">No fees assigned for this term.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    <h6 class="mt-4">Payment History</h6>
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Fee Category</th>
+                                <th>Amount Paid</th>
+                                <th>Method</th>
+                                <th>Reference</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for payment in fee_payments %}
+                            <tr>
+                                <td>{{ payment.payment_date|date:'Y-m-d H:i' }}</td>
+                                <td>{{ payment.fee_assignment.fee_category.name }}</td>
+                                <td>{{ payment.amount_paid }}</td>
+                                <td>{{ payment.payment_method|default:'-' }}</td>
+                                <td>{{ payment.reference|default:'-' }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="5">No payments recorded.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </div>

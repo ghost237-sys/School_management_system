@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}My Fees{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">My Fee Statement</h2>
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">Assigned Fees for {{ current_term.name }} ({{ current_term.academic_year.year }})</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Fee Category</th>
+                        <th>Amount</th>
+                        <th>Paid</th>
+                        <th>Outstanding</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for assignment in fee_assignments %}
+                    <tr>
+                        <td>{{ assignment.fee_category.name }}</td>
+                        <td>{{ assignment.amount }}</td>
+                        <td>{{ assignment.paid }}</td>
+                        <td>{{ assignment.outstanding }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="4">No fees assigned for your class this term.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Payment History</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Fee</th>
+                        <th>Amount Paid</th>
+                        <th>Method</th>
+                        <th>Reference</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for payment in fee_payments %}
+                    <tr>
+                        <td>{{ payment.payment_date|date:"Y-m-d H:i" }}</td>
+                        <td>{{ payment.fee_assignment.fee_category.name }}</td>
+                        <td>{{ payment.amount_paid }}</td>
+                        <td>{{ payment.payment_method }}</td>
+                        <td>{{ payment.reference }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5">No payments made yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Make a Payment</h5>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="fee_assignment" class="form-label">Fee Category</label>
+                    <select class="form-select" id="fee_assignment" name="fee_assignment">
+                        {% for assignment in fee_assignments %}
+                            <option value="{{ assignment.id }}">{{ assignment.fee_category.name }} (Outstanding: {{ assignment.outstanding }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="amount_paid" class="form-label">Amount</label>
+                    <input type="number" step="0.01" min="0" class="form-control" id="amount_paid" name="amount_paid" required>
+                </div>
+                <div class="mb-3">
+                    <label for="payment_method" class="form-label">Payment Method</label>
+                    <input type="text" class="form-control" id="payment_method" name="payment_method" placeholder="e.g. Cash, Bank, Mobile Money">
+                </div>
+                <div class="mb-3">
+                    <label for="reference" class="form-label">Reference</label>
+                    <input type="text" class="form-control" id="reference" name="reference" placeholder="e.g. Transaction ID">
+                </div>
+                <button type="submit" class="btn btn-primary">Submit Payment</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

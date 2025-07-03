@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
-from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event
+from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term
 
 class ExamForm(forms.ModelForm):
     class Meta:
@@ -30,6 +30,16 @@ class AddSubjectForm(forms.ModelForm):
     class Meta:
         model = Subject
         fields = ['name', 'department']
+
+class EditTermDatesForm(forms.ModelForm):
+    class Meta:
+        model = Term
+        fields = ['start_date', 'end_date']
+        widgets = {
+            'start_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'end_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        }
+
 
 class AddClassForm(forms.ModelForm):
     LEVEL_CHOICES = [(str(i), f"{i}") for i in range(1, 10)]
@@ -144,6 +154,27 @@ class EditStudentClassForm(forms.ModelForm):
     class Meta:
         model = Student
         fields = ['class_group']
+
+class FeeCategoryForm(forms.ModelForm):
+    class Meta:
+        model = FeeCategory
+        fields = ['name', 'description']
+
+class FeeAssignmentForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ensure the term dropdown uses the __str__ method (term name & year)
+        self.fields['term'].queryset = self.fields['term'].queryset.select_related('academic_year')
+        self.fields['term'].label_from_instance = lambda obj: str(obj)
+
+    class Meta:
+        model = FeeAssignment
+        fields = ['fee_category', 'class_group', 'term', 'amount']
+
+class FeePaymentForm(forms.ModelForm):
+    class Meta:
+        model = FeePayment
+        fields = ['student', 'fee_assignment', 'amount_paid', 'payment_method', 'reference']
 
 class AddTeacherForm(forms.ModelForm):
     # User fields
