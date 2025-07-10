@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Exams{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+  <h1 class="mt-4">Exams - Students by Subject</h1>
+  {% if subject_students %}
+    {% for subj_class, students in subject_students.items %}
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+          <strong>Subject:</strong> {{ subj_class.0.name }} | <strong>Class:</strong> {{ subj_class.1.name }}
+        </div>
+        <div class="card-body">
+          {% if students %}
+            <table class="table table-bordered table-striped">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Student Name</th>
+                  <th>Admission No.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for student in students %}
+                  <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ student.user.get_full_name }}</td>
+                    <td>{{ student.admission_no }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p>No students assigned to this class.</p>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="alert alert-info">No subjects or classes assigned to you.</div>
+  {% endif %}
+</div>
+{% endblock %}

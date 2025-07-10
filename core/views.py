@@ -38,6 +38,23 @@ def create_event(title, date, end_date=None, all_day=True):
     return Event.objects.create(title=title, start=start_dt, end=end_dt, all_day=all_day)
 
 from .forms import EventForm
+from django.http import JsonResponse
+
+@login_required(login_url='login')
+def exam_events_api(request):
+    from .models import Exam
+    events = []
+    for exam in Exam.objects.all():
+        events.append({
+            'id': exam.id,
+            'title': exam.name,
+            'start': str(exam.date),
+            'type': getattr(exam, 'type', ''),
+            'level': getattr(exam, 'level', ''),
+            'room': getattr(exam, 'room', ''),
+        })
+    return JsonResponse(events, safe=False)
+
 
 @login_required(login_url='login')
 def admin_events(request):
@@ -811,43 +828,70 @@ def teacher_dashboard(request, teacher_id):
 
     teacher = get_object_or_404(Teacher.objects.select_related('user'), id=teacher_id)
 
-    # Get class assignments with student counts and performance metrics
+    # Get all classes where the teacher teaches (via TeacherClassAssignment) or is class_teacher
     assignments = TeacherClassAssignment.objects.filter(teacher=teacher).select_related('class_group', 'subject')
-    
-    class_details = []
+    assigned_classes = set()
+    # Prepare class_cards for dashboard cards (one per class+subject assignment)
+    class_cards = []
+    notifications = []
+    greeting_name = f"Mr. {teacher.user.last_name}" if teacher.user.last_name else teacher.user.get_full_name() or teacher.user.username
+    teacher_subjects = list(teacher.subjects.values_list('name', flat=True))
+    # We'll collect classes from both assignments and class_teacher role, avoiding duplicates
     for assign in assignments:
+        class_id = assign.class_group.id
+        assigned_classes.add(class_id)
         students = Student.objects.filter(class_group=assign.class_group)
         student_count = students.count()
         grades = Grade.objects.filter(student__in=students, subject=assign.subject)
-
         avg_score = grades.aggregate(avg=Avg('score'))['avg']
-        top_performer = None
-        bottom_performer = None
-
-        if grades.exists():
-            top_grade = grades.order_by('-score').first()
-            if top_grade:
-                top_performer = top_grade.student
-            
-            bottom_grade = grades.order_by('score').first()
-            if bottom_grade:
-                bottom_performer = bottom_grade.student
-
-        class_details.append({
+        exams_marked = grades.values('exam').distinct().count()
+        from .models import Exam
+        total_exams = Exam.objects.filter(subject=assign.subject, class_group=assign.class_group).count() if hasattr(Exam, 'class_group') else Exam.objects.filter(subject=assign.subject).count()
+        low_performers = grades.filter(score__lt=50).count()
+        below_avg_count = grades.filter(score__lt=avg_score if avg_score else 50).count() if avg_score else 0
+        if below_avg_count > 0:
+            notifications.append(f"{below_avg_count} student{'s' if below_avg_count > 1 else ''} have dropped below average in {assign.subject.name} ({assign.class_group.name})")
+        class_cards.append({
             'class_group': assign.class_group,
             'subject': assign.subject,
+            'is_class_teacher': assign.class_group.class_teacher_id == teacher.id,
             'student_count': student_count,
             'avg_score': avg_score,
-            'top_performer': top_performer,
-            'bottom_performer': bottom_performer,
+            'exams_marked': exams_marked,
+            'total_exams': total_exams,
+            'low_performers': low_performers,
         })
+    # Now add classes where teacher is class_teacher but not in TeacherClassAssignment
+    from .models import Class
+    extra_classes = Class.objects.filter(class_teacher=teacher).exclude(id__in=assigned_classes)
+    for class_obj in extra_classes:
+        students = Student.objects.filter(class_group=class_obj)
+        student_count = students.count()
+        class_cards.append({
+            'class_group': class_obj,
+            'subject': None,
+            'is_class_teacher': True,
+            'student_count': student_count,
+            'avg_score': None,
+            'exams_marked': 0,
+            'total_exams': 0,
+            'low_performers': 0,
+        })
+    # teacher_classes for summary panel: all unique class names
+    teacher_classes = list(set([c['class_group'].name for c in class_cards]))
+    # Remove legacy/duplicate class_details/extra_classes logic (all cards come from class_cards now)
+
 
     # Placeholder for upcoming deadlines
     upcoming_deadlines = []
 
     context = {
         'teacher': teacher,
-        'class_details': class_details,
+        'greeting_name': greeting_name,
+        'teacher_subjects': teacher_subjects,
+        'teacher_classes': teacher_classes,
+        'notifications': notifications,
+        'class_cards': class_cards,
         'upcoming_deadlines': upcoming_deadlines,
     }
     return render(request, 'dashboards/teacher_dashboard.html', context)
@@ -917,17 +961,65 @@ def take_attendance(request, teacher_id, class_id, subject_id):
 
 @login_required(login_url='login')
 def manage_grades(request, teacher_id):
-    from .models import Teacher, TeacherClassAssignment
+    from .models import Teacher, TeacherClassAssignment, Student, Exam
     from django.shortcuts import get_object_or_404
 
     teacher = get_object_or_404(Teacher.objects.select_related('user'), id=teacher_id)
     assignments = TeacherClassAssignment.objects.filter(teacher=teacher).select_related('class_group', 'subject')
+    assigned_classes = set()
+    class_cards = []
+    processed_pairs = set()
+
+    # 1. Get explicit assignments from TeacherClassAssignment
+    assignments = TeacherClassAssignment.objects.filter(teacher=teacher).select_related('class_group', 'subject')
+    for assign in assignments:
+        if assign.class_group and assign.subject:
+            students = Student.objects.filter(class_group=assign.class_group).select_related('user').order_by('user__last_name', 'user__first_name')
+            class_cards.append({
+                'class_group': assign.class_group,
+                'subject': assign.subject,
+                'is_class_teacher': assign.class_group.class_teacher_id == teacher.id,
+                'students': students,
+            })
+            processed_pairs.add((assign.class_group.id, assign.subject.id))
+
+    # 2. For all subjects the teacher teaches, create cards for classes they are class teacher of, if not already processed
+    from .models import Class
+    classes_as_class_teacher = Class.objects.filter(class_teacher=teacher)
+    all_subjects_taught = teacher.subjects.all()
+
+    for subject in all_subjects_taught:
+        for class_obj in classes_as_class_teacher:
+            if (class_obj.id, subject.id) not in processed_pairs:
+                students = Student.objects.filter(class_group=class_obj).select_related('user').order_by('user__last_name', 'user__first_name')
+                class_cards.append({
+                    'class_group': class_obj,
+                    'subject': subject,
+                    'is_class_teacher': True,
+                    'students': students,
+                })
+                processed_pairs.add((class_obj.id, subject.id))
+
+    # Group cards by subject
+    from collections import defaultdict
+    subject_cards = defaultdict(list)
+    no_subject = []
+    for card in class_cards:
+        if card['subject']:
+            subject_cards[card['subject'].name].append(card)
+        else:
+            no_subject.append(card)
+
+    exams = Exam.objects.all()
 
     context = {
         'teacher': teacher,
-        'assignments': assignments,
+        'subject_cards': dict(subject_cards),
+        'no_subject': no_subject,
+        'exams': exams,
     }
     return render(request, 'dashboards/manage_grades.html', context)
+
 
 
 @login_required(login_url='login')
@@ -1437,40 +1529,46 @@ def custom_logout_view(request):
     return redirect('login')
 
 @login_required(login_url='login')
+def teacher_exams(request, teacher_id):
+    from .models import TeacherClassAssignment, Student, Subject, Teacher
+    teacher = Teacher.objects.get(id=teacher_id)
+    assignments = TeacherClassAssignment.objects.filter(teacher=teacher).select_related('subject', 'class_group')
+    subject_students = {}
+    for assignment in assignments:
+        students = Student.objects.filter(class_group=assignment.class_group)
+        subject_students[(assignment.subject, assignment.class_group)] = students
+    context = {
+        'teacher': teacher,
+        'subject_students': subject_students,
+    }
+    return render(request, 'dashboards/teacher_exams.html', context)
+
+@login_required(login_url='login')
 def upload_marksheet(request):
     if request.method == 'POST':
-        if 'file' not in request.FILES:
-            messages.error(request, 'No file selected.')
-            return redirect('upload_marksheet')
-
         file = request.FILES['file']
-        if not file.name.endswith(('.csv', '.xlsx')):
-            messages.error(request, 'Invalid file format. Please upload a CSV or Excel file.')
+        import pandas as pd
+        import datetime
+
+        df = pd.read_excel(file) if file.name.endswith('.xlsx') else pd.read_csv(file)
+        df.columns = [col.strip() for col in df.columns]
+
+        # Flexible required columns check
+        required_cols_student = ['admission_no', 'student_name']
+        required_cols_subject = ['subject_code', 'subject_name']
+        other_required_cols = ['exam_name', 'term', 'academic_year', 'score']
+
+        has_student_id = any(col in df.columns for col in required_cols_student)
+        has_subject_id = any(col in df.columns for col in required_cols_subject)
+        has_others = all(col in df.columns for col in other_required_cols)
+
+        if not (has_student_id and has_subject_id and has_others):
+            msg = "File is missing required columns. It must contain ('admission_no' or 'student_name'), ('subject_code' or 'subject_name'), 'exam_name', 'term', 'academic_year', and 'score'."
+            messages.error(request, msg)
             return redirect('upload_marksheet')
 
+        errors = []
         try:
-            import pandas as pd
-            from .models import Student, Subject, Exam, Grade, Term, AcademicYear, User
-            import datetime
-
-            df = pd.read_excel(file) if file.name.endswith('.xlsx') else pd.read_csv(file)
-            df.columns = [col.strip() for col in df.columns]
-
-            # Flexible required columns check
-            required_cols_student = ['admission_no', 'student_name']
-            required_cols_subject = ['subject_code', 'subject_name']
-            other_required_cols = ['exam_name', 'term', 'academic_year', 'score']
-
-            has_student_id = any(col in df.columns for col in required_cols_student)
-            has_subject_id = any(col in df.columns for col in required_cols_subject)
-            has_others = all(col in df.columns for col in other_required_cols)
-
-            if not (has_student_id and has_subject_id and has_others):
-                msg = "File is missing required columns. It must contain ('admission_no' or 'student_name'), ('subject_code' or 'subject_name'), 'exam_name', 'term', 'academic_year', and 'score'."
-                messages.error(request, msg)
-                return redirect('upload_marksheet')
-
-            errors = []
             for index, row in df.iterrows():
                 try:
                     # Find Student
@@ -1580,38 +1678,78 @@ def custom_login_view(request):
 
     return render(request, 'auth/login.html')
 
-
 # Admin Exams View
 from django.contrib.auth.decorators import login_required
-import pandas as pd
-from .forms import ExamForm
-
 @login_required(login_url='login')
 def admin_exams(request):
-    table_html = None  # Ensure table_html is always defined
-    from .models import Exam, Term
-    if request.user.role != 'admin':
-        return redirect('dashboard')
-    subject_map = {
-        'KIS': 'Kiswahili',
-        'LUG': 'Lugha',
-        'INS': 'Insha',
-        'ENG': 'English',
-        'LAN': 'Language',
-        'COM': 'Composition',
-        'SC_TELAG_NLC_A': 'Integrated uScience',
-        'AGR': 'Agriculture',
-        'ART': 'Art and Craft',
-        'MUS': 'Music',
-        'SS': 'Social Studies',
-        'CRE': 'CRE',
-        'SCI': 'Science and Technology',
-        'AGR_NUT': 'Agriculture and Nutrition',
-        'CRT': 'Creative Art',
-        'PRE_TECH': 'Pre Tech',
-        'TECH': 'Technical',
-        'PE': 'PE',
-    }
+    from .forms import ExamForm
+    from .models import Exam, Subject, Student, Grade, Class
+    from django.contrib import messages
+    import pandas as pd
+    from django.db import transaction
+
+    exam_form = ExamForm(request.POST or None)
+    exams = Exam.objects.select_related('term').order_by('-date')
+    latest_exam = exams.first() if exams.exists() else None
+    table_html = None
+    summary = {'added': 0, 'removed': 0, 'errors': []}
+
+    # Handle exam creation POST
+    if request.method == 'POST' and 'add_exam' in request.POST:
+        if exam_form.is_valid():
+            exam_form.save()
+            messages.success(request, 'Exam created successfully!')
+            exam_form = ExamForm()  # Reset form
+        else:
+            messages.error(request, 'Please correct the errors below.')
+
+    # Helper: Build student-subject matrix for the latest exam
+    def build_students_subjects_table():
+        all_subjects = list(Subject.objects.all().order_by('name'))
+        all_classes = list(Class.objects.all().order_by('name'))
+        students_subjects_table = []
+        for class_obj in all_classes:
+            students = Student.objects.filter(class_group=class_obj).order_by('admission_no')
+            for student in students:
+                student_subjects = set(Grade.objects.filter(student=student).values_list('subject_id', flat=True))
+                row = {
+                    'admission_no': student.admission_no,
+                    'name': student.full_name,
+                    'class': class_obj.name,
+                    'subjects': [subj.id in student_subjects for subj in all_subjects],
+                    'subject_ids': list(student_subjects),
+                }
+                students_subjects_table.append(row)
+        return students_subjects_table, all_subjects
+
+    # Handle grade entry matrix POST
+    if request.method == 'POST' and request.POST.get('submit_matrix'):
+        updated = 0
+        for key, value in request.POST.items():
+            if key.startswith('marks-'):
+                try:
+                    _, admission_no, subject_id = key.split('-', 2)
+                    score = value.strip()
+                    if score == '':
+                        continue
+                    score = float(score)
+                    student = Student.objects.get(admission_no=admission_no)
+                    subject = Subject.objects.get(id=subject_id)
+                    exam = latest_exam
+                    if not exam:
+                        continue
+                    Grade.objects.update_or_create(
+                        student=student,
+                        subject=subject,
+                        exam=exam,
+                        defaults={'score': score}
+                    )
+                    updated += 1
+                except Exception:
+                    continue
+        messages.success(request, f"Successfully updated {updated} marks from matrix form.")
+
+    # Handle bulk marksheet upload
     if request.method == 'POST' and request.FILES.get('marksheet'):
         excel_file = request.FILES['marksheet']
         is_preview = 'preview' in request.POST
@@ -1619,16 +1757,20 @@ def admin_exams(request):
         try:
             df = pd.read_excel(excel_file)
             table_html = df.to_html(classes='table table-bordered table-striped', index=False)
-
-            # Validate required columns
             required_cols = ['admission_no', 'first_name', 'last_name', 'gender', 'birthdate', 'class_group']
             for col in required_cols:
                 if col not in df.columns:
                     summary['errors'].append(f"Missing required column: {col}")
             if summary['errors']:
                 messages.error(request, ' '.join(summary['errors']))
-                return render(request, 'dashboards/admin_exams.html', {'table_html': table_html})
-
+                students_subjects_table, all_subjects = build_students_subjects_table()
+                return render(request, 'dashboards/admin_exams.html', {
+                    'table_html': table_html,
+                    'students_subjects_table': students_subjects_table,
+                    'all_subjects': all_subjects,
+                    'exam_form': exam_form,
+                    'exams': exams,
+                })
             # Clean and check for duplicates/missing
             seen = set()
             valid_rows = []
@@ -1656,23 +1798,32 @@ def admin_exams(request):
                         'birthdate': birthdate,
                         'class_group': class_name
                     })
-
             if not valid_rows:
                 messages.error(request, 'No valid students to import.')
-                return render(request, 'dashboards/admin_exams.html', {'table_html': table_html})
-
+                students_subjects_table, all_subjects = build_students_subjects_table()
+                return render(request, 'dashboards/admin_exams.html', {
+                    'table_html': table_html,
+                    'students_subjects_table': students_subjects_table,
+                    'all_subjects': all_subjects,
+                    'exam_form': exam_form,
+                    'exams': exams,
+                })
             if is_preview:
-                # Only preview, do not modify DB
                 if summary['errors']:
                     messages.error(request, ' '.join(summary['errors']))
                 else:
                     messages.info(request, 'Preview successful. No data has been added yet.')
-                return render(request, 'dashboards/admin_exams.html', {'table_html': table_html})
-
+                students_subjects_table, all_subjects = build_students_subjects_table()
+                return render(request, 'dashboards/admin_exams.html', {
+                    'table_html': table_html,
+                    'students_subjects_table': students_subjects_table,
+                    'all_subjects': all_subjects,
+                    'exam_form': exam_form,
+                    'exams': exams,
+                })
             if is_process:
-                from .models import Subject, Grade, Exam, Term, AcademicYear
+                from .models import Exam, Term, AcademicYear, User
                 import datetime
-                # Remove students not in uploaded list for this class
                 class_name = valid_rows[0]['class_group']
                 class_group, _ = Class.objects.get_or_create(name=class_name)
                 uploaded_adm_nos = set([row['admission_no'] for row in valid_rows])
@@ -1684,7 +1835,6 @@ def admin_exams(request):
                             st.user.delete()
                         st.delete()
                         summary['removed'] += 1
-                    # Add new students
                     for row in valid_rows:
                         if not Student.objects.filter(admission_no=row['admission_no']).exists():
                             user = User.objects.create_user(
@@ -1703,16 +1853,12 @@ def admin_exams(request):
                                 birthdate=row['birthdate']
                             )
                             summary['added'] += 1
-                    # Process grades for each student and subject
-                    # Get or create latest AcademicYear, Term, Exam
                     year = str(datetime.date.today().year)
                     academic_year, _ = AcademicYear.objects.get_or_create(year=year)
                     term, _ = Term.objects.get_or_create(name='Term 1', academic_year=academic_year)
                     exam_name = f'Opener exams for {class_group.name}'
                     exam, _ = Exam.objects.get_or_create(name=exam_name, term=term, defaults={'date': datetime.date.today()})
-                    # Build subject code to Subject object map
                     subj_code_map = {s.code: s for s in Subject.objects.all()}
-                    # Identify subject columns
                     subject_cols = [col for col in df.columns if col not in ['admission_no', 'first_name', 'last_name', 'gender', 'birthdate', 'class_group']]
                     for idx, row in df.iterrows():
                         try:
@@ -1730,10 +1876,7 @@ def admin_exams(request):
                             subj_code = subj_col
                             subject = subj_code_map.get(subj_code)
                             if not subject:
-                                # Try to map via subject_map (short code to long name)
-                                subj_long_name = subject_map.get(subj_code)
-                                if subj_long_name:
-                                    subject = Subject.objects.filter(name__iexact=subj_long_name).first()
+                                subject = Subject.objects.filter(name__iexact=subj_code).first()
                             if not subject:
                                 continue
                             Grade.objects.update_or_create(
@@ -1746,4 +1889,12 @@ def admin_exams(request):
                 messages.success(request, f"Added: {summary['added']}, Removed: {summary['removed']}, Grades processed: {grades_processed}. Errors: {'; '.join(summary['errors']) if summary['errors'] else 'None'}.")
         except Exception as e:
             messages.error(request, f'Error reading Excel file: {e}')
-    return render(request, 'dashboards/admin_exams.html', {'table_html': table_html})
+    students_subjects_table, all_subjects = build_students_subjects_table()
+    context = {
+        'exam_form': exam_form,
+        'exams': exams,
+        'table_html': table_html,
+        'students_subjects_table': students_subjects_table,
+        'all_subjects': all_subjects,
+    }
+    return render(request, 'dashboards/admin_exams.html', context)

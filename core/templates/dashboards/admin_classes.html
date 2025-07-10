@@ -56,20 +56,29 @@
         <h5 class="mb-0">All Classes</h5>
     </div>
     <div class="card-body">
-        <div class="accordion" id="classesAccordion">
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mt-2">
             {% for class in class_list %}
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="heading{{ class.id }}">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ class.id }}" aria-expanded="false" aria-controls="collapse{{ class.id }}">
-                        {{ class.name }} (Level {{ class.level }})
-                    </button>
-                </h2>
-                <div id="collapse{{ class.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ class.id }}" data-bs-parent="#classesAccordion">
-                    <div class="accordion-body">
+            <div class="col">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">{{ class.name }} (Level {{ class.level }})</h5>
+                    </div>
+                    <div class="card-body">
                         <div class="mb-2 d-flex gap-2">
                             <a href="{% url 'class_profile' class.id %}" class="btn btn-sm btn-info">View</a>
                             <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editClassModal{{ class.id }}">Edit</button>
                             <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteClassModal{{ class.id }}" {% if class.students or class.subjects_and_teachers|length > 0 %}disabled{% endif %}>Delete</button>
+                        </div>
+                        <div class="mb-2">
+                            <strong>Class Teacher:</strong>
+                            <span class="ms-2">{{ class.class_teacher|default:'Not assigned' }}</span>
+                        </div>
+                        <div class="mb-3">
+                            <div class="tiny-chart-container">
+  <canvas class="class-subject-chart tiny-chart" id="chart-{{ class.id }}" width="150" height="60"
+    data-chart='{"labels": [{% for sp in class.subject_performance %}{% if not forloop.first %}, {% endif %}{{ sp.subject|safe|json_script }}{% endfor %}], "scores": [{% for sp in class.subject_performance %}{% if not forloop.first %}, {% endif %}{{ sp.avg_score|default:0 }}{% endfor %}] }'>
+  </canvas>
+</div>
                         </div>
                         <!-- Edit Class Modal -->
                         <div class="modal fade" id="editClassModal{{ class.id }}" tabindex="-1" aria-labelledby="editClassModalLabel{{ class.id }}" aria-hidden="true">
@@ -247,24 +256,10 @@
                         <div class="mb-3"></div>
 
                         <h6>Subject Performance:</h6>
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Subject</th>
-                                    <th>Average Score</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for perf in class.subject_performance %}
-                                    <tr>
-                                        <td>{{ perf.subject }}</td>
-                                        <td>{{ perf.avg_score|floatformat:2 }}</td>
-                                    </tr>
-                                {% empty %}
-                                    <tr><td colspan="2">No subject data.</td></tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                        <canvas id="subjectPerformancePie-{{ class.id }}" height="180"></canvas>
+                        <script type="application/json" id="subjectPerformancePieData-{{ class.id }}">
+                            {"labels": [{% for perf in class.subject_performance %}{% if not forloop.first %}, {% endif %}"{{ perf.subject }}"{% endfor %}], "scores": [{% for perf in class.subject_performance %}{% if not forloop.first %}, {% endif %}{{ perf.avg_score|default:0 }}{% endfor %}]}
+                        </script>
                     </div>
                 </div>
             </div>
@@ -272,8 +267,39 @@
                 <p>No classes found.</p>
             {% endfor %}
         </div>
+        </div>
     </div>
 </div>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('canvas[id^="subjectPerformancePie-"]').forEach(function(canvas) {
+        var classId = canvas.id.split('-')[1];
+        var dataTag = document.getElementById('subjectPerformancePieData-' + classId);
+        if (dataTag) {
+            var data = JSON.parse(dataTag.textContent);
+            new Chart(canvas, {
+                type: 'pie',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.scores,
+                        backgroundColor: [
+                            '#4e73df','#1cc88a','#36b9cc','#f6c23e','#e74a3b','#858796','#5a5c69','#fd7e14','#20c997','#6610f2','#6f42c1','#e83e8c','#fdc506','#17a2b8','#b7b9cc','#007bff','#6c757d','#28a745','#dc3545','#ffc107'
+                        ],
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+    });
+});
+</script>
 
 <div class="card mt-5">
     <div class="card-header bg-danger text-white">
