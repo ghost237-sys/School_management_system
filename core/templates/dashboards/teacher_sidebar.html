@@ -18,8 +18,8 @@
             </a>
         </li>
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'upload_marksheet' %}active{% endif %}" href="{% url 'upload_marksheet' %}">
-                Upload Marksheet
+            <a class="nav-link text-white {% if request.resolver_match.url_name == 'teacher_exams' %}active{% endif %}" href="{% url 'teacher_exams' teacher_id=teacher.id %}">
+                Exams
             </a>
         </li>
         <li class="nav-item mb-2">

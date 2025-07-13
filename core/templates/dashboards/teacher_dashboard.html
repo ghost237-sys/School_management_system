@@ -7,43 +7,89 @@
     <div class="row">
         <div class="col-md-2"></div>
         <div class="col-md-10">
-            <h1 class="h3 mb-4 text-gray-800">Teacher Dashboard</h1>
-
-            <!-- Class Overview -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Class Overview</h6>
+            <!-- Welcome/Profile Summary -->
+            <div class="row">
+                <div class="col-md-10 mx-auto">
+                    <div class="card shadow p-4 mt-4">
+                        <div class="d-flex align-items-center mb-3">
+                            <img src="https://ui-avatars.com/api/?name={{ teacher.user.get_full_name|default:teacher.user.username }}&background=6C2EB7&color=fff&size=100" class="rounded-circle me-4" width="100" height="100" alt="Profile Picture">
+                            <div>
+                                <h2 class="mb-1">Welcome, {{ greeting_name }}</h2>
+                                <div class="mb-1 text-muted">Teacher</div>
+                                <div><strong>Subjects:</strong> {{ teacher_subjects|join:', ' }}</div>
+                                <div><strong>Classes:</strong> {{ teacher_classes|join:', ' }}</div>
+                            </div>
+                        </div>
+                        {% if notifications %}
+                            <div class="alert alert-warning">
+                                <ul class="mb-0">
+                                    {% for note in notifications %}
+                                        <li>{{ note }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-                            <thead>
-                                <tr>
-                                    <th>Class</th>
-                                    <th>Subject</th>
-                                    <th>Students</th>
-                                    <th>Avg. Score</th>
-                                    <th>Top Performer</th>
-                                    <th>Bottom Performer</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for detail in class_details %}
-                                <tr>
-                                    <td>{{ detail.class_group.name }}</td>
-                                    <td>{{ detail.subject.name }}</td>
-                                    <td>{{ detail.student_count }}</td>
-                                    <td>{{ detail.avg_score|floatformat:2|default:"N/A" }}%</td>
-                                    <td>{{ detail.top_performer.full_name|default:"N/A" }}</td>
-                                    <td>{{ detail.bottom_performer.full_name|default:"N/A" }}</td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="6">No classes assigned.</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+            </div>
+            <!-- Assigned Classes & Subjects Cards -->
+            <div class="row mt-4">
+                {% for card in class_cards %}
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <a href="{% if card.subject %}{% url 'input_grades' teacher_id=teacher.id class_id=card.class_group.id subject_id=card.subject.id %}{% else %}#{% endif %}" class="text-decoration-none text-dark">
+                            <div class="card h-100 shadow-sm hover-shadow">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ card.class_group.name }}</h5>
+                                    {% if card.subject %}
+                                        <h6 class="card-subtitle mb-2 text-muted">Subject: {{ card.subject.name }}</h6>
+                                    {% endif %}
+                                    {% if card.is_class_teacher %}
+                                        <span class="badge bg-success mb-2">Class Teacher</span>
+                                    {% endif %}
+                                    <p><strong>Students:</strong> {{ card.student_count }}</p>
+                                    <p><strong>Exams marked:</strong> {{ card.exams_marked }}/{{ card.total_exams }}</p>
+                                    <p><strong>Average Score:</strong> {% if card.avg_score %}{{ card.avg_score|floatformat:2 }}%{% else %}-{% endif %}</p>
+                                    <p><strong>Low performers:</strong> {{ card.low_performers }}</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                {% empty %}
+                    <div class="col-12">
+                        <div class="alert alert-info">No classes assigned.</div>
+                    </div>
+                {% endfor %}
+            </div>
+                        <div class="row">
+                            {% for card in class_cards %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="card h-100 shadow-sm">
+                                        <div class="card-body">
+                                            <h5 class="card-title">{{ card.class_group.name }}</h5>
+                                            {% if card.subject %}
+                                                <h6 class="card-subtitle mb-2 text-muted">Subject: {{ card.subject.name }}</h6>
+                                            {% endif %}
+                                            {% if card.is_class_teacher %}
+                                                <span class="badge bg-success mb-2">Class Teacher</span>
+                                            {% endif %}
+                                            <p><strong>Number of Students:</strong> {{ card.student_count }}</p>
+                                            {% if card.avg_score %}
+                                                <p><strong>Average Score:</strong> {{ card.avg_score|floatformat:2 }}</p>
+                                            {% endif %}
+                                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                                <a href="{% if card.subject %}{% url 'input_grades' teacher_id=teacher.id class_id=card.class_group.id subject_id=card.subject.id %}{% else %}#{% endif %}" class="btn btn-primary btn-sm" {% if not card.subject %}disabled{% endif %}>Manage Grades</a>
+                                                <a href="{% url 'manage_attendance' teacher.id %}" class="btn btn-outline-secondary btn-sm">Attendance</a>
+                                                <a href="#" class="btn btn-outline-info btn-sm">Upload Results</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <div class="col-12">
+                                    <div class="alert alert-info">No classes assigned.</div>
+                                </div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -66,31 +112,7 @@
                 </div>
             </div>
 
-            <!-- Attendance and Grade Management -->
-            <div class="row">
-                <div class="col-lg-6">
-                    <div class="card shadow mb-4">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Attendance Management</h6>
-                        </div>
-                        <div class="card-body">
-                            <p>View and manage student attendance.</p>
-                            <a href="{% url 'manage_attendance' teacher.id %}" class="btn btn-primary">Manage Attendance</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-6">
-                    <div class="card shadow mb-4">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Grade Management</h6>
-                        </div>
-                        <div class="card-body">
-                            <p>Input grades and view class performance.</p>
-                            <a href="{% url 'manage_grades' teacher.id %}" class="btn btn-primary">Manage Grades</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
+
         </div>
     </div>
 </div>

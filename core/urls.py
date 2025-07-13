@@ -3,6 +3,7 @@ from django.contrib.auth import views as auth_views
 from . import views
 
 urlpatterns = [
+    path('api/exam_events/', views.exam_events_api, name='exam_events_api'),
     path('student_fees/', views.student_fees, name='student_fees'),
     path('teacher_dashboard/<int:teacher_id>/', views.teacher_dashboard, name='teacher_dashboard'),
     path('teacher/<int:teacher_id>/attendance/', views.manage_attendance, name='manage_attendance'),
@@ -31,7 +32,7 @@ urlpatterns = [
     path('admin_exams/', views.admin_exams, name='admin_exams'),
     path('admin_fees/', views.admin_fees, name='admin_fees'),
     path('admin_events/', views.admin_events, name='admin_events'),
-    path('teacher/upload_marksheet/', views.upload_marksheet, name='upload_marksheet'),
+    path('teacher/<int:teacher_id>/exams/', views.teacher_exams, name='teacher_exams'),
     # --- AJAX Modal Add Endpoints ---
     path('dashboard/students/add/', views.add_student_ajax, name='add_student_ajax'),
     path('dashboard/teachers/add/', views.add_teacher_ajax, name='add_teacher_ajax'),
