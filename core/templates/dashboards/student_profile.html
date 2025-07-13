@@ -1,6 +1,11 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="container py-4">
+    {% if current_term %}
+    <div class="alert alert-success">
+        <strong>Current Term:</strong> {{ current_term.name }} ({{ current_term.start_date|date:'M d, Y' }} to {{ current_term.end_date|date:'M d, Y' }}) in Academic Year {{ current_term.academic_year.year }}
+    </div>
+    {% endif %}
     <div class="row justify-content-center">
         <div class="col-md-8">
             <div class="card shadow-sm mb-4">
@@ -65,6 +70,9 @@
                     Fee Status ({{ current_term.name }} - {{ current_term.academic_year.year }})
                 </div>
                 <div class="card-body">
+                    <div class="alert alert-info mb-3">
+                        <strong>Total Billed:</strong> {{ total_billed }}
+                    </div>
                     <h6>Assigned Fees</h6>
                     <table class="table table-bordered">
                         <thead>

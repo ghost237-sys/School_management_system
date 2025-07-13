@@ -57,6 +57,13 @@ class Student(models.Model):
     birthdate = models.DateField()
     graduated = models.BooleanField(default=False)  # Added for graduation status tracking
 
+    def __str__(self):
+        if self.user and (self.user.first_name or self.user.last_name):
+            return f"{self.user.first_name} {self.user.last_name}".strip()
+        elif self.user:
+            return self.user.username
+        return f"Student {self.pk}"
+
     @property
     def full_name(self):
         if self.user.first_name and self.user.last_name:

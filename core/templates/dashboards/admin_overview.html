@@ -15,6 +15,11 @@
 
 {% block title %}Admin Overview{% endblock %}
 {% block content %}
+    {% if current_term %}
+    <div class="alert alert-success">
+        <strong>Current Term:</strong> {{ current_term.name }} ({{ current_term.start_date|date:'M d, Y' }} to {{ current_term.end_date|date:'M d, Y' }}) in Academic Year {{ current_term.academic_year.year }}
+    </div>
+    {% endif %}
 <!-- Display Django messages -->
 <style>
   #toast-container {
@@ -62,24 +67,24 @@
     transform: translateY(-30px);
   }
 </style>
-<div id="toast-container"></div>
+<div id="toast-container">
+  {% for message in messages %}
+    <div class="floating-toast show {{ message.tags|escapejs }}" style="display:none;">
+      {{ message|escapejs }}
+    </div>
+  {% endfor %}
+</div>
 {% if messages %}
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      var toastContainer = document.getElementById('toast-container');
-      {% for message in messages %}
-        var tag = '{{ message.tags }}';
-        var msg = `{{ message|escapejs }}`;
-        var toast = document.createElement('div');
-        toast.className = 'floating-toast show ' + (tag || 'info');
-        toast.innerHTML = msg;
-        toastContainer.appendChild(toast);
+      document.querySelectorAll('#toast-container .floating-toast').forEach(function(toast) {
+        toast.style.display = 'block';
         setTimeout(function() {
           toast.classList.remove('show');
           toast.classList.add('hide');
           setTimeout(function() { toast.remove(); }, 400);
-        }, 5000);
-      {% endfor %}
+        }, 3000);
+      });
     });
   </script>
 {% endif %}

@@ -1,7 +1,127 @@
 {% extends 'base.html' %}
+{% load static %}
+{% load dict_get %}
+{% load custom_filters %}
+
+<!-- Add Chart.js library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Add CSS for analytics section -->
+<style>
+    .analytics-section {
+        margin-top: 2rem;
+    }
+    .chart-container {
+        position: relative;
+        height: 300px;
+    }
+    .chart-container canvas {
+        max-width: 100%;
+    }
+</style>
+
 {% block title %}Fee Management{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Create Pie Chart for Fee Category Distribution
+    const ctxPie = document.getElementById('feeCategoryChart').getContext('2d');
+    const categoryLabels = JSON.parse('{{ category_labels|safe }}');
+    const categoryData = JSON.parse('{{ category_data|safe }}');
+    
+    new Chart(ctxPie, {
+        type: 'pie',
+        data: {
+            labels: categoryLabels,
+            datasets: [{
+                data: categoryData,
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.5)',
+                    'rgba(54, 162, 235, 0.5)',
+                    'rgba(255, 206, 86, 0.5)',
+                    'rgba(75, 192, 192, 0.5)',
+                    'rgba(153, 102, 255, 0.5)',
+                    'rgba(255, 159, 64, 0.5)'
+                ],
+                borderColor: [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(255, 159, 64, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: 'Fee Category Distribution'
+                }
+            }
+        }
+    });
+
+    // Create Line Chart for Payment Trends
+    const ctxLine = document.getElementById('paymentTrendChart').getContext('2d');
+    const paymentLabels = JSON.parse('{{ payment_labels|safe }}');
+    const paymentData = JSON.parse('{{ payment_data|safe }}');
+    
+    new Chart(ctxLine, {
+        type: 'line',
+        data: {
+            labels: paymentLabels,
+            datasets: [{
+                label: 'Payments',
+                data: paymentData,
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: 'Payment Trends Over Time'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Amount Paid'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Month'
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
 {% block content %}
-<div class="container py-4">
+    <div class="container py-4">
+    {% if current_term %}
+    <div class="alert alert-success">
+        <strong>Current Term:</strong> {{ current_term.name }} ({{ current_term.start_date|date:'M d, Y' }} to {{ current_term.end_date|date:'M d, Y' }}) in Academic Year {{ current_term.academic_year.year }}
+    </div>
+    {% endif %}
     <h2 class="mb-4">Fee Management</h2>
     <div class="row mb-4">
         <div class="col-md-6">
@@ -34,7 +154,7 @@
             <div class="card">
                 <div class="card-header bg-secondary text-white">Fees Overview</div>
                 <div class="card-body">
-                    <table class="table table-bordered">
+                    <table class="table table-striped">
                         <thead>
                             <tr>
                                 <th>Level</th>
@@ -65,37 +185,88 @@
     <div class="row mt-4">
         <div class="col-12">
             <div class="card">
-                <div class="card-header bg-success text-white">Student Fee Assignments</div>
+                <div class="card-header bg-success text-white">
+                    <h3 class="table-title">Student Fee Assignments</h3>
+                    <form method="get" style="margin-bottom: 1em; display: flex; gap: 1em; align-items: center;">
+                        <label for="class_group">Filter by Class: </label>
+                        <select name="class_group" id="class_group" onchange="this.form.submit()">
+                            <option value="">All Classes</option>
+                            {% for cls in all_classes %}
+                                <option value="{{ cls.id }}" {% if selected_class_id == cls.id|stringformat:'s' %}selected{% endif %}>{{ cls.name }} (Level {{ cls.level }})</option>
+                            {% endfor %}
+                        </select>
+                        <label for="sort">Sort by Balance: </label>
+                        <select name="sort" id="sort" onchange="this.form.submit()">
+                            <option value="largest" {% if sort_order == 'largest' %}selected{% endif %}>Largest First</option>
+                            <option value="smallest" {% if sort_order == 'smallest' %}selected{% endif %}>Smallest First</option>
+                        </select>
+                    </form>
+                </div>
                 <div class="card-body">
-                    <table class="table table-striped">
+                    <!-- Analytics Section -->
+                    <div class="analytics-section">
+                        <h4>Fee Analytics</h4>
+                        <div class="row">
+                            <!-- Pie Chart Container -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header bg-info text-white">
+                                        Fee Category Distribution
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="chart-container">
+                                            <canvas id="feeCategoryChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Line Graph Container -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header bg-info text-white">
+                                        Payments Over Time
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="chart-container">
+                                            <canvas id="paymentTrendChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Table Section -->
+                    <table class="table table-striped table-bordered">
                         <thead>
                             <tr>
                                 <th>Student</th>
+                                <th>Admission Number</th>
                                 <th>Level</th>
-                                <th>Term</th>
-                                <th>Fee</th>
-                                <th>Status</th>
-                                <th>Paid On</th>
+                                {% for cat in all_fee_categories %}
+                                    <th>Total Billed: {{ cat.name }}</th>
+                                {% endfor %}
+                                <th>Total Billed (All)</th>
+                                <th>Total Paid</th>
+                                <th>Total Balance</th>
                             </tr>
                         </thead>
                         <tbody>
-                        {% for assignment in assignments %}
+                        {% for student in all_students %}
                             <tr>
-                                <td>{{ assignment.student.user.get_full_name|default:assignment.student.user.username }}</td>
-                                <td>{{ assignment.fee.level }}</td>
-                                <td>{{ assignment.fee.term }}</td>
-                                <td>{{ assignment.fee.amount }}</td>
-                                <td>
-                                    {% if assignment.is_paid %}
-                                        <span class="badge bg-success">Paid</span>
-                                    {% else %}
-                                        <span class="badge bg-danger">Unpaid</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ assignment.paid_on|date:'Y-m-d' }}</td>
+                                <td>{% if student.user %}{{ student.user.get_full_name|default:student.user.username }}{% else %}Unknown{% endif %}</td>
+                                <td>{{ student.admission_no }}</td>
+                                <td>{{ student.class_group.level }}</td>
+                                {% for cat in all_fee_categories %}
+                                    <td>{{ student_category_totals|dict_get:student.id|dict_get:cat.id }}</td>
+                                {% endfor %}
+                                <td>{{ student_totals|dict_get:student.id }}</td>
+                                <td>{{ student_paid|dict_get:student.id }}</td>
+                                <td>{{ student_balances|dict_get:student.id }}</td>
                             </tr>
                         {% empty %}
-                            <tr><td colspan="6">No assignments yet.</td></tr>
+                            <tr><td colspan="10">No students found.</td></tr>
                         {% endfor %}
                         </tbody>
                     </table>

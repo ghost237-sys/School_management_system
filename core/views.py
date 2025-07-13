@@ -155,6 +155,59 @@ from .models import FeeAssignment, FeePayment, Term, Student
 from django.shortcuts import get_object_or_404
 
 @login_required(login_url='login')
+def admin_payment(request):
+    if request.user.role != 'admin':
+        return redirect('dashboard')
+    students = Student.objects.select_related('user').all()
+    if request.method == 'POST':
+        student_id = request.POST.get('student_id')
+        amount_paid = request.POST.get('amount_paid')
+        payment_method = request.POST.get('payment_method')
+        reference = request.POST.get('reference')
+        student = get_object_or_404(Student, id=student_id)
+        # Get current term
+        current_term = Term.objects.order_by('-start_date').first()
+        # Get all fee assignments for this student for the current term
+        fee_assignments = []
+        if student.class_group and current_term:
+            assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term)
+            for assignment in assignments:
+                paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
+                fee_assignments.append({
+                    'id': assignment.id,
+                    'fee_category': assignment.fee_category,
+                    'amount': assignment.amount,
+                    'paid': paid,
+                    'outstanding': max(assignment.amount - paid, 0),
+                })
+        # Distribute payment across unpaid assignments (oldest first)
+        if amount_paid:
+            remaining = float(amount_paid)
+            for assignment in fee_assignments:
+                outstanding = float(assignment['outstanding'])
+                if outstanding <= 0:
+                    continue
+                pay = min(remaining, outstanding)
+                if pay > 0:
+                    FeePayment.objects.create(
+                        student=student,
+                        fee_assignment=FeeAssignment.objects.get(id=assignment['id']),
+                        amount_paid=pay,
+                        payment_method=payment_method,
+                        reference=reference
+                    )
+                    remaining -= pay
+                if remaining <= 0:
+                    break
+            messages.success(request, 'Payment recorded successfully!')
+            return redirect('admin_payment')
+    context = {
+        'students': students,
+    }
+    return render(request, 'dashboards/admin_payment.html', context)
+
+
+@login_required(login_url='login')
 def student_fees(request):
     # Get the logged-in user's student profile
     student = get_object_or_404(Student, user=request.user)
@@ -176,19 +229,28 @@ def student_fees(request):
     fee_payments = FeePayment.objects.filter(student=student).order_by('-payment_date')
     # Handle payment submission
     if request.method == 'POST':
-        assignment_id = request.POST.get('fee_assignment')
         amount_paid = request.POST.get('amount_paid')
         payment_method = request.POST.get('payment_method')
         reference = request.POST.get('reference')
-        if assignment_id and amount_paid:
-            assignment = get_object_or_404(FeeAssignment, id=assignment_id)
-            FeePayment.objects.create(
-                student=student,
-                fee_assignment=assignment,
-                amount_paid=amount_paid,
-                payment_method=payment_method,
-                reference=reference
-            )
+        if amount_paid:
+            # Distribute payment across unpaid assignments (oldest first)
+            remaining = float(amount_paid)
+            for assignment in fee_assignments:
+                outstanding = float(assignment['outstanding'])
+                if outstanding <= 0:
+                    continue
+                pay = min(remaining, outstanding)
+                if pay > 0:
+                    FeePayment.objects.create(
+                        student=student,
+                        fee_assignment=FeeAssignment.objects.get(id=assignment['id']),
+                        amount_paid=pay,
+                        payment_method=payment_method,
+                        reference=reference
+                    )
+                    remaining -= pay
+                if remaining <= 0:
+                    break
             messages.success(request, 'Payment recorded successfully!')
             return redirect('student_fees')
     context = {
@@ -222,27 +284,117 @@ def admin_fees(request):
                 return redirect('admin_fees')
 
     # Fees overview
-    fees = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term').all()
-    # Student assignments overview (simplified for demo)
+    # Get current term (by date range)
+    today = timezone.now().date()
+    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('-start_date').first()
+    if not current_term:
+        current_term = Term.objects.filter(start_date__lte=today, end_date__isnull=True).order_by('-start_date').first()
+    if not current_term:
+        current_term = Term.objects.order_by('-start_date').first()
+    fees = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term').filter(term=current_term)
+    # Student assignments overview (current term only)
     assignments = []
-    for assignment in FeeAssignment.objects.select_related('class_group', 'term', 'fee_category'):
-        students = Student.objects.filter(class_group=assignment.class_group)
+    student_totals = {}
+    student_category_totals = {}
+    # Find all terms up to and including the current term
+    terms_up_to_current = Term.objects.filter(start_date__lte=current_term.start_date)
+    all_fee_categories = FeeCategory.objects.all()
+    all_students = Student.objects.all()
+    for student in all_students:
+        # All assignments for this student/class up to the current term
+        assignments_for_student = FeeAssignment.objects.filter(class_group=student.class_group, term__in=terms_up_to_current)
+        student_totals[student.id] = sum(a.amount for a in assignments_for_student)
+        # Group totals by category
+        category_totals = {}
+        for cat in all_fee_categories:
+            cat_assignments = assignments_for_student.filter(fee_category=cat)
+            category_totals[cat.id] = sum(a.amount for a in cat_assignments)
+        student_category_totals[student.id] = category_totals
+    assignments = []
+    for assignment in FeeAssignment.objects.select_related('class_group', 'term', 'fee_category').filter(term=current_term):
+        classes_at_level = Class.objects.filter(level=assignment.class_group.level)
+        students = Student.objects.filter(class_group__in=classes_at_level)
         for student in students:
             paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
             is_paid = paid >= assignment.amount
             paid_on = FeePayment.objects.filter(student=student, fee_assignment=assignment).order_by('-payment_date').first()
+            balance = assignment.amount - paid
             assignments.append({
                 'student': student,
                 'fee': assignment,
                 'is_paid': is_paid,
                 'paid_on': paid_on.payment_date if paid_on else None,
+                'paid': paid,
+                'balance': balance,
             })
+
+    # Calculate total paid per student
+    student_paid = {}
+    for student in all_students:
+        # Sum all payments made by the student up to and including the current term
+        payments = FeePayment.objects.filter(student=student, fee_assignment__term__start_date__lte=current_term.start_date)
+        student_paid[student.id] = sum(p.amount_paid for p in payments)
+    # Calculate balance per student
+    student_balances = {sid: student_totals.get(sid, 0) - student_paid.get(sid, 0) for sid in student_totals}
+    # Class filter
+    all_classes = Class.objects.all()
+    selected_class_id = request.GET.get('class_group')
+    if selected_class_id:
+        filtered_students = all_students.filter(class_group_id=selected_class_id)
+    else:
+        filtered_students = all_students
+    # Sorting functionality
+    sort_order = request.GET.get('sort', 'largest')
+    students_with_balance = list(filtered_students)
+    students_with_balance.sort(key=lambda s: student_balances.get(s.id, 0), reverse=(sort_order == 'largest'))
+    # Prepare data for pie chart (fee category distribution)
+    category_data = []
+    category_labels = []
+    for cat in all_fee_categories:
+        total = sum(student_category_totals.get(s.id, {}).get(cat.id, 0) for s in students_with_balance)
+        if total > 0:  # Only include categories with data
+            category_data.append(total)
+            category_labels.append(cat.name)
+
+    # Prepare data for line graph (payments over time)
+    payments = FeePayment.objects.filter(
+        fee_assignment__term__start_date__lte=current_term.start_date
+    ).order_by('payment_date')
+    
+    # Group payments by month
+    payment_data = []
+    payment_labels = []
+    from collections import defaultdict
+    monthly_totals = defaultdict(float)
+    
+    for payment in payments:
+        month_key = payment.payment_date.strftime('%Y-%m')
+        monthly_totals[month_key] += float(payment.amount_paid)
+    
+    # Sort by date and prepare data
+    for month in sorted(monthly_totals.keys()):
+        payment_labels.append(month)
+        payment_data.append(monthly_totals[month])
 
     context = {
         'fee_form': fee_form,
         'assign_form': assign_form,
         'fees': fees,
         'assignments': assignments,
+        'student_totals': student_totals,
+        'student_category_totals': student_category_totals,
+        'all_students': students_with_balance,
+        'all_fee_categories': all_fee_categories,
+        'student_balances': student_balances,
+        'student_paid': student_paid,
+        'all_classes': all_classes,
+        'selected_class_id': selected_class_id,
+        'sort_order': sort_order,
+        'current_term': current_term,
+        'category_data': category_data,
+        'category_labels': category_labels,
+        'payment_data': payment_data,
+        'payment_labels': payment_labels,
     }
     return render(request, 'dashboards/admin_fees.html', context)
 
@@ -321,8 +473,27 @@ def admin_overview(request):
     total_classes = Class.objects.count()
     total_subjects = Subject.objects.count()
     # Current academic term/week (basic)
-    current_year = AcademicYear.objects.order_by('-year').first()
-    current_term = Term.objects.filter(academic_year=current_year).order_by('-id').first() if current_year else None
+    # --- Use same logic as admin_academic_years to determine current_term ---
+    import datetime
+    today = datetime.date.today()
+    all_years = AcademicYear.objects.prefetch_related('terms').all().order_by('-year')
+    academic_years = []
+    for year in all_years:
+        terms = year.terms.all()
+        if any(term.end_date and term.end_date >= today for term in terms):
+            academic_years.append(year)
+    current_term = None
+    current_year = None
+    for year in academic_years:
+        terms = sorted(year.terms.all(), key=lambda t: t.start_date or datetime.date.min)
+        for term in terms:
+            if term.start_date and term.end_date:
+                if term.start_date <= today <= term.end_date:
+                    current_term = term
+                    current_year = year
+                    break
+        if current_term:
+            break
     # Fee summary (mock/sample)
     fee_summary = {
         'total_due': 1000000,
@@ -768,10 +939,16 @@ def student_profile(request, student_id):
     # --- Fee status for this student ---
     from .models import FeeAssignment, FeePayment, Term
     from django.db.models import Sum
-    current_term = Term.objects.order_by('-start_date').first()
+    today = timezone.now().date()
+    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('-start_date').first()
+    if not current_term:
+        current_term = Term.objects.filter(start_date__lte=today, end_date__isnull=True).order_by('-start_date').first()
+    if not current_term:
+        current_term = Term.objects.order_by('-start_date').first()
     fee_assignments = []
     if student.class_group and current_term:
-        assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term)
+        # All assignments up to and including the current term (by start_date)
+        assignments = FeeAssignment.objects.filter(class_group=student.class_group, term__start_date__lte=current_term.start_date)
         for assignment in assignments:
             paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
             fee_assignments.append({
@@ -782,12 +959,14 @@ def student_profile(request, student_id):
                 'outstanding': max(assignment.amount - paid, 0),
             })
     fee_payments = FeePayment.objects.filter(student=student).order_by('-payment_date')
+    total_billed = sum(a['amount'] for a in fee_assignments)
     return render(request, 'dashboards/student_profile.html', {
         'student': student,
         'edit_class_form': form,
         'fee_assignments': fee_assignments,
         'fee_payments': fee_payments,
         'current_term': current_term,
+        'total_billed': total_billed,
     })
 
 # Teacher Profile View

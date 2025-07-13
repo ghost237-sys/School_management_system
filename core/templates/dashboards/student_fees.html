@@ -70,19 +70,15 @@
             <h5 class="mb-0">Make a Payment</h5>
         </div>
         <div class="card-body">
+            {% with total_outstanding=fee_assignments|sum:'outstanding' %}
+            <div class="alert alert-info mb-3">
+                <strong>Total Outstanding:</strong> {{ total_outstanding }}
+            </div>
             <form method="post">
                 {% csrf_token %}
                 <div class="mb-3">
-                    <label for="fee_assignment" class="form-label">Fee Category</label>
-                    <select class="form-select" id="fee_assignment" name="fee_assignment">
-                        {% for assignment in fee_assignments %}
-                            <option value="{{ assignment.id }}">{{ assignment.fee_category.name }} (Outstanding: {{ assignment.outstanding }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label for="amount_paid" class="form-label">Amount</label>
-                    <input type="number" step="0.01" min="0" class="form-control" id="amount_paid" name="amount_paid" required>
+                    <label for="amount_paid" class="form-label">Amount to Pay</label>
+                    <input type="number" step="0.01" min="0" max="{{ total_outstanding }}" class="form-control" id="amount_paid" name="amount_paid" required>
                 </div>
                 <div class="mb-3">
                     <label for="payment_method" class="form-label">Payment Method</label>
@@ -94,6 +90,7 @@
                 </div>
                 <button type="submit" class="btn btn-primary">Submit Payment</button>
             </form>
+            {% endwith %}
         </div>
     </div>
 </div>
