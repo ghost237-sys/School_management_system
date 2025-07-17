@@ -55,6 +55,8 @@ class Student(models.Model):
     class_group = models.ForeignKey('Class', on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
     gender = models.CharField(max_length=10)
     birthdate = models.DateField()
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    postal_address = models.CharField(max_length=255, blank=True, null=True)
     graduated = models.BooleanField(default=False)  # Added for graduation status tracking
 
     def __str__(self):
@@ -135,6 +137,7 @@ class FeePayment(models.Model):
     payment_date = models.DateTimeField(auto_now_add=True)
     payment_method = models.CharField(max_length=50, blank=True, null=True)  # e.g., cash, bank, mobile money
     reference = models.CharField(max_length=100, blank=True, null=True)  # e.g., transaction ID
+    phone_number = models.CharField(max_length=20, blank=True, null=True)  # For Mpesa Paybill
 
     def __str__(self):
         return f"{self.student} paid {self.amount_paid} for {self.fee_assignment} on {self.payment_date}"

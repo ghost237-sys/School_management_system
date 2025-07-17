@@ -177,17 +177,23 @@ def admin_payment(request):
         return redirect('dashboard')
     students = Student.objects.select_related('user').all()
     if request.method == 'POST':
+        print('[DEBUG] POST received in admin_payment view')
         student_id = request.POST.get('student_id')
         amount_paid = request.POST.get('amount_paid')
         payment_method = request.POST.get('payment_method')
         reference = request.POST.get('reference')
+        phone_number = request.POST.get('phone_number')
+        print(f'[DEBUG] student_id={student_id}, amount_paid={amount_paid}, payment_method={payment_method}, reference={reference}, phone_number={phone_number}')
         student = get_object_or_404(Student, id=student_id)
+        print(f'[DEBUG] student={student}')
         # Get current term
         current_term = Term.objects.order_by('-start_date').first()
-        # Get all fee assignments for this student for the current term
+        print(f'[DEBUG] current_term={current_term}')
+        # Get all fee assignments for this student (across all terms)
         fee_assignments = []
-        if student.class_group and current_term:
-            assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term)
+        if student.class_group:
+            assignments = FeeAssignment.objects.filter(class_group=student.class_group).order_by('term__start_date', 'id')
+            print(f'[DEBUG] assignments queryset: {assignments}')
             for assignment in assignments:
                 paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
                 fee_assignments.append({
@@ -197,29 +203,69 @@ def admin_payment(request):
                     'paid': paid,
                     'outstanding': max(assignment.amount - paid, 0),
                 })
-        # Distribute payment across unpaid assignments (oldest first)
+        print(f'[DEBUG] fee_assignments={fee_assignments}')
+        # Distribute payment across all outstanding assignments (all terms, oldest first)
         if amount_paid:
-            remaining = float(amount_paid)
-            for assignment in fee_assignments:
-                outstanding = float(assignment['outstanding'])
-                if outstanding <= 0:
-                    continue
-                pay = min(remaining, outstanding)
-                if pay > 0:
-                    FeePayment.objects.create(
-                        student=student,
-                        fee_assignment=FeeAssignment.objects.get(id=assignment['id']),
-                        amount_paid=pay,
-                        payment_method=payment_method,
-                        reference=reference
-                    )
-                    remaining -= pay
-                if remaining <= 0:
-                    break
-            messages.success(request, 'Payment recorded successfully!')
+            from django.db import transaction
+            try:
+                amount_paid = float(amount_paid)
+            except (TypeError, ValueError):
+                messages.error(request, 'Please enter a valid amount to pay.')
+                return redirect('admin_payment')
+            if amount_paid <= 0:
+                messages.error(request, 'Please enter a valid amount to pay.')
+                return redirect('admin_payment')
+            remaining = amount_paid
+            any_payment = False
+            try:
+                with transaction.atomic():
+                    # Gather and sort all assignments for the class, all terms, oldest first
+                    assignments = FeeAssignment.objects.filter(class_group=student.class_group).order_by('term__start_date', 'id')
+                    for assignment in assignments:
+                        paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
+                        outstanding = float(assignment.amount - paid)
+                        if outstanding <= 0:
+                            continue
+                        pay = min(remaining, outstanding)
+                        if pay > 0:
+                            FeePayment.objects.create(
+                                student=student,
+                                fee_assignment=assignment,
+                                amount_paid=pay,
+                                payment_method=payment_method,
+                                reference=reference,
+                                phone_number=phone_number,
+                            )
+                            any_payment = True
+                            remaining -= pay
+                        if remaining <= 0:
+                            break
+                    if any_payment:
+                        messages.success(request, 'Payment recorded successfully!')
+                    else:
+                        messages.error(request, 'No outstanding fee assignments to record payment.')
+            except Exception as e:
+                messages.error(request, f'Failed to record payment: {e}')
             return redirect('admin_payment')
+    # Find current term for context (same logic as in student_fees)
+    import datetime
+    today = datetime.date.today()
+    current_term = None
+    all_years = AcademicYear.objects.prefetch_related('terms').all().order_by('-year')
+    for year in all_years:
+        terms = year.terms.all()
+        for term in terms:
+            if term.start_date and term.end_date:
+                if term.start_date <= today <= term.end_date:
+                    current_term = term
+                    break
+        if current_term:
+            break
+    if not current_term:
+        current_term = Term.objects.order_by('-start_date').first()
     context = {
         'students': students,
+        'current_term': current_term,
     }
     return render(request, 'dashboards/admin_payment.html', context)
 
@@ -228,8 +274,29 @@ def admin_payment(request):
 def student_fees(request):
     # Get the logged-in user's student profile
     student = get_object_or_404(Student, user=request.user)
-    # Get current term (latest by start date)
-    current_term = Term.objects.order_by('-start_date').first()
+    import datetime
+    today = datetime.date.today()
+    # Only show years with at least one term whose end_date is today or in the future
+    all_years = AcademicYear.objects.prefetch_related('terms').all().order_by('-year')
+    academic_years = []
+    for year in all_years:
+        terms = year.terms.all()
+        if any(term.end_date and term.end_date >= today for term in terms):
+            academic_years.append(year)
+    # Find the current term based on today's date
+    current_term = None
+    for year in academic_years:
+        terms = sorted(year.terms.all(), key=lambda t: t.start_date or datetime.date.min)
+        for term in terms:
+            if term.start_date and term.end_date:
+                if term.start_date <= today <= term.end_date:
+                    current_term = term
+                    break
+        if current_term:
+            break
+    # If no current term found, fallback to latest by start date
+    if not current_term:
+        current_term = Term.objects.order_by('-start_date').first()
     fee_assignments = []
     if student.class_group and current_term:
         assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term)
@@ -246,36 +313,77 @@ def student_fees(request):
     fee_payments = FeePayment.objects.filter(student=student).order_by('-payment_date')
     # Handle payment submission
     if request.method == 'POST':
+        print("[DEBUG] POST received in student_fees view")
         amount_paid = request.POST.get('amount_paid')
         payment_method = request.POST.get('payment_method')
         reference = request.POST.get('reference')
-        if amount_paid:
-            # Distribute payment across unpaid assignments (oldest first)
-            remaining = float(amount_paid)
-            for assignment in fee_assignments:
-                outstanding = float(assignment['outstanding'])
-                if outstanding <= 0:
-                    continue
-                pay = min(remaining, outstanding)
-                if pay > 0:
-                    FeePayment.objects.create(
-                        student=student,
-                        fee_assignment=FeeAssignment.objects.get(id=assignment['id']),
-                        amount_paid=pay,
-                        payment_method=payment_method,
-                        reference=reference
-                    )
-                    remaining -= pay
-                if remaining <= 0:
-                    break
-            messages.success(request, 'Payment recorded successfully!')
-            return redirect('student_fees')
+        import logging
+        from django.db import transaction
+        logger = logging.getLogger(__name__)
+        try:
+            print(f"[DEBUG] amount_paid={amount_paid}, payment_method={payment_method}, reference={reference}")
+            print(f"[DEBUG] student={student}")
+            print(f"[DEBUG] current_term={current_term}")
+            print(f"[DEBUG] fee_assignments={fee_assignments}")
+            if not amount_paid or float(amount_paid) <= 0:
+                print("[DEBUG] Invalid amount submitted")
+                messages.error(request, 'Please enter a valid amount to pay.')
+                return redirect('student_fees')
+            # Distribute payment across all outstanding assignments (oldest first)
+            with transaction.atomic():
+                remaining = float(amount_paid)
+                any_payment = False
+                # Gather and sort assignments by term and category (oldest first)
+                assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term).order_by('id')
+                print(f"[DEBUG] assignments queryset: {assignments}")
+                for assignment in assignments:
+                    print(f"[DEBUG] assignment: {assignment}")
+                    paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
+                    outstanding = float(assignment.amount - paid)
+                    print(f"[DEBUG] paid={paid}, outstanding={outstanding}")
+                    if outstanding <= 0:
+                        continue
+                    pay = min(remaining, outstanding)
+                    print(f"[DEBUG] pay={pay}, remaining before={remaining}")
+                    if pay > 0:
+                        FeePayment.objects.create(
+                            student=student,
+                            fee_assignment=assignment,
+                            amount_paid=pay,
+                            payment_method=payment_method,
+                            reference=reference
+                        )
+                        print(f"[DEBUG] Created FeePayment for assignment {assignment.id} amount={pay}")
+                        any_payment = True
+                        remaining -= pay
+                        print(f"[DEBUG] remaining after={remaining}")
+                    if remaining <= 0:
+                        break
+                if any_payment:
+                    print("[DEBUG] Payment distributed and recorded successfully!")
+                    messages.success(request, 'Payment recorded successfully!')
+                else:
+                    print("[DEBUG] No outstanding fee assignments to record payment.")
+                    messages.error(request, 'No outstanding fee assignments found to record payment. Please contact admin.')
+            # If nothing was created and no errors, show a generic error
+            if not any_payment:
+                print("[DEBUG] No payment was made. Showing generic error.")
+                messages.error(request, 'Payment could not be processed. Please check your fee assignments or contact admin.')
+        except Exception as e:
+            print(f"[DEBUG] Exception occurred: {e}")
+            logger.error(f"Payment error: {e}")
+            messages.error(request, f'An error occurred while processing your payment: {e}')
+        return redirect('student_fees')
+    total_outstanding = sum(a['outstanding'] for a in fee_assignments)
     context = {
         'fee_assignments': fee_assignments,
         'fee_payments': fee_payments,
         'current_term': current_term,
+        'total_outstanding': total_outstanding,
+        'academic_years': academic_years,
     }
     return render(request, 'dashboards/student_fees.html', context)
+
 
 # Admin Fees Management View
 @login_required(login_url='login')
@@ -931,6 +1039,7 @@ def delete_teacher(request, teacher_id):
 def student_profile(request, student_id):
     from .models import Student, Class, Teacher
     from django.shortcuts import get_object_or_404
+    from .forms import StudentContactUpdateForm
     student = get_object_or_404(Student, id=student_id)
     # Only allow admin, the student themselves, or their class teacher
     is_admin = request.user.role == 'admin'
@@ -941,6 +1050,21 @@ def student_profile(request, student_id):
     if not (is_admin or is_student or is_class_teacher):
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden('You do not have permission to view this student profile.')
+
+    # Handle contact info update
+    contact_form = None
+    if request.method == 'POST' and 'update_contact' in request.POST and (is_admin or is_student):
+        contact_form = StudentContactUpdateForm(request.POST, instance=student, user_instance=student.user)
+        if contact_form.is_valid():
+            contact_form.save()
+            from django.contrib import messages
+            messages.success(request, "Contact information updated successfully.")
+            return redirect('student_profile', student_id=student.id)
+        else:
+            from django.contrib import messages
+            messages.error(request, "Please correct the errors below.")
+    else:
+        contact_form = StudentContactUpdateForm(instance=student, user_instance=student.user)
 
     # Handle class change
     if request.method == 'POST' and 'edit_class_group' in request.POST:
@@ -963,9 +1087,9 @@ def student_profile(request, student_id):
     if not current_term:
         current_term = Term.objects.order_by('-start_date').first()
     fee_assignments = []
-    if student.class_group and current_term:
-        # All assignments up to and including the current term (by start_date)
-        assignments = FeeAssignment.objects.filter(class_group=student.class_group, term__start_date__lte=current_term.start_date)
+    if student.class_group:
+        # Show all fee assignments for the student's class, regardless of term
+        assignments = FeeAssignment.objects.filter(class_group=student.class_group)
         for assignment in assignments:
             paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
             fee_assignments.append({
@@ -977,14 +1101,22 @@ def student_profile(request, student_id):
             })
     fee_payments = FeePayment.objects.filter(student=student).order_by('-payment_date')
     total_billed = sum(a['amount'] for a in fee_assignments)
-    return render(request, 'dashboards/student_profile.html', {
+    total_paid = sum(a['paid'] for a in fee_assignments)
+    balance = total_billed - total_paid
+    context = {
         'student': student,
-        'edit_class_form': form,
-        'fee_assignments': fee_assignments,
-        'fee_payments': fee_payments,
         'current_term': current_term,
         'total_billed': total_billed,
-    })
+        'total_paid': total_paid,
+        'balance': balance,
+        'fee_assignments': fee_assignments,
+        'fee_payments': fee_payments,
+        'edit_class_form': form,
+        'contact_form': contact_form,
+        'can_update_contact': is_admin or is_student,
+    }
+    return render(request, 'dashboards/student_profile.html', context)
+
 
 # Teacher Profile View
 @login_required(login_url='login')
@@ -1025,7 +1157,15 @@ def teacher_dashboard(request, teacher_id):
         avg_score = grades.aggregate(avg=Avg('score'))['avg']
         exams_marked = grades.values('exam').distinct().count()
         from .models import Exam
-        total_exams = Exam.objects.filter(subject=assign.subject, class_group=assign.class_group).count() if hasattr(Exam, 'class_group') else Exam.objects.filter(subject=assign.subject).count()
+        # Exam model does not have class_group, so filter with available fields
+        # Count exams for the class's level and a specific term (e.g., the current or latest term)
+        # For demo, we'll use the latest term (update as needed)
+        from .models import Term
+        latest_term = Term.objects.order_by('-id').first()
+        if latest_term:
+            total_exams = Exam.objects.filter(level=assign.class_group.level, term=latest_term).count()
+        else:
+            total_exams = Exam.objects.filter(level=assign.class_group.level).count()
         low_performers = grades.filter(score__lt=50).count()
         below_avg_count = grades.filter(score__lt=avg_score if avg_score else 50).count() if avg_score else 0
         if below_avg_count > 0:
@@ -1276,6 +1416,85 @@ def input_grades(request, teacher_id, class_id, subject_id):
     return render(request, 'dashboards/input_grades.html', context)
 
 # Admin Students View
+
+from django.shortcuts import get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import HttpResponseRedirect
+from django.urls import reverse
+
+@login_required(login_url='login')
+def edit_user(request, user_id):
+    if request.user.role != 'admin':
+        return redirect('dashboard')
+    from .models import User
+    user = get_object_or_404(User, id=user_id)
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        email = request.POST.get('email', '').strip()
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        role = request.POST.get('role', user.role)
+        is_active = 'is_active' in request.POST
+        # Check for username/email uniqueness
+        if User.objects.exclude(id=user.id).filter(username=username).exists():
+            messages.error(request, 'Username already exists.')
+        elif User.objects.exclude(id=user.id).filter(email=email).exists():
+            messages.error(request, 'Email already exists.')
+        else:
+            user.username = username
+            user.email = email
+            user.first_name = first_name
+            user.last_name = last_name
+            user.role = role
+            user.is_active = is_active
+            password = request.POST.get('password', '')
+            if password:
+                user.set_password(password)
+            user.save()
+            messages.success(request, 'User updated successfully.')
+            return redirect('admin_users')
+    return render(request, 'dashboards/edit_user.html', {'user': user})
+
+@login_required(login_url='login')
+def delete_user(request, user_id):
+    if request.user.role != 'admin':
+        return redirect('dashboard')
+    from .models import User
+    user = get_object_or_404(User, id=user_id)
+    if request.method == 'POST':
+        user.delete()
+        messages.success(request, 'User deleted successfully.')
+        return redirect('admin_users')
+    return render(request, 'dashboards/delete_user.html', {'user': user})
+
+
+@login_required(login_url='login')
+def admin_users(request):
+    if request.user.role != 'admin':
+        return redirect('dashboard')
+    from .models import User
+    users = User.objects.all().order_by('username')
+    search_query = request.GET.get('search', '').strip()
+    role_filter = request.GET.get('role', '').strip()
+    if search_query:
+        users = users.filter(
+            Q(username__icontains=search_query) |
+            Q(email__icontains=search_query) |
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query)
+        )
+    if role_filter:
+        users = users.filter(role=role_filter)
+    users = users.order_by('username')
+    context = {
+        'users': users,
+        'search_query': search_query,
+        'role_filter': role_filter,
+        'role_choices': User._meta.get_field('role').choices,
+    }
+    return render(request, 'dashboards/admin_users.html', context)
+
 @login_required(login_url='login')
 def admin_students(request):
     if request.user.role != 'admin':
@@ -1617,6 +1836,22 @@ def admin_academic_years(request):
     graduation_year = None
     for year in academic_years:
         terms = sorted(year.terms.all(), key=lambda t: t.start_date or datetime.date.min)
+        # --- AUTOMATIC PROMOTION LOGIC ---
+        # If today is after the last term's end_date and promotion not yet run for this year, trigger promotion
+        if terms and terms[-1].end_date and today > terms[-1].end_date:
+            # Use a session or db flag to avoid repeated promotions for same year
+            last_promo_year = request.session.get('last_promo_year')
+            if last_promo_year != year.year:
+                import subprocess
+                import sys
+                result = subprocess.run([sys.executable, 'manage.py', 'promote_students'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    from django.contrib import messages
+                    messages.success(request, f'Promotion and graduation process completed automatically for {year.year}.')
+                    request.session['last_promo_year'] = year.year
+                else:
+                    from django.contrib import messages
+                    messages.error(request, f'Automatic promotion failed for {year.year}: ' + result.stderr)
         for idx, term in enumerate(terms):
             if term.start_date and term.end_date:
                 if term.start_date <= today <= term.end_date:
@@ -1647,9 +1882,11 @@ from django.db.models import Avg
 
 @login_required(login_url='login')
 def admin_analytics(request):
+    import json
+    from django.db.models import Sum, Avg
     if request.user.role != 'admin':
         return redirect('dashboard')
-    from .models import Subject, Grade
+    from .models import Subject, Grade, FeeCategory, FeeAssignment, FeePayment, Student, Term
     subjects = Subject.objects.all()
     avg_performance = []
     for subject in subjects:
@@ -1657,12 +1894,61 @@ def admin_analytics(request):
         avg_performance.append({'subject': subject.name, 'avg_score': avg_score or 0})
     subject_labels = json.dumps([item['subject'] for item in avg_performance])
     avg_scores = json.dumps([item['avg_score'] for item in avg_performance])
+
+    # --- Fee Analytics Section ---
+    # Get current term (by date range)
+    today = timezone.now().date()
+    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('-start_date').first()
+    if not current_term:
+        current_term = Term.objects.filter(start_date__lte=today, end_date__isnull=True).order_by('-start_date').first()
+    if not current_term:
+        current_term = Term.objects.order_by('-start_date').first()
+    all_students = Student.objects.all()
+    all_fee_categories = FeeCategory.objects.all()
+    # Fetch all fee assignments in the system (total billed on all students)
+    fee_assignments = FeeAssignment.objects.all()
+
+    # Calculate total assigned as the sum of (amount * number of students in class) for all assignments
+    total_assigned = 0
+    for assignment in fee_assignments:
+        num_students = Student.objects.filter(class_group=assignment.class_group).count()
+        total_assigned += float(assignment.amount) * num_students
+    total_paid = FeePayment.objects.aggregate(total=Sum('amount_paid'))['total'] or 0
+    payment_percentage = (float(total_paid) / float(total_assigned) * 100) if total_assigned else 0
+
+    # Pie chart: Paid vs Unpaid
+    paid_value = float(total_paid)
+    unpaid_value = float(total_assigned) - float(total_paid)
+    pie_labels = json.dumps(["Paid", "Unpaid"])
+    pie_data = json.dumps([paid_value, unpaid_value if unpaid_value > 0 else 0])
+
+    # Bar chart: Payments over time (by month)
+    from collections import defaultdict
+    import calendar
+    payments = FeePayment.objects.filter(fee_assignment__in=fee_assignments)
+    monthly_totals = defaultdict(float)
+    for payment in payments:
+        month = payment.payment_date.strftime('%Y-%m')
+        monthly_totals[month] += float(payment.amount_paid)
+    months_sorted = sorted(monthly_totals.keys())
+    bar_labels = json.dumps(months_sorted)
+    bar_data = json.dumps([monthly_totals[m] for m in months_sorted])
+
     context = {
         'avg_performance': avg_performance,
         'subject_labels': subject_labels,
         'avg_scores': avg_scores,
+        'total_assigned': total_assigned,
+        'total_paid': total_paid,
+        'payment_percentage': round(payment_percentage, 2),
+        'pie_labels': pie_labels,
+        'pie_data': pie_data,
+        'bar_labels': bar_labels,
+        'bar_data': bar_data,
+        'current_term': current_term,
     }
     return render(request, 'dashboards/admin_analytics.html', context)
+
 
 @login_required(login_url='login')
 def admin_subjects(request):
@@ -1851,7 +2137,11 @@ def custom_login_view(request):
                     messages.error(request, 'No teacher profile found for this account.')
                     return redirect('login')
             elif role == 'student':
-                return redirect('student_dashboard')
+                if hasattr(user, 'student'):
+                    return redirect('student_profile', student_id=user.student.id)
+                else:
+                    messages.error(request, 'User not a student.')
+                    return redirect('login')
         else:
             messages.error(request, 'Invalid credentials or role mismatch.')
 

@@ -82,6 +82,20 @@ class CustomUserCreationForm(UserCreationForm):
         fields = ('username', 'email', 'role')  # Add others as needed
 
 class AddStudentForm(forms.ModelForm):
+    def save_user(self):
+        from .models import User
+        cleaned = self.cleaned_data
+        user = User.objects.create_user(
+            username=cleaned['username'],
+            email=cleaned['email'],
+            password=cleaned['password'],
+            first_name=cleaned['first_name'],
+            last_name=cleaned['last_name'],
+            role='student',
+            is_active=True
+        )
+        return user
+
     # User fields
     first_name = forms.CharField(max_length=150, required=True)
     last_name = forms.CharField(max_length=150, required=True)
@@ -150,6 +164,35 @@ class AddStudentForm(forms.ModelForm):
             raise forms.ValidationError('Email already exists.')
         return email
 
+class StudentContactUpdateForm(forms.ModelForm):
+    email = forms.EmailField(required=True, label='Email Address')
+    phone = forms.CharField(max_length=20, required=False, label='Phone Number')
+    postal_address = forms.CharField(max_length=255, required=False, label='Postal Address')
+
+    class Meta:
+        model = Student
+        fields = ['phone', 'postal_address']
+
+    def __init__(self, *args, **kwargs):
+        user_instance = kwargs.pop('user_instance', None)
+        super().__init__(*args, **kwargs)
+        self.user_instance = user_instance
+        if self.instance and self.instance.user:
+            self.fields['email'].initial = self.instance.user.email
+        if self.instance:
+            self.fields['phone'].initial = self.instance.phone
+            self.fields['postal_address'].initial = getattr(self.instance, 'postal_address', '')
+
+    def save(self, commit=True):
+        student = super().save(commit=False)
+        if self.user_instance:
+            self.user_instance.email = self.cleaned_data['email']
+            if commit:
+                self.user_instance.save()
+        if commit:
+            student.save()
+        return student
+
 class EditStudentClassForm(forms.ModelForm):
     class Meta:
         model = Student
@@ -174,9 +217,23 @@ class FeeAssignmentForm(forms.ModelForm):
 class FeePaymentForm(forms.ModelForm):
     class Meta:
         model = FeePayment
-        fields = ['student', 'fee_assignment', 'amount_paid', 'payment_method', 'reference']
+        fields = ['student', 'amount_paid', 'payment_method', 'reference']
 
 class AddTeacherForm(forms.ModelForm):
+    def save_user(self):
+        from .models import User
+        cleaned = self.cleaned_data
+        user = User.objects.create_user(
+            username=cleaned['username'],
+            email=cleaned['email'],
+            password=cleaned['password'],
+            first_name=cleaned['first_name'],
+            last_name=cleaned['last_name'],
+            role='teacher',
+            is_active=True
+        )
+        return user
+
     # User fields
     first_name = forms.CharField(max_length=150, required=True)
     last_name = forms.CharField(max_length=150, required=True)

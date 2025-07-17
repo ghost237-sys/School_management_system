@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Edit User{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <h2>Edit User: {{ user.username }}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label for="username" class="form-label">Username</label>
+      <input type="text" class="form-control" id="username" name="username" value="{{ user.username }}" required>
+    </div>
+    <div class="mb-3">
+      <label for="email" class="form-label">Email</label>
+      <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}" required>
+    </div>
+    <div class="mb-3">
+      <label for="first_name" class="form-label">First Name</label>
+      <input type="text" class="form-control" id="first_name" name="first_name" value="{{ user.first_name }}">
+    </div>
+    <div class="mb-3">
+      <label for="last_name" class="form-label">Last Name</label>
+      <input type="text" class="form-control" id="last_name" name="last_name" value="{{ user.last_name }}">
+    </div>
+    <div class="mb-3">
+      <label for="role" class="form-label">Role</label>
+      <select class="form-select" id="role" name="role">
+        <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+        <option value="teacher" {% if user.role == 'teacher' %}selected{% endif %}>Teacher</option>
+        <option value="student" {% if user.role == 'student' %}selected{% endif %}>Student</option>
+      </select>
+    </div>
+    <div class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if user.is_active %}checked{% endif %}>
+      <label class="form-check-label" for="is_active">Active</label>
+    </div>
+    <div class="mb-3">
+      <label for="password" class="form-label">New Password <small class="text-muted">(leave blank to keep current)</small></label>
+      <input type="password" class="form-control" id="password" name="password" autocomplete="new-password">
+    </div>
+    <button type="submit" class="btn btn-success">Save Changes</button>
+    <a href="{% url 'admin_users' %}" class="btn btn-secondary">Cancel</a>
+  </form>
+</div>
+{% endblock %}
