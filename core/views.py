@@ -7,8 +7,9 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import logout
 from django.contrib import messages
-from .models import User, FeeCategory, FeeAssignment, FeePayment, Student, Class, Term
+from .models import User, FeeCategory, FeeAssignment, FeePayment, Student, Class, Term, Exam, Grade, Teacher
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
 
 
 from django.utils import timezone
@@ -308,51 +309,69 @@ def admin_fees(request):
         current_term = Term.objects.filter(start_date__lte=today, end_date__isnull=True).order_by('-start_date').first()
     if not current_term:
         current_term = Term.objects.order_by('-start_date').first()
-    fees = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term').filter(term=current_term)
-    # Student assignments overview (current term only)
+    if current_term:
+        fees = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term').filter(term=current_term)
+    else:
+        fees = FeeAssignment.objects.none()
+    
+    # Student assignments overview
     assignments = []
     student_totals = {}
     student_category_totals = {}
-    # Find all terms up to and including the current term
-    terms_up_to_current = Term.objects.filter(start_date__lte=current_term.start_date)
-    all_fee_categories = FeeCategory.objects.all()
-    all_students = Student.objects.all()
-    for student in all_students:
-        # All assignments for this student/class up to the current term
-        assignments_for_student = FeeAssignment.objects.filter(class_group=student.class_group, term__in=terms_up_to_current)
-        student_totals[student.id] = sum(a.amount for a in assignments_for_student)
-        # Group totals by category
-        category_totals = {}
-        for cat in all_fee_categories:
-            cat_assignments = assignments_for_student.filter(fee_category=cat)
-            category_totals[cat.id] = sum(a.amount for a in cat_assignments)
-        student_category_totals[student.id] = category_totals
-    assignments = []
-    for assignment in FeeAssignment.objects.select_related('class_group', 'term', 'fee_category').filter(term=current_term):
-        classes_at_level = Class.objects.filter(level=assignment.class_group.level)
-        students = Student.objects.filter(class_group__in=classes_at_level)
-        for student in students:
-            paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
-            is_paid = paid >= assignment.amount
-            paid_on = FeePayment.objects.filter(student=student, fee_assignment=assignment).order_by('-payment_date').first()
-            balance = assignment.amount - paid
-            assignments.append({
-                'student': student,
-                'fee': assignment,
-                'is_paid': is_paid,
-                'paid_on': paid_on.payment_date if paid_on else None,
-                'paid': paid,
-                'balance': balance,
-            })
+    
+    if current_term:
+        # Find all terms up to and including the current term
+        terms_up_to_current = Term.objects.filter(start_date__lte=current_term.start_date)
+        
+        all_fee_categories = FeeCategory.objects.all()
+        all_students = Student.objects.all()
+        
+        for student in all_students:
+            if student.class_group:
+                # All assignments for this student/class up to the current term
+                assignments_for_student = FeeAssignment.objects.filter(
+                    class_group=student.class_group, 
+                    term__in=terms_up_to_current
+                )
+                student_totals[student.id] = sum(a.amount for a in assignments_for_student)
+                
+                # Group totals by category
+                category_totals = {}
+                for cat in all_fee_categories:
+                    cat_assignments = assignments_for_student.filter(fee_category=cat)
+                    category_totals[cat.id] = sum(a.amount for a in cat_assignments)
+                student_category_totals[student.id] = category_totals
+    
+    if current_term:
+        assignments = []
+        for assignment in FeeAssignment.objects.select_related('class_group', 'term', 'fee_category').filter(term=current_term):
+            if assignment.class_group:
+                classes_at_level = Class.objects.filter(level=assignment.class_group.level)
+                students = Student.objects.filter(class_group__in=classes_at_level)
+                for student in students:
+                    paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
+                    is_paid = paid >= assignment.amount
+                    balance = assignment.amount - paid
+                    assignments.append({
+                        'student': student,
+                        'fee': assignment,
+                        'paid': paid,
+                        'balance': balance,
+                    })
 
     # Calculate total paid per student
     student_paid = {}
     for student in all_students:
-        # Sum all payments made by the student up to and including the current term
-        payments = FeePayment.objects.filter(student=student, fee_assignment__term__start_date__lte=current_term.start_date)
-        student_paid[student.id] = sum(p.amount_paid for p in payments)
+        if student.class_group and current_term:
+            # Sum all payments made by the student up to and including the current term
+            payments = FeePayment.objects.filter(
+                student=student, 
+                fee_assignment__term__start_date__lte=current_term.start_date
+            )
+            student_paid[student.id] = sum(p.amount_paid for p in payments)
     # Calculate balance per student
     student_balances = {sid: student_totals.get(sid, 0) - student_paid.get(sid, 0) for sid in student_totals}
+    
     # Class filter
     all_classes = Class.objects.all()
     selected_class_id = request.GET.get('class_group')
@@ -360,38 +379,43 @@ def admin_fees(request):
         filtered_students = all_students.filter(class_group_id=selected_class_id)
     else:
         filtered_students = all_students
+    
     # Sorting functionality
     sort_order = request.GET.get('sort', 'largest')
     students_with_balance = list(filtered_students)
     students_with_balance.sort(key=lambda s: student_balances.get(s.id, 0), reverse=(sort_order == 'largest'))
+    
     # Prepare data for pie chart (fee category distribution)
     category_data = []
     category_labels = []
-    for cat in all_fee_categories:
-        total = sum(student_category_totals.get(s.id, {}).get(cat.id, 0) for s in students_with_balance)
-        if total > 0:  # Only include categories with data
-            category_data.append(total)
-            category_labels.append(cat.name)
+    if current_term:
+        for cat in all_fee_categories:
+            total = sum(student_category_totals.get(s.id, {}).get(cat.id, 0) for s in students_with_balance)
+            if total > 0:  # Only include categories with data
+                category_data.append(total)
+                category_labels.append(cat.name)
 
     # Prepare data for line graph (payments over time)
-    payments = FeePayment.objects.filter(
-        fee_assignment__term__start_date__lte=current_term.start_date
-    ).order_by('payment_date')
-    
-    # Group payments by month
     payment_data = []
     payment_labels = []
     from collections import defaultdict
     monthly_totals = defaultdict(float)
     
-    for payment in payments:
-        month_key = payment.payment_date.strftime('%Y-%m')
-        monthly_totals[month_key] += float(payment.amount_paid)
-    
-    # Sort by date and prepare data
-    for month in sorted(monthly_totals.keys()):
-        payment_labels.append(month)
-        payment_data.append(monthly_totals[month])
+    if current_term:
+        # Get all payments up to the current term
+        payments = FeePayment.objects.filter(
+            fee_assignment__term__start_date__lte=current_term.start_date
+        ).order_by('payment_date')
+        
+        # Group payments by month
+        for payment in payments:
+            month_key = payment.payment_date.strftime('%Y-%m')
+            monthly_totals[month_key] += float(payment.amount_paid)
+        
+        # Sort by date and prepare data
+        for month in sorted(monthly_totals.keys()):
+            payment_labels.append(month)
+            payment_data.append(monthly_totals[month])
 
     context = {
         'fee_form': fee_form,
@@ -1205,6 +1229,7 @@ def manage_grades(request, teacher_id):
 def input_grades(request, teacher_id, class_id, subject_id):
     from .models import Teacher, Class, Subject, Student, Exam, Grade, Term
     from django.shortcuts import get_object_or_404, redirect
+    from .forms import GradeInputForm
     import datetime
 
     teacher = get_object_or_404(Teacher, id=teacher_id)
@@ -1234,45 +1259,59 @@ def input_grades(request, teacher_id, class_id, subject_id):
                     messages.success(request, f'Successfully created exam "{exam.name}".')
                 else:
                     messages.info(request, f'Exam "{exam.name}" already exists.')
-                return redirect(f"{request.path}?exam_id={exam.id}")
+                return redirect('teacher_exam_entry', teacher_id=teacher_id, 
+                              class_id=class_id, subject_id=subject_id, exam_id=exam.id)
         
         # Handle saving grades
         elif 'save_grades' in request.POST and selected_exam:
             students = Student.objects.filter(class_group=class_group)
             for student in students:
                 score = request.POST.get(f'score_{student.id}')
+                remarks = request.POST.get(f'remarks_{student.id}')
                 if score and score.strip():
                     Grade.objects.update_or_create(
                         student=student,
                         subject=subject,
                         exam=selected_exam,
-                        defaults={'score': score}
+                        defaults={'score': score, 'remarks': remarks}
                     )
             messages.success(request, f"Grades for {selected_exam.name} have been saved.")
-            return redirect(f"{request.path}?exam_id={selected_exam.id}")
+            return redirect('teacher_exam_entry', teacher_id=teacher_id, 
+                           class_id=class_id, subject_id=subject_id, exam_id=exam.id)
 
-    # Prepare context for template
+    # Get all students in the class
     students = Student.objects.filter(class_group=class_group).order_by('user__last_name', 'user__first_name')
     # Get all exams associated with this class/subject through existing grades
     exam_ids = Grade.objects.filter(student__in=students, subject=subject).values_list('exam_id', flat=True).distinct()
     exams = Exam.objects.filter(id__in=exam_ids).order_by('-date')
     terms = Term.objects.all().order_by('-academic_year__year', 'name')
     
-    grade_map = {}
+    # Create forms for each student
+    forms = []
+    # Get grades for selected exam
+    student_grades = {}
     if selected_exam:
-        existing_grades = Grade.objects.filter(exam=selected_exam, subject=subject, student__in=students)
-        grade_map = {grade.student_id: grade.score for grade in existing_grades}
+        grades = Grade.objects.filter(student__in=students, subject=subject, exam=selected_exam)
+        for grade in grades:
+            student_grades[grade.student_id] = grade
+
+    for student in students:
+        grade = student_grades.get(student.id)
+        form = GradeInputForm(instance=grade, student=student)
+        forms.append((student, form))
 
     context = {
         'teacher': teacher,
         'class_group': class_group,
         'subject': subject,
-        'students': students,
         'exams': exams,
         'terms': terms,
         'selected_exam': selected_exam,
-        'grade_map': grade_map,
+        'forms': forms,
+        'students': students,  # Add students list to context
+        'student_grades': student_grades  # Add grades mapping to context
     }
+    return render(request, 'dashboards/input_grades.html', context)
     return render(request, 'dashboards/input_grades.html', context)
 
 # Admin Students View
@@ -1721,6 +1760,88 @@ def teacher_exams(request, teacher_id):
         'subject_students': subject_students,
     }
     return render(request, 'dashboards/teacher_exams.html', context)
+
+@login_required(login_url='login')
+def teacher_exam_entry(request, teacher_id, class_id, subject_id, exam_id):
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    if request.user != teacher.user:
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        scores = request.POST.getlist('scores[]')
+        student_ids = request.POST.getlist('student_ids[]')
+        
+        exam = get_object_or_404(Exam, id=exam_id)
+        subject = get_object_or_404(Subject, id=subject_id)
+        class_group = get_object_or_404(Class, id=class_id)
+        
+        # Validate scores
+        for score in scores:
+            try:
+                score = float(score)
+                if score < 0 or score > 100:
+                    messages.error(request, 'Scores must be between 0 and 100')
+                    return redirect('teacher_exam_entry', teacher_id=teacher_id, 
+                                  class_id=class_id, subject_id=subject_id, exam_id=exam_id)
+            except ValueError:
+                messages.error(request, 'Invalid score format')
+                return redirect('teacher_exam_entry', teacher_id=teacher_id, 
+                              class_id=class_id, subject_id=subject_id, exam_id=exam_id)
+
+        # Save scores
+        try:
+            for student_id, score in zip(student_ids, scores):
+                student = Student.objects.get(id=student_id)
+                Grade.objects.update_or_create(
+                    student=student,
+                    exam=exam,
+                    subject=subject,
+                    defaults={'score': score}
+                )
+            messages.success(request, 'Scores saved successfully')
+        except Exception as e:
+            messages.error(request, f'Error saving scores: {str(e)}')
+            return redirect('teacher_exam_entry', teacher_id=teacher_id, 
+                          class_id=class_id, subject_id=subject_id, exam_id=exam_id)
+
+        return redirect('teacher_exam_entry', teacher_id=teacher_id, 
+                       class_id=class_id, subject_id=subject_id, exam_id=exam_id)
+
+    # Get teacher's subjects and classes
+    subjects = teacher.subjects.all()
+    classes = Class.objects.filter(teachers=teacher)
+    
+    # Get exam details
+    exam = get_object_or_404(Exam, id=exam_id)
+    subject = get_object_or_404(Subject, id=subject_id)
+    class_group = get_object_or_404(Class, id=class_id)
+
+    # Get students for this class and subject
+    students = Student.objects.filter(
+        class_group_id=class_id
+    ).order_by('user__last_name', 'user__first_name')
+
+    # Get existing grades for this exam
+    grade_map = {}
+    existing_grades = Grade.objects.filter(
+        exam=exam,
+        subject=subject,
+        student__in=students
+    )
+    for grade in existing_grades:
+        grade_map[grade.student_id] = grade.score
+
+    context = {
+        'teacher': teacher,
+        'subjects': subjects,
+        'classes': classes,
+        'exam': exam,
+        'subject': subject,
+        'class_group': class_group,
+        'students': students,
+        'grade_map': grade_map,
+    }
+    return render(request, 'dashboards/teacher_exam_entry.html', context)
 
 @login_required(login_url='login')
 def upload_marksheet(request):

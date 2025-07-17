@@ -33,6 +33,7 @@ urlpatterns = [
     path('admin_fees/', views.admin_fees, name='admin_fees'),
     path('admin_events/', views.admin_events, name='admin_events'),
     path('teacher/<int:teacher_id>/exams/', views.teacher_exams, name='teacher_exams'),
+    path('teacher/<int:teacher_id>/exam_entry/<int:class_id>/<int:subject_id>/<int:exam_id>/', views.teacher_exam_entry, name='teacher_exam_entry'),
     # --- AJAX Modal Add Endpoints ---
     path('dashboard/students/add/', views.add_student_ajax, name='add_student_ajax'),
     path('dashboard/teachers/add/', views.add_teacher_ajax, name='add_teacher_ajax'),

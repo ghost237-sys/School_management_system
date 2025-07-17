@@ -4,98 +4,48 @@
 
 {% block content %}
 <div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">Manage Grades</h1>
+
     <div class="row">
-        <div class="col-md-12">
-            <h1 class="h3 mb-4 text-gray-800">Manage Grades</h1>
-
-            <div class="card shadow mb-4">
+        {% for subject, cards in subject_cards.items %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card shadow h-100">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Select a Class to Manage Grades</h6>
+                    <h6 class="m-0 font-weight-bold text-primary">{{ subject }}</h6>
                 </div>
-                {% for subject, cards in subject_cards.items %}
-<div class="card shadow mb-4">
-    <div class="card-header py-3">
-        <h6 class="m-0 font-weight-bold text-primary">{{ subject }}</h6>
-    </div>
-    <div class="card-body">
-        <div class="row">
-            {% for card in cards %}
-                <div class="col-lg-6 mb-4">
-                    <div class="card shadow-sm">
-                        <div class="card-header py-3" style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#form-{{ card.class_group.id }}-{{ card.subject.id }}" aria-expanded="false">
-                            <h6 class="m-0 font-weight-bold text-primary">{{ card.class_group.name }}</h6>
-                        </div>
-                        <div class="collapse" id="form-{{ card.class_group.id }}-{{ card.subject.id }}">
-                            <div class="card-body">
-                                <form method="post" action="{% url 'input_grades' teacher_id=teacher.id class_id=card.class_group.id subject_id=card.subject.id %}">
-                                    {% csrf_token %}
-                                    <div class="mb-3">
-                                        <label for="exam_id" class="form-label">Select Exam</label>
-                                        <select name="exam_id" class="form-control" required>
-                                            <option value="">-- Select Exam --</option>
-                                            {% for exam in exams %}
-                                                <option value="{{ exam.id }}">{{ exam.name }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    <table class="table table-bordered">
-                                        <thead>
-                                            <tr>
-                                                <th>Student Name</th>
-                                                <th>Score</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for student in card.students %}
-                                                <tr>
-                                                    <td>{{ student.user.get_full_name|default:student.user.username }}</td>
-                                                    <td>
-                                                        <input type="number" name="score_{{ student.id }}" class="form-control" min="0" max="100">
-                                                    </td>
-                                                </tr>
-                                            {% empty %}
-                                                <tr><td colspan="2">No students in this class.</td></tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                    <button type="submit" name="save_grades" class="btn btn-success">Save Grades</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
-    </div>
-</div>
-{% endfor %}
-
-{% if no_subject %}
-<div class="card shadow mb-4">
-    <div class="card-header py-3">
-        <h6 class="m-0 font-weight-bold text-primary">Other Classes</h6>
-    </div>
-    <div class="card-body">
-        <div class="row">
-            {% for card in no_subject %}
-                <div class="col-lg-6 mb-4">
-                    <div class="card shadow-sm">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-secondary">{{ card.class_group.name }} (No subject assigned)</h6>
-                        </div>
-                        <div class="card-body">
-                            <p>No subject is assigned for this class, so grade entry is disabled.</p>
-                        </div>
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
-    </div>
-</div>
-{% endif %}
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        {% for card in cards %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ card.class_group.name }}
+                            <a href="{% url 'input_grades' teacher_id=teacher.id class_id=card.class_group.id subject_id=card.subject.id %}" class="btn btn-sm btn-outline-primary">Input Grades</a>
+                        </li>
+                        {% endfor %}
+                    </ul>
                 </div>
             </div>
         </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info">No subjects or classes assigned for grade management.</div>
+        </div>
+        {% endfor %}
     </div>
+
+    {% if no_subject %}
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Other Classes (No Subject Assigned)</h6>
+        </div>
+        <div class="card-body">
+            <p>The following classes are not assigned a subject. Grade entry is disabled.</p>
+            <ul class="list-group">
+            {% for card in no_subject %}
+                <li class="list-group-item">{{ card.class_group.name }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

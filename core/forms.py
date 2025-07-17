@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
-from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term
+from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term, Grade
 
 class ExamForm(forms.ModelForm):
     class Meta:
@@ -175,6 +175,31 @@ class FeePaymentForm(forms.ModelForm):
     class Meta:
         model = FeePayment
         fields = ['student', 'fee_assignment', 'amount_paid', 'payment_method', 'reference']
+
+class GradeInputForm(forms.ModelForm):
+    admission_no = forms.CharField(disabled=True, required=False)
+    gender = forms.CharField(disabled=True, required=False)
+
+    class Meta:
+        model = Grade
+        fields = ['student', 'exam', 'subject', 'score', 'remarks']
+
+    def __init__(self, *args, **kwargs):
+        student = kwargs.pop('student', None)
+        super().__init__(*args, **kwargs)
+        self.fields['student'].queryset = Student.objects.all()
+        
+        # Add student information fields
+        if student:
+            self.fields['admission_no'].initial = student.admission_no
+            self.fields['gender'].initial = student.gender
+            self.fields['student'].label_from_instance = lambda obj: f"{obj.user.get_full_name()} - {obj.admission_no} ({obj.gender})"
+        
+        # Style the form fields
+        for field_name, field in self.fields.items():
+            field.widget.attrs.update({'class': 'form-control'})
+            if field_name == 'score':
+                field.widget.attrs.update({'min': '0', 'max': '100', 'step': '0.1'})
 
 class AddTeacherForm(forms.ModelForm):
     # User fields
