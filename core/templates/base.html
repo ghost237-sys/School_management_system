@@ -120,7 +120,7 @@
                 <button type="submit" class="btn btn-secondary w-100 d-flex align-items-center justify-content-center"><i class="bi bi-box-arrow-right me-2"></i> Logout</button>
             </form>
         </nav>
-        {% elif user.is_authenticated and user.role == 'teacher' %}
+        {% elif user.is_authenticated and user.role == 'teacher' and teacher %}
             {% include 'dashboards/teacher_sidebar.html' %}
         {% endif %}
         <!-- Main Content -->

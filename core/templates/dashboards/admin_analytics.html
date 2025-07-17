@@ -2,6 +2,11 @@
 {% block title %}Admin Analytics{% endblock %}
 {% block content %}
 
+{% if current_term %}
+<div class="alert alert-success mb-3">
+  <strong>Current Term:</strong> {{ current_term.name }} ({{ current_term.start_date|date:"M d, Y" }} to {{ current_term.end_date|date:"M d, Y" }}) in Academic Year {{ current_term.academic_year.year }}
+</div>
+{% endif %}
 <h1>Analytics</h1>
 
 <ul class="nav nav-tabs mb-4" id="analyticsTabs" role="tablist">
@@ -62,8 +67,40 @@
       <div class="card-header bg-light">
         <h5 class="mb-0">Fee Analytics</h5>
       </div>
+
       <div class="card-body">
-        <p>Fee analytics and visualizations will be displayed here. (Coming soon!)</p>
+        <div class="row">
+          <div class="col-md-4">
+            <div class="card mb-3">
+              <div class="card-body text-center">
+                <h6 class="mb-2">Total Fees Assigned</h6>
+                <div style="font-size:1.3rem;font-weight:bold;">Ksh. {{ total_assigned|floatformat:2 }}</div>
+                <hr>
+                <h6 class="mb-2">Total Paid</h6>
+                <div style="font-size:1.3rem;font-weight:bold; color: #16a085;">Ksh. {{ total_paid|floatformat:2 }}</div>
+                <hr>
+                <h6 class="mb-2">Payment Percentage</h6>
+                <div style="font-size:1.5rem;font-weight:bold;">{{ payment_percentage }}%</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card mb-3">
+              <div class="card-body">
+                <h6 class="mb-2">Paid vs Unpaid</h6>
+                <canvas id="feePieChart" height="180"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card mb-3">
+              <div class="card-body">
+                <h6 class="mb-2">Payments Over Time</h6>
+                <canvas id="feeBarChart" height="180"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -75,10 +112,14 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script id="subjectLabels" type="application/json">{{ subject_labels|safe }}</script>
 <script id="avgScores" type="application/json">{{ avg_scores|safe }}</script>
+<script id="pieLabels" type="application/json">{{ pie_labels|safe }}</script>
+<script id="pieData" type="application/json">{{ pie_data|safe }}</script>
+<script id="barLabels" type="application/json">{{ bar_labels|safe }}</script>
+<script id="barData" type="application/json">{{ bar_data|safe }}</script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
+    // Subject Performance Chart
     const ctx = document.getElementById('subjectPerformanceChart').getContext('2d');
-    // Safely pass Django data to JS using JSON script filter
     const subjectLabels = JSON.parse(document.getElementById('subjectLabels').textContent);
     const avgScores = JSON.parse(document.getElementById('avgScores').textContent);
     const data = {
@@ -112,6 +153,62 @@
       }
     };
     new Chart(ctx, config);
+
+    // --- Fee Analytics Charts ---
+    // Pie Chart (Paid vs Unpaid)
+    const pieLabels = JSON.parse(document.getElementById('pieLabels').textContent);
+    const pieData = JSON.parse(document.getElementById('pieData').textContent);
+    const pieColors = ['#16a085', '#e74c3c'];
+    const feePieCtx = document.getElementById('feePieChart').getContext('2d');
+    new Chart(feePieCtx, {
+      type: 'pie',
+      data: {
+        labels: pieLabels,
+        datasets: [{
+          data: pieData,
+          backgroundColor: pieColors,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' },
+          title: { display: false }
+        }
+      }
+    });
+
+    // Bar Chart (Payments Over Time)
+    const barLabels = JSON.parse(document.getElementById('barLabels').textContent);
+    const barData = JSON.parse(document.getElementById('barData').textContent);
+    const feeBarCtx = document.getElementById('feeBarChart').getContext('2d');
+    new Chart(feeBarCtx, {
+      type: 'bar',
+      data: {
+        labels: barLabels,
+        datasets: [{
+          label: 'Total Paid',
+          data: barData,
+          backgroundColor: '#16a085',
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          title: { display: false }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Amount Paid' }
+          },
+          x: {
+            title: { display: true, text: 'Month' }
+          }
+        }
+      }
+    });
   });
 </script>
 {% endblock %}

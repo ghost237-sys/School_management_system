@@ -16,7 +16,14 @@ class Command(BaseCommand):
             # Step 2: Promote classes (except the highest level)
             for c in Class.objects.all():
                 if c.level != HIGHEST_LEVEL:
+                    old_level = c.level
                     new_level = str(int(c.level) + 1)
+                    # Update class name if it starts with 'Grade {old_level}'
+                    import re
+                    match = re.match(r'^Grade\s+(\d+)(.*)$', c.name)
+                    if match:
+                        suffix = match.group(2)
+                        c.name = f"Grade {new_level}{suffix}"
                     c.level = new_level
                     c.save()
 
@@ -28,15 +35,22 @@ class Command(BaseCommand):
                         student.class_group = None  # Remove from class
                         student.save()
                     else:
-                        # Find the new class with incremented level and same name
+                        # Find the new class with incremented level and updated name
                         new_level = str(int(student.class_group.level) + 1)
+                        import re
+                        match = re.match(r'^Grade\s+(\d+)(.*)$', student.class_group.name)
+                        if match:
+                            suffix = match.group(2)
+                            promoted_name = f"Grade {new_level}{suffix}"
+                        else:
+                            promoted_name = student.class_group.name
                         try:
-                            new_class = Class.objects.get(level=new_level, name=student.class_group.name)
+                            new_class = Class.objects.get(level=new_level, name=promoted_name)
                             student.class_group = new_class
                             student.save()
                         except Class.DoesNotExist:
                             self.stdout.write(self.style.WARNING(
-                                f'No class found for level {new_level} and name {student.class_group.name}'))
+                                f'No class found for level {new_level} and name {promoted_name}'))
 
             # Step 4: Create new lowest level classes for each direction
             for direction in directions:

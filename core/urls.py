@@ -3,6 +3,10 @@ from django.contrib.auth import views as auth_views
 from . import views
 
 urlpatterns = [
+    path('admin_users/edit/<int:user_id>/', views.edit_user, name='edit_user'),
+    path('admin_users/delete/<int:user_id>/', views.delete_user, name='delete_user'),
+    path('admin_users/', views.admin_users, name='admin_users'),
+    path('admin_payment/', views.admin_payment, name='admin_payment'),
     path('api/exam_events/', views.exam_events_api, name='exam_events_api'),
     path('student_fees/', views.student_fees, name='student_fees'),
     path('teacher_dashboard/<int:teacher_id>/', views.teacher_dashboard, name='teacher_dashboard'),
