@@ -412,15 +412,40 @@ def admin_fees(request):
     # Fees overview
     # Get current term (by date range)
     today = timezone.now().date()
-    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('-start_date').first()
+    current_term = None
+    
+    # Try to find a current term
+    try:
+        current_term = Term.objects.filter(
+            start_date__lte=today, 
+            end_date__gte=today
+        ).order_by('-start_date').first()
+    except Exception:
+        current_term = None
+    
+    # If no current term, try to find an ongoing term
     if not current_term:
-        current_term = Term.objects.filter(start_date__lte=today, end_date__isnull=True).order_by('-start_date').first()
+        try:
+            current_term = Term.objects.filter(
+                start_date__lte=today, 
+                end_date__isnull=True
+            ).order_by('-start_date').first()
+        except Exception:
+            current_term = None
+    
+    # If no terms found, use the most recent one
     if not current_term:
-        current_term = Term.objects.order_by('-start_date').first()
+        try:
+            current_term = Term.objects.order_by('-start_date').first()
+        except Exception:
+            current_term = None
+    
+    # Get fees for the current term if it exists
+    fees = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term')
     if current_term:
-        fees = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term').filter(term=current_term)
+        fees = fees.filter(term=current_term)
     else:
-        fees = FeeAssignment.objects.none()
+        fees = fees.none()
     
     # Student assignments overview
     assignments = []
@@ -469,14 +494,15 @@ def admin_fees(request):
 
     # Calculate total paid per student
     student_paid = {}
-    for student in all_students:
-        if student.class_group and current_term:
-            # Sum all payments made by the student up to and including the current term
-            payments = FeePayment.objects.filter(
-                student=student, 
-                fee_assignment__term__start_date__lte=current_term.start_date
-            )
-            student_paid[student.id] = sum(p.amount_paid for p in payments)
+    if current_term:
+        for student in all_students:
+            if student.class_group:
+                # Sum all payments made by the student up to and including the current term
+                payments = FeePayment.objects.filter(
+                    student=student, 
+                    fee_assignment__term__start_date__lte=current_term.start_date
+                )
+                student_paid[student.id] = sum(p.amount_paid for p in payments)
     # Calculate balance per student
     student_balances = {sid: student_totals.get(sid, 0) - student_paid.get(sid, 0) for sid in student_totals}
     
@@ -512,6 +538,7 @@ def admin_fees(request):
     if current_term:
         # Get all payments up to the current term
         payments = FeePayment.objects.filter(
+            fee_assignment__term__isnull=False,
             fee_assignment__term__start_date__lte=current_term.start_date
         ).order_by('payment_date')
         
