@@ -4,48 +4,49 @@
 
 {% block content %}
 <div class="container-fluid">
-    <h1 class="h3 mb-4 text-gray-800">Manage Grades</h1>
-
-    <div class="row">
-        {% for subject, cards in subject_cards.items %}
-        <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card shadow h-100">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">{{ subject }}</h6>
-                </div>
-                <div class="card-body">
-                    <ul class="list-group list-group-flush">
-                        {% for card in cards %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            {{ card.class_group.name }}
-                            <a href="{% url 'input_grades' teacher_id=teacher.id class_id=card.class_group.id subject_id=card.subject.id %}" class="btn btn-sm btn-outline-primary">Input Grades</a>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-        </div>
-        {% empty %}
-        <div class="col-12">
-            <div class="alert alert-info">No subjects or classes assigned for grade management.</div>
-        </div>
-        {% endfor %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Manage Grades</h1>
     </div>
 
-    {% if no_subject %}
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Other Classes (No Subject Assigned)</h6>
+            <h6 class="m-0 font-weight-bold text-primary">Select Class, Subject, and Exam</h6>
         </div>
         <div class="card-body">
-            <p>The following classes are not assigned a subject. Grade entry is disabled.</p>
-            <ul class="list-group">
-            {% for card in no_subject %}
-                <li class="list-group-item">{{ card.class_group.name }}</li>
-            {% endfor %}
-            </ul>
+            <form method="POST" action="{% url 'manage_grades' teacher_id=teacher.id %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="class_id" class="form-label">Class</label>
+                        <select class="form-select" id="class_id" name="class_id" required>
+                            <option value="" selected disabled>-- Select Class --</option>
+                            {% for class in teacher_classes %}
+                                <option value="{{ class.id }}">{{ class.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="subject_id" class="form-label">Subject</label>
+                        <select class="form-select" id="subject_id" name="subject_id" required>
+                            <option value="" selected disabled>-- Select Subject --</option>
+                            {% for subject in teacher_subjects %}
+                                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="exam_id" class="form-label">Exam</label>
+                        <select class="form-select" id="exam_id" name="exam_id" required>
+                            <option value="" selected disabled>-- Select Exam --</option>
+                            {% for exam in exams %}
+                                <option value="{{ exam.id }}">{{ exam.name }} ({{ exam.term.name }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Proceed to Grade Entry</button>
+            </form>
         </div>
     </div>
-    {% endif %}
 </div>
 {% endblock %}

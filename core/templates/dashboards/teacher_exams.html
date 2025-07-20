@@ -1,4 +1,7 @@
 {% extends 'base.html' %}
+{% load static %}
+{% load custom_filters %}
+{% load tuple_filters %}
 
 {% block title %}Exams{% endblock %}
 
@@ -7,36 +10,69 @@
   <h1 class="mt-4">Exams - Students by Subject</h1>
   {% if subject_students %}
     {% for subj_class, students in subject_students.items %}
+    {% if show_subject_id == subj_class.0.id|stringformat:"s" and show_class_id == subj_class.1.id|stringformat:"s" %}
       <div class="card mb-4">
         <div class="card-header bg-primary text-white">
           <strong>Subject:</strong> {{ subj_class.0.name }} | <strong>Class:</strong> {{ subj_class.1.name }}
         </div>
         <div class="card-body">
           {% if students %}
-            <table class="table table-bordered table-striped">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Student Name</th>
-                  <th>Admission No.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for student in students %}
-                  <tr>
-                    <td>{{ forloop.counter }}</td>
-                    <td>{{ student.user.get_full_name }}</td>
-                    <td>{{ student.admission_no }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+            {% with subj_id=subj_class.0.id class_id=subj_class.1.id %}
+              {% with subject_dict=subject_grades|get_item:subj_id %}
+                {% with exam_data=subject_dict|get_item:class_id %}
+                  <div class="mb-2">
+                    {% if exam_data and exam_data.exam %}
+                      <span class="badge bg-info text-dark">Latest Exam: {{ exam_data.exam.name }}</span>
+                    {% endif %}
+                  </div>
+                  <table class="table table-bordered table-striped">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Student Name</th>
+                        <th>Admission No.</th>
+                        <th>Score</th>
+                        <th>Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for student in students %}
+                        <tr>
+                          <td>{{ forloop.counter }}</td>
+                          <td>{{ student.user.get_full_name }}</td>
+                          <td>{{ student.admission_no }}</td>
+                          <td>
+                            {% with grade=exam_data.grades|dict_get:student.id %}
+                              {% if grade %}
+                                {{ grade.score|default:"-" }}
+                              {% else %}
+                                -
+                              {% endif %}
+                            {% endwith %}
+                          </td>
+                          <td>
+                            {% with grade=exam_data.grades|dict_get:student.id %}
+                              {% if grade %}
+                                {{ grade.remarks|default:"-" }}
+                              {% else %}
+                                -
+                              {% endif %}
+                            {% endwith %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                {% endwith %}
+              {% endwith %}
+            {% endwith %}
           {% else %}
             <p>No students assigned to this class.</p>
           {% endif %}
         </div>
       </div>
-    {% endfor %}
+    {% endif %}
+  {% endfor %}
   {% else %}
     <div class="alert alert-info">No subjects or classes assigned to you.</div>
   {% endif %}

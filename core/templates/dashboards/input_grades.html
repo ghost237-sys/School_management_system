@@ -1,161 +1,64 @@
 {% extends 'base.html' %}
-{% load custom_filters %}
 
 {% block title %}Input Grades{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <div class="row">
-        <div class="col-md-12">
-            <h1 class="h3 mb-2 text-gray-800">Input Grades</h1>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Input Grades</h1>
+            <p class="mb-0 text-muted">For: {{ class_group.name }} / {{ subject.name }} / {{ exam.name }}</p>
+        </div>
+        <a href="{% url 'manage_grades' teacher_id=teacher.id %}" class="btn btn-sm btn-secondary">Change Selection</a>
+    </div>
 
-            <!-- Class Information -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Class Information</h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <p><strong>Class:</strong> {{ class_group.name }}</p>
-                        </div>
-                        <div class="col-md-4">
-                            <p><strong>Subject:</strong> {{ subject.name }}</p>
-                        </div>
-                        <div class="col-md-4">
-                            <p><strong>Teacher:</strong> {{ teacher.user.get_full_name }}</p>
-                        </div>
-                    </div>
-                </div>
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
+        {% endfor %}
+    {% endif %}
 
-            <!-- Grade Input Form -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Grade Entry Form</h6>
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <form method="POST" action="{% url 'input_grades' teacher_id=teacher.id class_id=class_group.id subject_id=subject.id exam_id=exam.id %}">
+                {% csrf_token %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th style="width: 10%;">Student ID</th>
+                                <th style="width: 40%;">Student Name</th>
+                                <th style="width: 20%;">Score</th>
+                                <th style="width: 30%;">Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in students %}
+                            <tr>
+                                <td>{{ student.id }}</td>
+                                <td>{{ student.user.get_full_name|default:student.user.username }}</td>
+                                <td>
+                                    <input type="number" step="0.01" name="score_{{ student.id }}" class="form-control" value="{% if student.grade %}{{ student.grade.score }}{% endif %}">
+                                </td>
+                                <td>
+                                    <input type="text" name="remarks_{{ student.id }}" class="form-control" value="{% if student.grade %}{{ student.grade.remarks }}{% endif %}" readonly>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center">No students found in this class.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
-                <div class="card-body">
-                    <form method="post" id="grade-entry-form">
-                        {% csrf_token %}
-                        <div class="table-responsive">
-                            <table class="table table-bordered" width="100%" cellspacing="0">
-                                <thead>
-                                    <tr>
-                                        <th>Student Name</th>
-                                        <th>Admission No</th>
-                                        <th>Gender</th>
-                                        <th>Score (0-100)</th>
-                                        <th>Remarks</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for student in students %}
-                                    <tr>
-                                        <td>{{ student.user.get_full_name }}</td>
-                                        <td>{{ student.admission_no }}</td>
-                                        <td>{{ student.gender }}</td>
-                                        <td>
-                                            <input type="number" 
-                                                   name="score_{{ student.id }}" 
-                                                   min="0" max="100" 
-                                                   step="0.1" 
-                                                   class="form-control" 
-                                                   required>
-                                        </td>
-                                        <td>
-                                            <input type="text" 
-                                                   name="remarks_{{ student.id }}" 
-                                                   class="form-control">
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="text-right mt-3">
-                            <button type="submit" class="btn btn-primary">Submit Grades</button>
-                            <a href="{% url 'manage_grades' teacher_id=teacher.id %}" class="btn btn-secondary">Cancel</a>
-                        </div>
-                    </form>
+                <div class="text-end mt-3">
+                    <button type="submit" class="btn btn-primary">Save Grades</button>
                 </div>
-            </div>
-
-            <!-- Grades Display -->
-            {% if selected_exam %}
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Grades for {{ selected_exam.name }}</h6>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-bordered" width="100%" cellspacing="0">
-                            <thead>
-                                <tr>
-                                    <th>Student Name</th>
-                                    <th>Admission No</th>
-                                    <th>Gender</th>
-                                    <th>Score</th>
-                                    <th>Remarks</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for student in students %}
-                                <tr>
-                                    <td>{{ student.user.get_full_name }}</td>
-                                    <td>{{ student.admission_no }}</td>
-                                    <td>{{ student.gender }}</td>
-                                    <td>
-                                        {% with grade=student_grades.student.id %}
-                                            {{ grade.score|default:"-" }}
-                                        {% endwith %}
-                                    </td>
-                                    <td>
-                                        {% with grade=student_grades.student.id %}
-                                            {{ grade.remarks|default:"-" }}
-                                        {% endwith %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Exams List -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Exams</h6>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-bordered" width="100%" cellspacing="0">
-                            <thead>
-                                <tr>
-                                    <th>Exam Name</th>
-                                    <th>Date</th>
-                                    <th>Term</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for exam in exams %}
-                                <tr>
-                                    <td>{{ exam.name }}</td>
-                                    <td>{{ exam.date }}</td>
-                                    <td>{{ exam.term }}</td>
-                                    <td>
-                                        <a href="?exam_id={{ exam.id }}" class="btn btn-sm btn-primary">View Grades</a>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
+            </form>
         </div>
     </div>
 </div>

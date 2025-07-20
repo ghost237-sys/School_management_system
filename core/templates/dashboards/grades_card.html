@@ -1,0 +1,41 @@
+{% if selected_exam and show_results_card %}
+<div class="card shadow mb-4 mt-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Grades for {{ selected_exam.name }}</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>Student Name</th>
+                        <th>Admission No</th>
+                        <th>Gender</th>
+                        <th>Score</th>
+                        <th>Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td>{{ student.user.get_full_name }}</td>
+                        <td>{{ student.admission_no }}</td>
+                        <td>{{ student.gender }}</td>
+                        <td>
+                            {% with grade=student_grades|get_item:student.id %}
+                                {{ grade.score|default:"-" }}
+                            {% endwith %}
+                        </td>
+                        <td>
+                            {% with grade=student_grades|get_item:student.id %}
+                                {{ grade.remarks|default:"-" }}
+                            {% endwith %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}

@@ -203,6 +203,24 @@ class FeeCategoryForm(forms.ModelForm):
         model = FeeCategory
         fields = ['name', 'description']
 
+class GradeUploadForm(forms.Form):
+    exam = forms.ModelChoiceField(queryset=Exam.objects.all(), widget=forms.Select(attrs={'class': 'form-control'}))
+    subject = forms.ModelChoiceField(queryset=Subject.objects.all(), widget=forms.Select(attrs={'class': 'form-control'}))
+    class_group = forms.ModelChoiceField(queryset=Class.objects.all(), widget=forms.Select(attrs={'class': 'form-control'}))
+    file = forms.FileField(widget=forms.ClearableFileInput(attrs={'class': 'form-control'}))
+
+    def __init__(self, *args, **kwargs):
+        teacher = kwargs.pop('teacher', None)
+        super().__init__(*args, **kwargs)
+
+        self.fields['exam'].queryset = Exam.objects.all()
+
+        if teacher:
+            assigned_classes = Class.objects.filter(teacherclassassignment__teacher=teacher).distinct()
+            assigned_subjects = Subject.objects.filter(teacherclassassignment__teacher=teacher).distinct()
+            self.fields['class_group'].queryset = assigned_classes
+            self.fields['subject'].queryset = assigned_subjects
+
 class FeeAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
