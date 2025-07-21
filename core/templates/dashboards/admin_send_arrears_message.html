@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5" style="background: linear-gradient(135deg, #e3f0ff 0%, #f5f7fa 100%); min-height: 100vh;">
+  <div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+      <div class="card shadow-lg border-0" style="border-radius: 2rem; background: linear-gradient(135deg, #fff 80%, #e3f0ff 100%);">
+        <div class="card-body p-5">
+          <div class="text-center mb-1">
+            <span style="font-size:2.5rem; color: #1976d2;">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+            </span>
+          </div>
+          <h2 class="mb-1 text-center" style="color:#1976d2; font-weight:700;">Send Fee Arrears Notice</h2>
+          <p class="mb-4 text-center text-secondary" style="font-size:1.1rem;">Notify parents/guardians whose children have outstanding fees.</p>
+          <form method="post" autocomplete="off">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label">Recipients (Parents with Arrears)</label>
+              <select name="recipients" class="form-select" multiple size="8" required>
+                {% for student in arrears_students %}
+                  <option value="{{ student.id }}">
+                    {{ student.user.get_full_name|default:student.user.username }} ({{ student.class_group.name }}) - Ksh. {{ student.balance|floatformat:2 }}
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Hold Ctrl (Windows) or Cmd (Mac) to select multiple parents.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Subject</label>
+              <input type="text" class="form-control form-control-lg" name="subject" placeholder="e.g. Outstanding Fees Notification" value="Fee Payment Arrears Notification">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Message</label>
+              <div class="input-group">
+                <textarea id="messageBox" class="form-control form-control-lg" name="message" rows="5" placeholder="Compose your message here...">Dear Parent/Guardian,\n\nOur records indicate that there are outstanding fee balances for your child. Kindly clear the arrears of Ksh. {{ student.balance|floatformat:2 }} at your earliest convenience.\n\nThank you.\nSchool Administration</textarea>
+                <button type="button" id="regenerateMsgBtn" class="btn btn-outline-secondary" title="Regenerate message format">
+                  <i class="bi bi-arrow-repeat"></i> Regenerate
+                </button>
+              </div>
+              <div class="form-text">You can use {{ student.user.get_full_name }}, {{ student.class_group.name }}, and {{ student.balance }} as placeholders.</div>
+            </div>
+            <script>
+            document.getElementById('regenerateMsgBtn').onclick = function() {
+              const recipients = document.querySelector('select[name="recipients"]');
+              const selected = recipients && recipients.selectedOptions.length > 0 ? recipients.selectedOptions[0].textContent : null;
+              if (!selected) {
+                alert('Please select at least one parent/student to generate a message.');
+                return;
+              }
+              // Simulate varied message generation (client-side only; for real randomness, use backend)
+              // Try to extract the student name from the option text (handles cases like 'John Doe (Grade 6 West) - Ksh. 2000.00')
+              const nameMatch = selected.match(/^(.+?) \(/);
+              const studentName = nameMatch ? nameMatch[1].trim() : 'Student';
+              const classMatch = selected.match(/\((.*?)\)/);
+              const balanceMatch = selected.match(/Ksh. ([\d,.]+)/);
+              const className = classMatch ? classMatch[1] : '';
+              const balance = balanceMatch ? balanceMatch[1] : '';
+              const greetings = [
+                `Dear ${studentName},`,
+                'Dear Parent/Guardian,',
+                `Greetings ${studentName},`,
+                'Good day, Parent/Guardian,',
+              ];
+              const nameBlock = `Student Name: ${studentName}\nClass: ${className}`;
+              const bodies = [
+                `We wish to inform you that your child currently has an outstanding fee balance of Ksh. ${balance}.`,
+                `Our records indicate an outstanding balance of Ksh. ${balance} for your child.`,
+                `This is a polite reminder that there remains a fee balance of Ksh. ${balance} for your child.`,
+                `Kindly note that the fee arrears for your child amount to Ksh. ${balance}.`,
+              ];
+              const closings = [
+                'We kindly request that you clear this balance at your earliest convenience.',
+                'Please make arrangements to settle the outstanding amount as soon as possible.',
+                'Your prompt attention to this matter is appreciated.',
+                'Thank you for your cooperation.',
+              ];
+              const signatures = [
+                '\n\nBest regards,\nSchool Administration',
+                '\n\nSincerely,\nSchool Accounts Office',
+                '\n\nThank you,\nSchool Management',
+                '\n\nSchool Administration',
+              ];
+              function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+              const msg = `${pick(greetings)}\n\n${nameBlock}\n\n${pick(bodies)}\n${pick(closings)}${pick(signatures)}`;
+              document.getElementById('messageBox').value = msg;
+            };
+            </script>
+            <div class="mb-4 d-flex gap-4 align-items-center">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="send_email" id="send_email" checked>
+                <label class="form-check-label" for="send_email" style="margin-left: 0.5em;">Send email</label>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="send_sms" id="send_sms">
+                <label class="form-check-label" for="send_sms" style="margin-left: 0.5em;">Send SMS</label>
+              </div>
+            </div>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary btn-lg">Send Notice</button>
+            </div>
+          </form>
+          {% if messages %}
+            <ul class="mt-3">
+              {% for message in messages %}
+                <li class="alert alert-info">{{ message }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

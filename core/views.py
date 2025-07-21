@@ -7,12 +7,13 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import logout
 from django.contrib import messages
-from .models import User, FeeCategory, FeeAssignment, FeePayment, Student, Class, Term
+from .models import User, FeeCategory, FeeAssignment, FeePayment, Student, Class, Term, Event
 from django.db.models import Q
 
 
 from django.utils import timezone
 from datetime import datetime, time
+
 from .models import Event
 
 def create_event(title, date, end_date=None, all_day=True):
@@ -404,8 +405,25 @@ def admin_fees(request):
                 return redirect('admin_fees')
         elif 'assign-fee_category' in request.POST:  # FeeAssignmentForm
             if assign_form.is_valid():
-                assign_form.save()
-                messages.success(request, 'Fee assigned to class/term.')
+                fee_category = assign_form.cleaned_data['fee_category']
+                classes = assign_form.cleaned_data['class_group']
+                term = assign_form.cleaned_data['term']
+                amount = assign_form.cleaned_data['amount']
+                created_count = 0
+                # Only use the custom loop for multi-class assignment
+                for class_obj in classes:
+                    if not FeeAssignment.objects.filter(fee_category=fee_category, class_group=class_obj, term=term).exists():
+                        FeeAssignment.objects.create(
+                            fee_category=fee_category,
+                            class_group=class_obj,
+                            term=term,
+                            amount=amount
+                        )
+                        created_count += 1
+                if created_count:
+                    messages.success(request, f'Fee assigned to {created_count} class(es) for the selected term.')
+                else:
+                    messages.warning(request, 'No new fee assignments were created (possible duplicates).')
                 return redirect('admin_fees')
 
     # Fees overview
@@ -836,7 +854,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 @login_required(login_url='login')
 def events_json(request):
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'teacher']:
         return JsonResponse({'error': 'Unauthorized'}, status=403)
     events = Event.objects.all()
     data = [{
@@ -1201,8 +1219,11 @@ def teacher_dashboard(request, teacher_id):
     # Remove legacy/duplicate class_details/extra_classes logic (all cards come from class_cards now)
 
 
-    # Placeholder for upcoming deadlines
-    upcoming_deadlines = []
+    # Fetch all upcoming events created by the admin as deadlines
+    from .models import Event
+    from django.utils import timezone
+    now = timezone.now()
+    upcoming_deadlines = list(Event.objects.filter(start__gte=now).order_by('start'))
 
     context = {
         'teacher': teacher,
@@ -2166,8 +2187,58 @@ def admin_exams(request):
     # Handle exam creation POST
     if request.method == 'POST' and 'add_exam' in request.POST:
         if exam_form.is_valid():
-            exam_form.save()
-            messages.success(request, 'Exam created successfully!')
+            new_exam = exam_form.save()
+            # Notification logic
+            from .event_utils import send_exam_notification_email, send_exam_notification_sms
+            from .models import TeacherClassAssignment, User
+
+            # 1. Class Teachers
+            class_teachers = set()
+            if new_exam.level:
+                classes = Class.objects.filter(level=new_exam.level)
+                for c in classes:
+                    if c.class_teacher and c.class_teacher.user.email:
+                        class_teachers.add((c.class_teacher.user.email, c.class_teacher.phone))
+
+            # 2. Subject Teachers
+            subject_teachers = set()
+            assignments = TeacherClassAssignment.objects.filter(class_group__level=new_exam.level)
+            for assign in assignments:
+                if assign.teacher.user.email:
+                    subject_teachers.add((assign.teacher.user.email, assign.teacher.phone))
+
+            # 3. Admins
+            admins = User.objects.filter(role='admin')
+            admin_contacts = [(a.email, getattr(a, 'phone', None)) for a in admins if a.email]
+
+            # 4. Parents (using student user email/phone)
+            students = Student.objects.filter(class_group__level=new_exam.level)
+            parent_contacts = set()
+            for s in students:
+                if s.user and s.user.email:
+                    parent_contacts.add((s.user.email, s.phone))
+
+            # Compose message
+            subject = f"Exam Scheduled: {new_exam.name}"
+            message = f"An exam ({new_exam.name}) has been scheduled for level {new_exam.level} on {new_exam.date}. Please check the portal for details."
+
+            # Gather all emails and phone numbers
+            all_emails = set()
+            all_phones = set()
+            for group in [class_teachers, subject_teachers, admin_contacts, parent_contacts]:
+                for email, phone in group:
+                    if email:
+                        all_emails.add(email)
+                    if phone:
+                        all_phones.add(phone)
+
+            # Send notifications
+            if all_emails:
+                send_exam_notification_email(list(all_emails), subject, message)
+            if all_phones:
+                send_exam_notification_sms(list(all_phones), message)
+
+            messages.success(request, 'Exam created successfully! Notifications sent.')
             exam_form = ExamForm()  # Reset form
         else:
             messages.error(request, 'Please correct the errors below.')

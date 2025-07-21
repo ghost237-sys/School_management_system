@@ -203,16 +203,23 @@ class FeeCategoryForm(forms.ModelForm):
         model = FeeCategory
         fields = ['name', 'description']
 
-class FeeAssignmentForm(forms.ModelForm):
+from .models import FeeCategory, Class, Term
+
+class FeeAssignmentForm(forms.Form):
+    fee_category = forms.ModelChoiceField(queryset=FeeCategory.objects.all(), label='Fee Category')
+    class_group = forms.ModelMultipleChoiceField(
+        queryset=Class.objects.all(),
+        widget=forms.SelectMultiple(attrs={'class': 'form-control'}),
+        label='Class(es)'
+    )
+    term = forms.ModelChoiceField(queryset=Term.objects.all(), label='Term')
+    amount = forms.DecimalField(max_digits=10, decimal_places=2, label='Amount')
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Ensure the term dropdown uses the __str__ method (term name & year)
-        self.fields['term'].queryset = self.fields['term'].queryset.select_related('academic_year')
+        self.fields['term'].queryset = Term.objects.select_related('academic_year').all()
         self.fields['term'].label_from_instance = lambda obj: str(obj)
 
-    class Meta:
-        model = FeeAssignment
-        fields = ['fee_category', 'class_group', 'term', 'amount']
 
 class FeePaymentForm(forms.ModelForm):
     class Meta:

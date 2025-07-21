@@ -1,8 +1,11 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
+from .views_admin_messaging import admin_send_message, admin_send_arrears_message
 
 urlpatterns = [
+    path('admin_send_message/', admin_send_message, name='admin_send_message'),
+    path('admin_send_arrears_message/', admin_send_arrears_message, name='admin_send_arrears_message'),
     path('admin_users/edit/<int:user_id>/', views.edit_user, name='edit_user'),
     path('admin_users/delete/<int:user_id>/', views.delete_user, name='delete_user'),
     path('admin_users/', views.admin_users, name='admin_users'),
