@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
-from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term
+from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term, Grade
 
 class ExamForm(forms.ModelForm):
     class Meta:
@@ -203,28 +203,64 @@ class FeeCategoryForm(forms.ModelForm):
         model = FeeCategory
         fields = ['name', 'description']
 
-from .models import FeeCategory, Class, Term
-
-class FeeAssignmentForm(forms.Form):
-    fee_category = forms.ModelChoiceField(queryset=FeeCategory.objects.all(), label='Fee Category')
-    class_group = forms.ModelMultipleChoiceField(
-        queryset=Class.objects.all(),
-        widget=forms.SelectMultiple(attrs={'class': 'form-control'}),
-        label='Class(es)'
-    )
-    term = forms.ModelChoiceField(queryset=Term.objects.all(), label='Term')
-    amount = forms.DecimalField(max_digits=10, decimal_places=2, label='Amount')
+class GradeUploadForm(forms.Form):
+    exam = forms.ModelChoiceField(queryset=Exam.objects.all(), widget=forms.Select(attrs={'class': 'form-control'}))
+    subject = forms.ModelChoiceField(queryset=Subject.objects.all(), widget=forms.Select(attrs={'class': 'form-control'}))
+    class_group = forms.ModelChoiceField(queryset=Class.objects.all(), widget=forms.Select(attrs={'class': 'form-control'}))
+    file = forms.FileField(widget=forms.ClearableFileInput(attrs={'class': 'form-control'}))
 
     def __init__(self, *args, **kwargs):
+        teacher = kwargs.pop('teacher', None)
         super().__init__(*args, **kwargs)
-        self.fields['term'].queryset = Term.objects.select_related('academic_year').all()
+
+        self.fields['exam'].queryset = Exam.objects.all()
+
+        if teacher:
+            assigned_classes = Class.objects.filter(teacherclassassignment__teacher=teacher).distinct()
+            assigned_subjects = Subject.objects.filter(teacherclassassignment__teacher=teacher).distinct()
+            self.fields['class_group'].queryset = assigned_classes
+            self.fields['subject'].queryset = assigned_subjects
+
+class FeeAssignmentForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ensure the term dropdown uses the __str__ method (term name & year)
+        self.fields['term'].queryset = self.fields['term'].queryset.select_related('academic_year')
         self.fields['term'].label_from_instance = lambda obj: str(obj)
 
+    class Meta:
+        model = FeeAssignment
+        fields = ['fee_category', 'class_group', 'term', 'amount']
 
 class FeePaymentForm(forms.ModelForm):
     class Meta:
         model = FeePayment
         fields = ['student', 'amount_paid', 'payment_method', 'reference']
+
+class GradeInputForm(forms.ModelForm):
+    admission_no = forms.CharField(disabled=True, required=False)
+    gender = forms.CharField(disabled=True, required=False)
+
+    class Meta:
+        model = Grade
+        fields = ['student', 'exam', 'subject', 'score', 'remarks']
+
+    def __init__(self, *args, **kwargs):
+        student = kwargs.pop('student', None)
+        super().__init__(*args, **kwargs)
+        self.fields['student'].queryset = Student.objects.all()
+        
+        # Add student information fields
+        if student:
+            self.fields['admission_no'].initial = student.admission_no
+            self.fields['gender'].initial = student.gender
+            self.fields['student'].label_from_instance = lambda obj: f"{obj.user.get_full_name()} - {obj.admission_no} ({obj.gender})"
+        
+        # Style the form fields
+        for field_name, field in self.fields.items():
+            field.widget.attrs.update({'class': 'form-control'})
+            if field_name == 'score':
+                field.widget.attrs.update({'min': '0', 'max': '100', 'step': '0.1'})
 
 class AddTeacherForm(forms.ModelForm):
     def save_user(self):

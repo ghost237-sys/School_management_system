@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}Gradebook{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">Teacher Gradebook</h1>
+
+    <!-- Selection Form -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Select Class and Subject</h6>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{% url 'gradebook' teacher_id=teacher.id %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-md-5 mb-3">
+                        <label for="class_id" class="form-label">Class</label>
+                        <select name="class_id" id="class_id" class="form-select" required>
+                            <option value="">-- Select a Class --</option>
+                            {% for class in teacher_classes %}
+                                <option value="{{ class.id }}" {% if selected_class.id == class.id %}selected{% endif %}>{{ class.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-5 mb-3">
+                        <label for="subject_id" class="form-label">Subject</label>
+                        <select name="subject_id" id="subject_id" class="form-select" required>
+                            <option value="">-- Select a Subject --</option>
+                            {% for subject in teacher_subjects %}
+                                <option value="{{ subject.id }}" {% if selected_subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end mb-3">
+                        <button type="submit" class="btn btn-primary w-100">View Gradebook</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Gradebook Display -->
+    {% if selected_class and selected_subject %}
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Grade Report for {{ selected_class.name }} - {{ selected_subject.name }}</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Student Name</th>
+                            {% for exam in exams %}
+                                <th class="text-center">{{ exam.name }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in students_grades %}
+                        <tr>
+                            <td>{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
+                            {% for grade in item.grades %}
+                                <td class="text-center">{{ grade.score|default:'N/A' }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{{ exams|length|add:1 }}" class="text-center">No students or grades found for this selection.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

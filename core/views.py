@@ -1,1159 +1,142 @@
-from django.shortcuts import render, redirect
-from django.contrib.auth import login , authenticate
-from .forms import CustomUserCreationForm, AddStudentForm, EditStudentClassForm, FeeCategoryForm, FeeAssignmentForm
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import login, authenticate, logout, get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth import logout
-from django.contrib import messages
-from .models import User, FeeCategory, FeeAssignment, FeePayment, Student, Class, Term, Event
-from django.db.models import Q
-
-
+from django.db.models import Q, Sum, Avg
+from django.urls import reverse
+from django.http import JsonResponse, HttpResponseRedirect, HttpResponseForbidden
+from django.template.loader import render_to_string
 from django.utils import timezone
-from datetime import datetime, time
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_protect, csrf_exempt
+from django.utils.dateparse import parse_datetime
+from django.db import transaction
 
-from .models import Event
+import datetime
+import openpyxl
+import json
+import pandas as pd
 
-def create_event(title, date, end_date=None, all_day=True):
-    """
-    Create and store an event in the database.
-    - title: Event title
-    - date: date or datetime (for start)
-    - end_date: date or datetime (optional)
-    - all_day: bool
-    """
-    # Ensure start is timezone-aware datetime
-    if isinstance(date, datetime):
-        start_dt = timezone.make_aware(date) if timezone.is_naive(date) else date
-    else:
-        # If a date, combine with midnight
-        start_dt = timezone.make_aware(datetime.combine(date, time.min))
-    end_dt = None
-    if end_date:
-        if isinstance(end_date, datetime):
-            end_dt = timezone.make_aware(end_date) if timezone.is_naive(end_date) else end_date
-        else:
-            end_dt = timezone.make_aware(datetime.combine(end_date, time.max))
-    return Event.objects.create(title=title, start=start_dt, end=end_dt, all_day=all_day)
-
-from .forms import EventForm
-from django.http import JsonResponse
-
-@login_required(login_url='login')
-def exam_events_api(request):
-    from .models import Exam
-    events = []
-    for exam in Exam.objects.all():
-        events.append({
-            'id': exam.id,
-            'title': exam.name,
-            'start': str(exam.date),
-            'type': getattr(exam, 'type', ''),
-            'level': getattr(exam, 'level', ''),
-            'room': getattr(exam, 'room', ''),
-        })
-    return JsonResponse(events, safe=False)
-
-
-@login_required(login_url='login')
-def admin_events(request):
-    """Admin Events Management Page: add, edit, delete events."""
-    from django.contrib import messages
-    filter_type = request.GET.get('filter', 'all')
-    now = timezone.now()
-    all_events = Event.objects.order_by('-start')
-    if filter_type == 'upcoming':
-        filtered_events = all_events.filter(start__gte=now)
-    elif filter_type == 'done':
-        filtered_events = all_events.filter(is_done=True)
-    elif filter_type == 'undone':
-        filtered_events = all_events.filter(((Q(end__lt=now) | (Q(end__isnull=True) & Q(start__lt=now))) & Q(is_done=False)))
-    else:
-        filtered_events = all_events
-    event_id = request.GET.get('edit')
-    delete_id = request.GET.get('delete')
-    form = None
-    edit_event = None
-
-    # Delete event
-    if delete_id:
-        try:
-            event = Event.objects.get(id=delete_id)
-            event.delete()
-            messages.success(request, 'Event deleted successfully.')
-            return redirect('admin_events')
-        except Event.DoesNotExist:
-            messages.error(request, 'Event not found.')
-            return redirect('admin_events')
-
-    # Edit event
-    if event_id:
-        try:
-            edit_event = Event.objects.get(id=event_id)
-        except Event.DoesNotExist:
-            messages.error(request, 'Event not found.')
-            return redirect('admin_events')
-        form = EventForm(request.POST or None, instance=edit_event)
-    else:
-        form = EventForm(request.POST or None)
-
-    # Mark event as done with comment
-    if request.method == 'POST' and 'mark_done_event_id' in request.POST:
-        try:
-            event = Event.objects.get(id=request.POST['mark_done_event_id'])
-            event.is_done = 'is_done' in request.POST
-            event.comment = request.POST.get('comment', '')
-            event.save()
-            messages.success(request, 'Event status updated.')
-            return redirect('admin_events')
-        except Event.DoesNotExist:
-            messages.error(request, 'Event not found.')
-            return redirect('admin_events')
-
-    # Add or update event
-    if request.method == 'POST' and 'mark_done_event_id' not in request.POST:
-        if form.is_valid():
-            form.save()
-            if edit_event:
-                messages.success(request, 'Event updated successfully!')
-            else:
-                messages.success(request, 'Event created successfully!')
-            return redirect('admin_events')
-        else:
-            messages.error(request, 'Please correct the errors below.')
-
-    # Determine which events have passed and are not done
-    now = timezone.now()
-    past_events = [e for e in all_events if ((e.end and e.end < now) or (not e.end and e.start < now)) and not e.is_done]
-
-    return render(request, 'dashboards/admin_events.html', {
-        'form': form,
-        'all_events': all_events,
-        'filtered_events': filtered_events,
-        'edit_event': edit_event,
-        'past_events': past_events,
-        'filter_type': filter_type,
-    })
-
-class CustomUserCreationForm(UserCreationForm):
-    class Meta:
-        model = get_user_model()
-        fields = ('username', 'email')
-
-
-# def register_view(request):
-#     # Disabled: Only admin can create users
-#     return redirect('login')
-
-
+from .models import (
+    User, Student, Teacher, Class, Subject, Exam, Term, Grade, 
+    FeeCategory, FeeAssignment, FeePayment, Event, Deadline, 
+    TeacherClassAssignment, Department, AcademicYear
+)
+from .forms import (
+    AddStudentForm, StudentContactUpdateForm, EditStudentClassForm, FeeCategoryForm,
+    FeeAssignmentForm, FeePaymentForm, GradeInputForm, ExamForm,
+    EventForm, AddTeacherForm, AddSubjectForm, AddClassForm, EditTermDatesForm,
+    GradeUploadForm, CustomUserCreationForm
+)
 
 @login_required(login_url='login')
 def dashboard(request):
-    # Redirect admin to overview, others to their dashboards
-    if request.user.role == 'admin':
-        from .models import Event
-        events = Event.objects.order_by('start')
-        from django.urls import reverse
-        # You may want to aggregate other dashboard data as before, but now add 'events' to context
-        return render(request, 'dashboards/admin_dashboard.html', {'events': events})
-    elif request.user.role == 'teacher':
-        return redirect('teacher_dashboard', teacher_id=request.user.teacher.id)
-    elif request.user.role == 'student':
-        return redirect('student_dashboard')
+    user = request.user
+    if user.role == 'admin':
+        return redirect('admin_overview')
+    elif user.role == 'teacher':
+        teacher = get_object_or_404(Teacher, user=user)
+        return redirect('teacher_dashboard', teacher_id=teacher.id)
+    elif user.role == 'student':
+        return redirect('student_profile')
     else:
-        from django.contrib import messages
-        messages.error(request, 'Unknown user role. Please contact admin.')
+        messages.error(request, "Invalid user role.")
         return redirect('login')
 
-# Student/Parent Fee Dashboard View
-from django.db.models import Sum
-from .models import FeeAssignment, FeePayment, Term, Student
-from django.shortcuts import get_object_or_404
 
 @login_required(login_url='login')
-def admin_payment(request):
-    if request.user.role != 'admin':
-        return redirect('dashboard')
-    students = Student.objects.select_related('user').all()
-    if request.method == 'POST':
-        print('[DEBUG] POST received in admin_payment view')
-        student_id = request.POST.get('student_id')
-        amount_paid = request.POST.get('amount_paid')
-        payment_method = request.POST.get('payment_method')
-        reference = request.POST.get('reference')
-        phone_number = request.POST.get('phone_number')
-        print(f'[DEBUG] student_id={student_id}, amount_paid={amount_paid}, payment_method={payment_method}, reference={reference}, phone_number={phone_number}')
-        student = get_object_or_404(Student, id=student_id)
-        print(f'[DEBUG] student={student}')
-        # Get current term
-        current_term = Term.objects.order_by('-start_date').first()
-        print(f'[DEBUG] current_term={current_term}')
-        # Get all fee assignments for this student (across all terms)
-        fee_assignments = []
-        if student.class_group:
-            assignments = FeeAssignment.objects.filter(class_group=student.class_group).order_by('term__start_date', 'id')
-            print(f'[DEBUG] assignments queryset: {assignments}')
-            for assignment in assignments:
-                paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
-                fee_assignments.append({
-                    'id': assignment.id,
-                    'fee_category': assignment.fee_category,
-                    'amount': assignment.amount,
-                    'paid': paid,
-                    'outstanding': max(assignment.amount - paid, 0),
-                })
-        print(f'[DEBUG] fee_assignments={fee_assignments}')
-        # Distribute payment across all outstanding assignments (all terms, oldest first)
-        if amount_paid:
-            from django.db import transaction
-            try:
-                amount_paid = float(amount_paid)
-            except (TypeError, ValueError):
-                messages.error(request, 'Please enter a valid amount to pay.')
-                return redirect('admin_payment')
-            if amount_paid <= 0:
-                messages.error(request, 'Please enter a valid amount to pay.')
-                return redirect('admin_payment')
-            remaining = amount_paid
-            any_payment = False
-            try:
-                with transaction.atomic():
-                    # Gather and sort all assignments for the class, all terms, oldest first
-                    assignments = FeeAssignment.objects.filter(class_group=student.class_group).order_by('term__start_date', 'id')
-                    for assignment in assignments:
-                        paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
-                        outstanding = float(assignment.amount - paid)
-                        if outstanding <= 0:
-                            continue
-                        pay = min(remaining, outstanding)
-                        if pay > 0:
-                            FeePayment.objects.create(
-                                student=student,
-                                fee_assignment=assignment,
-                                amount_paid=pay,
-                                payment_method=payment_method,
-                                reference=reference,
-                                phone_number=phone_number,
-                            )
-                            any_payment = True
-                            remaining -= pay
-                        if remaining <= 0:
-                            break
-                    if any_payment:
-                        messages.success(request, 'Payment recorded successfully!')
-                    else:
-                        messages.error(request, 'No outstanding fee assignments to record payment.')
-            except Exception as e:
-                messages.error(request, f'Failed to record payment: {e}')
-            return redirect('admin_payment')
-    # Find current term for context (same logic as in student_fees)
-    import datetime
-    today = datetime.date.today()
-    current_term = None
-    all_years = AcademicYear.objects.prefetch_related('terms').all().order_by('-year')
-    for year in all_years:
-        terms = year.terms.all()
-        for term in terms:
-            if term.start_date and term.end_date:
-                if term.start_date <= today <= term.end_date:
-                    current_term = term
-                    break
-        if current_term:
-            break
-    if not current_term:
-        current_term = Term.objects.order_by('-start_date').first()
-    context = {
-        'students': students,
-        'current_term': current_term,
-    }
-    return render(request, 'dashboards/admin_payment.html', context)
-
-
-@login_required(login_url='login')
-def student_fees(request):
-    # Get the logged-in user's student profile
+def student_profile(request):
     student = get_object_or_404(Student, user=request.user)
-    import datetime
-    today = datetime.date.today()
-    # Only show years with at least one term whose end_date is today or in the future
-    all_years = AcademicYear.objects.prefetch_related('terms').all().order_by('-year')
-    academic_years = []
-    for year in all_years:
-        terms = year.terms.all()
-        if any(term.end_date and term.end_date >= today for term in terms):
-            academic_years.append(year)
-    # Find the current term based on today's date
-    current_term = None
-    for year in academic_years:
-        terms = sorted(year.terms.all(), key=lambda t: t.start_date or datetime.date.min)
-        for term in terms:
-            if term.start_date and term.end_date:
-                if term.start_date <= today <= term.end_date:
-                    current_term = term
-                    break
-        if current_term:
-            break
-    # If no current term found, fallback to latest by start date
-    if not current_term:
-        current_term = Term.objects.order_by('-start_date').first()
-    fee_assignments = []
-    if student.class_group and current_term:
-        assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term)
-        for assignment in assignments:
-            paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
-            fee_assignments.append({
-                'id': assignment.id,
-                'fee_category': assignment.fee_category,
-                'amount': assignment.amount,
-                'paid': paid,
-                'outstanding': max(assignment.amount - paid, 0),
-            })
-    # Payment history
-    fee_payments = FeePayment.objects.filter(student=student).order_by('-payment_date')
-    # Handle payment submission
-    if request.method == 'POST':
-        print("[DEBUG] POST received in student_fees view")
-        amount_paid = request.POST.get('amount_paid')
-        payment_method = request.POST.get('payment_method')
-        reference = request.POST.get('reference')
-        import logging
-        from django.db import transaction
-        logger = logging.getLogger(__name__)
-        try:
-            print(f"[DEBUG] amount_paid={amount_paid}, payment_method={payment_method}, reference={reference}")
-            print(f"[DEBUG] student={student}")
-            print(f"[DEBUG] current_term={current_term}")
-            print(f"[DEBUG] fee_assignments={fee_assignments}")
-            if not amount_paid or float(amount_paid) <= 0:
-                print("[DEBUG] Invalid amount submitted")
-                messages.error(request, 'Please enter a valid amount to pay.')
-                return redirect('student_fees')
-            # Distribute payment across all outstanding assignments (oldest first)
-            with transaction.atomic():
-                remaining = float(amount_paid)
-                any_payment = False
-                # Gather and sort assignments by term and category (oldest first)
-                assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term).order_by('id')
-                print(f"[DEBUG] assignments queryset: {assignments}")
-                for assignment in assignments:
-                    print(f"[DEBUG] assignment: {assignment}")
-                    paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
-                    outstanding = float(assignment.amount - paid)
-                    print(f"[DEBUG] paid={paid}, outstanding={outstanding}")
-                    if outstanding <= 0:
-                        continue
-                    pay = min(remaining, outstanding)
-                    print(f"[DEBUG] pay={pay}, remaining before={remaining}")
-                    if pay > 0:
-                        FeePayment.objects.create(
-                            student=student,
-                            fee_assignment=assignment,
-                            amount_paid=pay,
-                            payment_method=payment_method,
-                            reference=reference
-                        )
-                        print(f"[DEBUG] Created FeePayment for assignment {assignment.id} amount={pay}")
-                        any_payment = True
-                        remaining -= pay
-                        print(f"[DEBUG] remaining after={remaining}")
-                    if remaining <= 0:
-                        break
-                if any_payment:
-                    print("[DEBUG] Payment distributed and recorded successfully!")
-                    messages.success(request, 'Payment recorded successfully!')
-                else:
-                    print("[DEBUG] No outstanding fee assignments to record payment.")
-                    messages.error(request, 'No outstanding fee assignments found to record payment. Please contact admin.')
-            # If nothing was created and no errors, show a generic error
-            if not any_payment:
-                print("[DEBUG] No payment was made. Showing generic error.")
-                messages.error(request, 'Payment could not be processed. Please check your fee assignments or contact admin.')
-        except Exception as e:
-            print(f"[DEBUG] Exception occurred: {e}")
-            logger.error(f"Payment error: {e}")
-            messages.error(request, f'An error occurred while processing your payment: {e}')
-        return redirect('student_fees')
-    total_outstanding = sum(a['outstanding'] for a in fee_assignments)
-    context = {
-        'fee_assignments': fee_assignments,
-        'fee_payments': fee_payments,
-        'current_term': current_term,
-        'total_outstanding': total_outstanding,
-        'academic_years': academic_years,
-    }
-    return render(request, 'dashboards/student_fees.html', context)
-
-
-# Admin Fees Management View
-@login_required(login_url='login')
-def admin_fees(request):
-    if request.user.role != 'admin':
-        return redirect('dashboard')
-
-    # Forms for fee category and assignment
-    fee_form = FeeCategoryForm(request.POST or None, prefix='fee')
-    assign_form = FeeAssignmentForm(request.POST or None, prefix='assign')
-
-    # Handle form submissions
-    if request.method == 'POST':
-        if 'fee-name' in request.POST:  # FeeCategoryForm
-            if fee_form.is_valid():
-                fee_form.save()
-                messages.success(request, 'Fee category saved.')
-                return redirect('admin_fees')
-        elif 'assign-fee_category' in request.POST:  # FeeAssignmentForm
-            if assign_form.is_valid():
-                fee_category = assign_form.cleaned_data['fee_category']
-                classes = assign_form.cleaned_data['class_group']
-                term = assign_form.cleaned_data['term']
-                amount = assign_form.cleaned_data['amount']
-                created_count = 0
-                # Only use the custom loop for multi-class assignment
-                for class_obj in classes:
-                    if not FeeAssignment.objects.filter(fee_category=fee_category, class_group=class_obj, term=term).exists():
-                        FeeAssignment.objects.create(
-                            fee_category=fee_category,
-                            class_group=class_obj,
-                            term=term,
-                            amount=amount
-                        )
-                        created_count += 1
-                if created_count:
-                    messages.success(request, f'Fee assigned to {created_count} class(es) for the selected term.')
-                else:
-                    messages.warning(request, 'No new fee assignments were created (possible duplicates).')
-                return redirect('admin_fees')
-
-    # Fees overview
-    # Get current term (by date range)
-    today = timezone.now().date()
-    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('-start_date').first()
-    if not current_term:
-        current_term = Term.objects.filter(start_date__lte=today, end_date__isnull=True).order_by('-start_date').first()
-    if not current_term:
-        current_term = Term.objects.order_by('-start_date').first()
-    fees = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term').filter(term=current_term)
-    # Student assignments overview (current term only)
-    assignments = []
-    student_totals = {}
-    student_category_totals = {}
-    # Find all terms up to and including the current term
-    terms_up_to_current = Term.objects.filter(start_date__lte=current_term.start_date)
-    all_fee_categories = FeeCategory.objects.all()
-    all_students = Student.objects.all()
-    for student in all_students:
-        # All assignments for this student/class up to the current term
-        assignments_for_student = FeeAssignment.objects.filter(class_group=student.class_group, term__in=terms_up_to_current)
-        student_totals[student.id] = sum(a.amount for a in assignments_for_student)
-        # Group totals by category
-        category_totals = {}
-        for cat in all_fee_categories:
-            cat_assignments = assignments_for_student.filter(fee_category=cat)
-            category_totals[cat.id] = sum(a.amount for a in cat_assignments)
-        student_category_totals[student.id] = category_totals
-    assignments = []
-    for assignment in FeeAssignment.objects.select_related('class_group', 'term', 'fee_category').filter(term=current_term):
-        classes_at_level = Class.objects.filter(level=assignment.class_group.level)
-        students = Student.objects.filter(class_group__in=classes_at_level)
-        for student in students:
-            paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
-            is_paid = paid >= assignment.amount
-            paid_on = FeePayment.objects.filter(student=student, fee_assignment=assignment).order_by('-payment_date').first()
-            balance = assignment.amount - paid
-            assignments.append({
-                'student': student,
-                'fee': assignment,
-                'is_paid': is_paid,
-                'paid_on': paid_on.payment_date if paid_on else None,
-                'paid': paid,
-                'balance': balance,
-            })
-
-    # Calculate total paid per student
-    student_paid = {}
-    for student in all_students:
-        # Sum all payments made by the student up to and including the current term
-        payments = FeePayment.objects.filter(student=student, fee_assignment__term__start_date__lte=current_term.start_date)
-        student_paid[student.id] = sum(p.amount_paid for p in payments)
-    # Calculate balance per student
-    student_balances = {sid: student_totals.get(sid, 0) - student_paid.get(sid, 0) for sid in student_totals}
-    # Class filter
-    all_classes = Class.objects.all()
-    selected_class_id = request.GET.get('class_group')
-    if selected_class_id:
-        filtered_students = all_students.filter(class_group_id=selected_class_id)
-    else:
-        filtered_students = all_students
-    # Sorting functionality
-    sort_order = request.GET.get('sort', 'largest')
-    students_with_balance = list(filtered_students)
-    students_with_balance.sort(key=lambda s: student_balances.get(s.id, 0), reverse=(sort_order == 'largest'))
-    # Prepare data for pie chart (fee category distribution)
-    category_data = []
-    category_labels = []
-    for cat in all_fee_categories:
-        total = sum(student_category_totals.get(s.id, {}).get(cat.id, 0) for s in students_with_balance)
-        if total > 0:  # Only include categories with data
-            category_data.append(total)
-            category_labels.append(cat.name)
-
-    # Prepare data for line graph (payments over time)
-    payments = FeePayment.objects.filter(
-        fee_assignment__term__start_date__lte=current_term.start_date
-    ).order_by('payment_date')
-    
-    # Group payments by month
-    payment_data = []
-    payment_labels = []
-    from collections import defaultdict
-    monthly_totals = defaultdict(float)
-    
-    for payment in payments:
-        month_key = payment.payment_date.strftime('%Y-%m')
-        monthly_totals[month_key] += float(payment.amount_paid)
-    
-    # Sort by date and prepare data
-    for month in sorted(monthly_totals.keys()):
-        payment_labels.append(month)
-        payment_data.append(monthly_totals[month])
-
-    context = {
-        'fee_form': fee_form,
-        'assign_form': assign_form,
-        'fees': fees,
-        'assignments': assignments,
-        'student_totals': student_totals,
-        'student_category_totals': student_category_totals,
-        'all_students': students_with_balance,
-        'all_fee_categories': all_fee_categories,
-        'student_balances': student_balances,
-        'student_paid': student_paid,
-        'all_classes': all_classes,
-        'selected_class_id': selected_class_id,
-        'sort_order': sort_order,
-        'current_term': current_term,
-        'category_data': category_data,
-        'category_labels': category_labels,
-        'payment_data': payment_data,
-        'payment_labels': payment_labels,
-    }
-    return render(request, 'dashboards/admin_fees.html', context)
-
-# Admin Overview View
-@login_required(login_url='login')
-def admin_overview(request):
-    if request.user.role != 'admin':
-        return redirect('dashboard')
-    from .models import Student, Grade, Subject, Class, Teacher, Exam, Attendance, AcademicYear, Term
-    from django.db.models import Avg, Q
-    import datetime
-
-    # Filters
-    selected_class_id = request.GET.get('class', '')
-    start_date = request.GET.get('start_date', '')
-    end_date = request.GET.get('end_date', '')
-    classes = Class.objects.all()
-    students_qs = Student.objects.all()
-    grades_qs = Grade.objects.all()
-
-    # Filter by class
-    if selected_class_id:
-        students_qs = students_qs.filter(class_group_id=selected_class_id)
-        grades_qs = grades_qs.filter(student__class_group_id=selected_class_id)
-    # Filter by date range (filter grades by exam date)
-    if start_date:
-        try:
-            start_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
-            grades_qs = grades_qs.filter(exam__date__gte=start_dt)
-        except Exception:
-            pass
-    if end_date:
-        try:
-            end_dt = datetime.datetime.strptime(end_date, "%Y-%m-%d").date()
-            grades_qs = grades_qs.filter(exam__date__lte=end_dt)
-        except Exception:
-            pass
-
-    # Total students (after filter)
-    total_students = students_qs.count()
-
-    # Incomplete profiles
-    incomplete_profiles = Student.objects.filter(Q(user__first_name='') | Q(user__last_name='')).count()
-
-    # Overall average score (after filter)
-    average_score = grades_qs.aggregate(avg=Avg('score'))['avg'] or 0
-
-    # Attendance rate (set to N/A unless Attendance model is present)
-    attendance_rate = 'N/A'
-    # Uncomment and adjust below if you have an Attendance model:
-    # from .models import Attendance
-    # attendance_qs = Attendance.objects.all()
-    # if selected_class_id:
-    #     attendance_qs = attendance_qs.filter(student__class_group_id=selected_class_id)
-    # if start_date:
-    #     attendance_qs = attendance_qs.filter(date__gte=start_dt)
-    # if end_date:
-    #     attendance_qs = attendance_qs.filter(date__lte=end_dt)
-    # total_attendance = attendance_qs.count()
-    # present_count = attendance_qs.filter(status='present').count()
-    # attendance_rate = round((present_count / total_attendance) * 100, 2) if total_attendance else 'N/A'
-
-    # Subject averages (after filter)
-    subject_averages = (
-        grades_qs.values('subject__name')
-        .annotate(avg_score=Avg('score'))
-        .order_by('-avg_score')
-    )
-    # Prepare as list of dicts: subject, avg_score
-    subject_averages_list = [
-        {'subject': s['subject__name'], 'avg_score': s['avg_score']} for s in subject_averages if s['avg_score'] is not None
-    ]
-
-    # New summary stats
-    total_teachers = Teacher.objects.count()
-    total_classes = Class.objects.count()
-    total_subjects = Subject.objects.count()
-    # Current academic term/week (basic)
-    # --- Use same logic as admin_academic_years to determine current_term ---
-    import datetime
-    today = datetime.date.today()
-    all_years = AcademicYear.objects.prefetch_related('terms').all().order_by('-year')
-    academic_years = []
-    for year in all_years:
-        terms = year.terms.all()
-        if any(term.end_date and term.end_date >= today for term in terms):
-            academic_years.append(year)
-    current_term = None
-    current_year = None
-    for year in academic_years:
-        terms = sorted(year.terms.all(), key=lambda t: t.start_date or datetime.date.min)
-        for term in terms:
-            if term.start_date and term.end_date:
-                if term.start_date <= today <= term.end_date:
-                    current_term = term
-                    current_year = year
-                    break
-        if current_term:
-            break
-    # Fee summary (mock/sample)
-    fee_summary = {
-        'total_due': 1000000,
-        'total_paid': 750000,
-        'balance': 250000,
-        'collection_rate': 75,
-    }
-    # Upcoming events (real)
-    from .models import Event
-    from django.utils import timezone
-    now = timezone.now()
-    upcoming_events = Event.objects.filter(start__gte=now).order_by('start')
-
-    # Alerts & notifications (mock/sample)
-    alerts = [
-        {'type': 'danger', 'msg': 'Overdue fees for 12 students.'},
-        {'type': 'warning', 'msg': 'Low attendance in Class 3B.'},
-        {'type': 'info', 'msg': '2 teachers have not uploaded marks.'},
-        {'type': 'danger', 'msg': 'Conflicting teacher assignments detected.'},
-    ]
-    # Recent activity logs (mock/sample)
-    activity_logs = [
-        {'time': '08:30', 'desc': 'Teacher John logged in.'},
-        {'time': '08:35', 'desc': 'Marks uploaded for Class 2A.'},
-        {'time': '08:40', 'desc': 'New student Mary W. added.'},
-        {'time': '08:45', 'desc': 'Profile updated: Teacher Jane.'},
-    ]
-    # Quick actions (links)
-    quick_actions = [
-        {'label': 'Add Student', 'url': 'admin_students'},
-        {'label': 'Add Teacher', 'url': 'admin_teachers'},
-        {'label': 'Assign Subjects', 'url': 'admin_teachers'},
-        {'label': 'Upload Marks', 'url': 'admin_exams'},
-        {'label': 'Generate Reports', 'url': 'admin_analytics'},
-        {'label': 'Manage Timetable', 'url': '#'},
-    ]
-    context = {
-        'total_students': total_students,
-        'average_score': average_score,
-        'attendance_rate': attendance_rate,
-        'subject_averages': subject_averages_list,
-        'classes': classes,
-        'selected_class_id': int(selected_class_id) if selected_class_id else '',
-        'start_date': start_date,
-        'end_date': end_date,
-        'incomplete_profiles': incomplete_profiles,
-        'total_teachers': total_teachers,
-        'total_classes': total_classes,
-        'total_subjects': total_subjects,
-        'current_term': current_term,
-        'current_year': current_year,
-        'fee_summary': fee_summary,
-        'upcoming_events': upcoming_events,
-        'alerts': alerts,
-        'activity_logs': activity_logs,
-        'quick_actions': quick_actions,
-    }
-    return render(request, 'dashboards/admin_overview.html', context)
-
-
-from django.http import JsonResponse
-from django.template.loader import render_to_string
-from .forms import AddTeacherForm, AddStudentForm, AddClassForm, AddSubjectForm, EditTermDatesForm
-
-from django.shortcuts import get_object_or_404
-
-@login_required(login_url='login')
-def add_student_ajax(request):
-    if request.user.role != 'admin':
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    if request.method == 'POST':
-        form = AddStudentForm(request.POST)
-        if form.is_valid():
-            # Save user and student
-            user = form.save_user() if hasattr(form, 'save_user') else None
-            student = form.save(commit=False)
-            if user:
-                student.user = user
-            student.save()
-            return JsonResponse({'success': True})
-        else:
-            html = render_to_string('partials/add_student_form.html', {'form': form}, request=request)
-            return JsonResponse({'success': False, 'form_html': html})
-    else:
-        form = AddStudentForm()
-        html = render_to_string('partials/add_student_form.html', {'form': form}, request=request)
-        return JsonResponse({'form_html': html})
-
-@login_required(login_url='login')
-def add_teacher_ajax(request):
-    if request.user.role != 'admin':
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    if request.method == 'POST':
-        form = AddTeacherForm(request.POST)
-        if form.is_valid():
-            user = form.save_user() if hasattr(form, 'save_user') else None
-            teacher = form.save(commit=False)
-            if user:
-                teacher.user = user
-            teacher.save()
-            if hasattr(form, 'save_m2m'):
-                form.save_m2m()
-            return JsonResponse({'success': True})
-        else:
-            html = render_to_string('partials/add_teacher_form.html', {'form': form}, request=request)
-            return JsonResponse({'success': False, 'form_html': html})
-    else:
-        form = AddTeacherForm()
-        html = render_to_string('partials/add_teacher_form.html', {'form': form}, request=request)
-        return JsonResponse({'form_html': html})
-
-@login_required(login_url='login')
-def add_class_ajax(request):
-    if request.user.role != 'admin':
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    if request.method == 'POST':
-        form = AddClassForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return JsonResponse({'success': True})
-        else:
-            html = render_to_string('partials/add_class_form.html', {'form': form}, request=request)
-            return JsonResponse({'success': False, 'form_html': html})
-    else:
-        form = AddClassForm()
-        html = render_to_string('partials/add_class_form.html', {'form': form}, request=request)
-        return JsonResponse({'form_html': html})
-
-@login_required(login_url='login')
-def add_subject_ajax(request):
-    if request.user.role != 'admin':
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    if request.method == 'POST':
-        form = AddSubjectForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return JsonResponse({'success': True})
-        else:
-            html = render_to_string('partials/add_subject_form.html', {'form': form}, request=request)
-            return JsonResponse({'success': False, 'form_html': html})
-    else:
-        form = AddSubjectForm()
-        html = render_to_string('partials/add_subject_form.html', {'form': form}, request=request)
-        return JsonResponse({'form_html': html})
-
-# FullCalendar Event AJAX Views
-from .models import Event
-from django.views.decorators.http import require_POST
-from django.utils.dateparse import parse_datetime
-
-@login_required(login_url='login')
-def events_feed(request):
-    if request.user.role != 'admin':
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    events = Event.objects.all()
-    data = [
-        {
-            'id': e.id,
-            'title': e.title,
-            'start': e.start.isoformat(),
-            'end': e.end.isoformat() if e.end else None,
-            'allDay': e.all_day,
-        } for e in events
-    ]
-    return JsonResponse(data, safe=False)
-
-@login_required(login_url='login')
-@require_POST
-def event_create(request):
-    if request.user.role != 'admin':
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    title = request.POST.get('title', '').strip()
-    start = parse_datetime(request.POST.get('start', ''))
-    end = parse_datetime(request.POST.get('end', '')) if request.POST.get('end') else None
-    all_day = request.POST.get('allDay', 'false') == 'true'
-    if not title or not start:
-        return JsonResponse({'error': 'Title and start required.'}, status=400)
-    event = Event.objects.create(title=title, start=start, end=end, all_day=all_day)
-    return JsonResponse({'success': True, 'id': event.id})
-
-@login_required(login_url='login')
-@require_POST
-def event_update(request):
-    if request.user.role != 'admin':
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    event_id = request.POST.get('id')
-    try:
-        event = Event.objects.get(id=event_id)
-    except Event.DoesNotExist:
-        return JsonResponse({'error': 'Event not found.'}, status=404)
-    event.title = request.POST.get('title', event.title)
-    event.start = parse_datetime(request.POST.get('start', event.start.isoformat()))
-    event.end = parse_datetime(request.POST.get('end', '')) if request.POST.get('end') else None
-    event.all_day = request.POST.get('allDay', 'false') == 'true'
-    event.save()
-    return JsonResponse({'success': True})
-
-@login_required(login_url='login')
-@require_POST
-def event_delete(request):
-    if request.user.role != 'admin':
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    event_id = request.POST.get('id')
-    try:
-        event = Event.objects.get(id=event_id)
-        event.delete()
-    except Event.DoesNotExist:
-        return JsonResponse({'error': 'Event not found.'}, status=404)
-    return JsonResponse({'success': True})
-
-# FullCalendar AJAX Event Views
-from .models import Event
-from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
-
-@login_required(login_url='login')
-def events_json(request):
-    if request.user.role not in ['admin', 'teacher']:
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    events = Event.objects.all()
-    data = [{
-        'id': event.id,
-        'title': event.title,
-        'start': event.start.isoformat(),
-        'end': event.end.isoformat() if event.end else None,
-        'allDay': event.all_day,
-    } for event in events]
-    return JsonResponse(data, safe=False)
-
-@login_required(login_url='login')
-@require_POST
-@csrf_exempt
-def event_create(request):
-    if request.user.role != 'admin':
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    title = request.POST.get('title', '').strip()
-    start = request.POST.get('start')
-    end = request.POST.get('end')
-    all_day = request.POST.get('allDay') == 'true'
-    if not title or not start:
-        return JsonResponse({'error': 'Title and start required.'}, status=400)
-    event = Event.objects.create(title=title, start=start, end=end or None, all_day=all_day)
-    return JsonResponse({'success': True, 'id': event.id})
-
-@login_required(login_url='login')
-@require_POST
-@csrf_exempt
-def event_update(request):
-    if request.user.role != 'admin':
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    event_id = request.POST.get('id')
-    try:
-        event = Event.objects.get(id=event_id)
-    except Event.DoesNotExist:
-        return JsonResponse({'error': 'Event not found.'}, status=404)
-    event.title = request.POST.get('title', event.title)
-    event.start = request.POST.get('start', event.start)
-    event.end = request.POST.get('end', event.end)
-    event.all_day = request.POST.get('allDay') == 'true'
-    event.save()
-    return JsonResponse({'success': True})
-
-@login_required(login_url='login')
-@require_POST
-@csrf_exempt
-def event_delete(request):
-    if request.user.role != 'admin':
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    event_id = request.POST.get('id')
-    try:
-        event = Event.objects.get(id=event_id)
-        event.delete()
-    except Event.DoesNotExist:
-        return JsonResponse({'error': 'Event not found.'}, status=404)
-    return JsonResponse({'success': True})
-
-# Admin Teachers View
-
-@login_required(login_url='login')
-def admin_teachers(request):
-    if request.user.role != 'admin':
-        return redirect('dashboard')
-    from .models import Teacher, Department, Subject, User, Class
-    from django.db.models import Q
-    teachers = Teacher.objects.select_related('user', 'department').prefetch_related('subjects', 'teacherclassassignment_set__class_group').all()
-    departments = Department.objects.all()
-    subjects = Subject.objects.all()
-    classes = Class.objects.select_related('class_teacher').all()
-    form = AddTeacherForm()
-
-    # Handle Add Teacher POST
-    if request.method == 'POST' and 'add_teacher' in request.POST:
-        form = AddTeacherForm(request.POST)
-        if form.is_valid():
-            # Create User
-            user = User.objects.create_user(
-                username=form.cleaned_data['username'],
-                email=form.cleaned_data['email'],
-                password=form.cleaned_data['password'],
-                first_name=form.cleaned_data['first_name'],
-                last_name=form.cleaned_data['last_name'],
-                role='teacher',
-            )
-            # Create Teacher
-            teacher = Teacher.objects.create(
-                user=user,
-                tsc_number=form.cleaned_data['tsc_number'],
-                staff_id=form.cleaned_data['staff_id'],
-                phone=form.cleaned_data['phone'],
-                gender=form.cleaned_data['gender'],
-                department=form.cleaned_data['department'],
-            )
-            teacher.subjects.set(form.cleaned_data['subjects'])
-            teacher.save()
-            return redirect('admin_teachers')
-
-    # Filtering
-    search = request.GET.get('search', '').strip()
-    department_id = request.GET.get('department', '')
-    subject_id = request.GET.get('subject', '')
-    gender = request.GET.get('gender', '')
-
-    if search:
-        teachers = teachers.filter(
-            Q(user__first_name__icontains=search) |
-            Q(user__last_name__icontains=search) |
-            Q(user__username__icontains=search) |
-            Q(user__email__icontains=search) |
-            Q(phone__icontains=search) |
-            Q(tsc_number__icontains=search) |
-            Q(staff_id__icontains=search)
-        )
-    if department_id:
-        teachers = teachers.filter(department_id=department_id)
-    if subject_id:
-        teachers = teachers.filter(subjects__id=subject_id)
-    if gender:
-        teachers = teachers.filter(gender=gender)
-    teachers = teachers.distinct()
-
-    context = {
-        'teachers': teachers,
-        'departments': departments,
-        'subjects': subjects,
-        'add_teacher_form': form,
-    }
-    return render(request, 'dashboards/admin_teachers.html', context)
-
-
-@login_required(login_url='login')
-def edit_teacher(request, teacher_id):
-    if request.user.role != 'admin':
-        return redirect('dashboard')
-    from .models import Teacher, User
-    teacher = get_object_or_404(Teacher, id=teacher_id)
-    user = teacher.user
-    if request.method == 'POST':
-        form = AddTeacherForm(request.POST, instance=teacher)
-        if form.is_valid():
-            # Update user fields
-            user.username = form.cleaned_data['username']
-            user.email = form.cleaned_data['email']
-            user.first_name = form.cleaned_data['first_name']
-            user.last_name = form.cleaned_data['last_name']
-            if 'password' in form.cleaned_data and form.cleaned_data['password']:
-                user.set_password(form.cleaned_data['password'])
-            user.save()
-            # Update teacher fields
-            teacher.tsc_number = form.cleaned_data['tsc_number']
-            teacher.staff_id = form.cleaned_data['staff_id']
-            teacher.phone = form.cleaned_data['phone']
-            teacher.gender = form.cleaned_data['gender']
-            teacher.department = form.cleaned_data['department']
-            teacher.subjects.set(form.cleaned_data['subjects'])
-            teacher.save()
-
-            # Handle class_teacher_of assignments
-            from .models import Class
-            selected_classes = form.cleaned_data.get('class_teacher_of', [])
-            # Remove this teacher as class_teacher from classes not selected
-            Class.objects.filter(class_teacher=teacher).exclude(id__in=[c.id for c in selected_classes]).update(class_teacher=None)
-            # Assign this teacher as class_teacher for selected classes
-            for c in selected_classes:
-                c.class_teacher = teacher
-                c.save()
-
-            messages.success(request, 'Teacher updated successfully.')
-            return redirect('admin_teachers')
-    else:
-        form = AddTeacherForm(instance=teacher, initial={
-            'username': user.username,
-            'email': user.email,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-        })
-    return render(request, 'dashboards/edit_teacher.html', {'form': form, 'teacher': teacher})
-
-
-@login_required(login_url='login')
-def delete_teacher(request, teacher_id):
-    if request.user.role != 'admin':
-        return redirect('dashboard')
-    from .models import Teacher, User, Class
-    teacher = get_object_or_404(Teacher, id=teacher_id)
-    user = teacher.user
-    if request.method == 'POST':
-        # Unassign teacher from any classes where they are class_teacher
-        Class.objects.filter(class_teacher=teacher).update(class_teacher=None)
-        user.delete()
-        messages.success(request, 'Teacher deleted successfully.')
-        return redirect('admin_teachers')
-    return render(request, 'dashboards/delete_teacher.html', {'teacher': teacher})
-
-
-# Student Profile View
-@login_required(login_url='login')
-
-def student_profile(request, student_id):
-    from .models import Student, Class, Teacher
-    from django.shortcuts import get_object_or_404
-    from .forms import StudentContactUpdateForm
-    student = get_object_or_404(Student, id=student_id)
-    # Only allow admin, the student themselves, or their class teacher
-    is_admin = request.user.role == 'admin'
-    is_student = hasattr(request.user, 'student') and request.user.student.id == student.id
-    is_class_teacher = False
-    if student.class_group and hasattr(request.user, 'teacher'):
-        is_class_teacher = (student.class_group.class_teacher_id == request.user.teacher.id)
-    if not (is_admin or is_student or is_class_teacher):
-        from django.http import HttpResponseForbidden
-        return HttpResponseForbidden('You do not have permission to view this student profile.')
-
-    # Handle contact info update
-    contact_form = None
-    if request.method == 'POST' and 'update_contact' in request.POST and (is_admin or is_student):
-        contact_form = StudentContactUpdateForm(request.POST, instance=student, user_instance=student.user)
-        if contact_form.is_valid():
-            contact_form.save()
-            from django.contrib import messages
-            messages.success(request, "Contact information updated successfully.")
-            return redirect('student_profile', student_id=student.id)
-        else:
-            from django.contrib import messages
-            messages.error(request, "Please correct the errors below.")
-    else:
-        contact_form = StudentContactUpdateForm(instance=student, user_instance=student.user)
-
-    # Handle class change
-    if request.method == 'POST' and 'edit_class_group' in request.POST:
-        form = EditStudentClassForm(request.POST, instance=student)
-        if form.is_valid():
-            form.save()
-            from django.contrib import messages
-            messages.success(request, "Class updated successfully.")
-            return redirect('student_profile', student_id=student.id)
-    else:
-        form = EditStudentClassForm(instance=student)
-
-    # --- Fee status for this student ---
-    from .models import FeeAssignment, FeePayment, Term
-    from django.db.models import Sum
-    today = timezone.now().date()
-    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('-start_date').first()
-    if not current_term:
-        current_term = Term.objects.filter(start_date__lte=today, end_date__isnull=True).order_by('-start_date').first()
-    if not current_term:
-        current_term = Term.objects.order_by('-start_date').first()
-    fee_assignments = []
-    if student.class_group:
-        # Show all fee assignments for the student's class, regardless of term
-        assignments = FeeAssignment.objects.filter(class_group=student.class_group)
-        for assignment in assignments:
-            paid = FeePayment.objects.filter(student=student, fee_assignment=assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
-            fee_assignments.append({
-                'id': assignment.id,
-                'fee_category': assignment.fee_category,
-                'amount': assignment.amount,
-                'paid': paid,
-                'outstanding': max(assignment.amount - paid, 0),
-            })
-    fee_payments = FeePayment.objects.filter(student=student).order_by('-payment_date')
-    total_billed = sum(a['amount'] for a in fee_assignments)
-    total_paid = sum(a['paid'] for a in fee_assignments)
-    balance = total_billed - total_paid
     context = {
         'student': student,
-        'current_term': current_term,
-        'total_billed': total_billed,
-        'total_paid': total_paid,
-        'balance': balance,
-        'fee_assignments': fee_assignments,
-        'fee_payments': fee_payments,
-        'edit_class_form': form,
-        'contact_form': contact_form,
-        'can_update_contact': is_admin or is_student,
     }
     return render(request, 'dashboards/student_profile.html', context)
 
+@login_required(login_url='login')
+def upload_grades(request, teacher_id):
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    if request.method == 'POST':
+        form = GradeUploadForm(request.POST, request.FILES, teacher=teacher)
+        if form.is_valid():
+            exam = form.cleaned_data['exam']
+            subject = form.cleaned_data['subject']
+            class_group = form.cleaned_data['class_group']
+            file = request.FILES['file']
 
-# Teacher Profile View
+            try:
+                workbook = openpyxl.load_workbook(file)
+                sheet = workbook.active
+
+                # Create a mapping of student names to student objects for efficient lookup
+                students_in_class = Student.objects.filter(class_group=class_group).select_related('user')
+                student_map = {s.user.get_full_name().strip().lower(): s for s in students_in_class}
+
+                # Check for duplicate names within the class, which would make lookups ambiguous
+                from collections import Counter
+                name_counts = Counter(student_map.keys())
+                duplicates = [name for name, count in name_counts.items() if count > 1]
+                if duplicates:
+                    messages.error(request, f"Upload failed. The following student names are duplicated in the class: {', '.join(duplicates)}. Please resolve this issue before uploading.")
+                    return redirect('upload_grades', teacher_id=teacher.id)
+
+                for i, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+                    if not row or row[0] is None:
+                        continue  # Skip empty rows
+
+                    student_name, score = row[0], row[1]
+                    student_name = str(student_name).strip().lower()
+
+                    student = student_map.get(student_name)
+
+                    if not student:
+                        messages.error(request, f"Error on row {i}: Student '{row[0]}' not found in this class.")
+                        continue
+
+                    try:
+                        score_float = float(score)
+                        grade_letter, remarks = 'F', 'NEEDS IMPROVEMENT'
+                        if 80 <= score_float <= 100:
+                            grade_letter, remarks = 'A', 'EXCELLENT'
+                        elif 60 <= score_float < 80:
+                            grade_letter, remarks = 'B', 'VERY GOOD'
+                        elif 40 <= score_float < 60:
+                            grade_letter, remarks = 'C', 'GOOD'
+                        elif 20 <= score_float < 40:
+                            grade_letter, remarks = 'D', 'AVERAGE'
+
+                        Grade.objects.update_or_create(
+                            student=student,
+                            exam=exam,
+                            subject=subject,
+                            defaults={'score': score_float, 'grade_letter': grade_letter, 'remarks': remarks}
+                        )
+                    except (ValueError, TypeError):
+                        messages.error(request, f"Error on row {i}: Invalid score '{score}' for student '{row[0]}'. Please enter a number.")
+                        continue
+
+                messages.success(request, 'Grades have been uploaded and processed.')
+                # Redirect to the results page for the uploaded grades
+                return redirect('exam_results', teacher_id=teacher.id, class_id=class_group.id, subject_id=subject.id, exam_id=exam.id)
+
+            except Exception as e:
+                messages.error(request, f"Error reading the Excel file: {e}")
+
+    else:
+        form = GradeUploadForm(teacher=teacher)
+    
+    return render(request, 'dashboards/upload_grades.html', {'form': form, 'teacher': teacher})
+
 @login_required(login_url='login')
 def teacher_profile(request, teacher_id):
-    from .models import Teacher
-    from django.shortcuts import get_object_or_404
     teacher = get_object_or_404(Teacher, id=teacher_id)
     # Only allow admin or the teacher themselves
     if not (request.user.role == 'admin' or request.user.id == teacher.user.id):
-        from django.http import HttpResponseForbidden
         return HttpResponseForbidden('You do not have permission to view this profile.')
+
     return render(request, 'dashboards/teacher_profile.html', {'teacher': teacher})
 
-# Teacher Dashboard View
 @login_required(login_url='login')
 def teacher_dashboard(request, teacher_id):
-    from .models import Teacher, TeacherClassAssignment, Student, Grade
-    from django.shortcuts import get_object_or_404
-    from django.db.models import Avg
 
     teacher = get_object_or_404(Teacher.objects.select_related('user'), id=teacher_id)
 
@@ -1219,11 +202,8 @@ def teacher_dashboard(request, teacher_id):
     # Remove legacy/duplicate class_details/extra_classes logic (all cards come from class_cards now)
 
 
-    # Fetch all upcoming events created by the admin as deadlines
-    from .models import Event
-    from django.utils import timezone
-    now = timezone.now()
-    upcoming_deadlines = list(Event.objects.filter(start__gte=now).order_by('start'))
+    # Placeholder for upcoming deadlines
+    upcoming_deadlines = []
 
     context = {
         'teacher': teacher,
@@ -1301,61 +281,31 @@ def take_attendance(request, teacher_id, class_id, subject_id):
 
 @login_required(login_url='login')
 def manage_grades(request, teacher_id):
-    from .models import Teacher, TeacherClassAssignment, Student, Exam
-    from django.shortcuts import get_object_or_404
+    teacher = get_object_or_404(Teacher, id=teacher_id)
 
-    teacher = get_object_or_404(Teacher.objects.select_related('user'), id=teacher_id)
+    if request.method == 'POST':
+        class_id = request.POST.get('class_id')
+        subject_id = request.POST.get('subject_id')
+        exam_id = request.POST.get('exam_id')
+
+        if not all([class_id, subject_id, exam_id]):
+            messages.error(request, 'Please select a class, subject, and exam.')
+            return redirect('manage_grades', teacher_id=teacher.id)
+
+        return redirect('input_grades', teacher_id=teacher.id, class_id=class_id, subject_id=subject_id, exam_id=exam_id)
+
     assignments = TeacherClassAssignment.objects.filter(teacher=teacher).select_related('class_group', 'subject')
-    assigned_classes = set()
-    class_cards = []
-    processed_pairs = set()
-
-    # 1. Get explicit assignments from TeacherClassAssignment
-    assignments = TeacherClassAssignment.objects.filter(teacher=teacher).select_related('class_group', 'subject')
-    for assign in assignments:
-        if assign.class_group and assign.subject:
-            students = Student.objects.filter(class_group=assign.class_group).select_related('user').order_by('user__last_name', 'user__first_name')
-            class_cards.append({
-                'class_group': assign.class_group,
-                'subject': assign.subject,
-                'is_class_teacher': assign.class_group.class_teacher_id == teacher.id,
-                'students': students,
-            })
-            processed_pairs.add((assign.class_group.id, assign.subject.id))
-
-    # 2. For all subjects the teacher teaches, create cards for classes they are class teacher of, if not already processed
-    from .models import Class
-    classes_as_class_teacher = Class.objects.filter(class_teacher=teacher)
-    all_subjects_taught = teacher.subjects.all()
-
-    for subject in all_subjects_taught:
-        for class_obj in classes_as_class_teacher:
-            if (class_obj.id, subject.id) not in processed_pairs:
-                students = Student.objects.filter(class_group=class_obj).select_related('user').order_by('user__last_name', 'user__first_name')
-                class_cards.append({
-                    'class_group': class_obj,
-                    'subject': subject,
-                    'is_class_teacher': True,
-                    'students': students,
-                })
-                processed_pairs.add((class_obj.id, subject.id))
-
-    # Group cards by subject
-    from collections import defaultdict
-    subject_cards = defaultdict(list)
-    no_subject = []
-    for card in class_cards:
-        if card['subject']:
-            subject_cards[card['subject'].name].append(card)
-        else:
-            no_subject.append(card)
-
-    exams = Exam.objects.all()
+    
+    # Create a unique list of classes and subjects taught by the teacher
+    teacher_classes = sorted(list(set(a.class_group for a in assignments if a.class_group)), key=lambda c: c.name)
+    teacher_subjects = Subject.objects.filter(teacherclassassignment__teacher=teacher).distinct().order_by('name')
+    
+    exams = Exam.objects.all().order_by('-date')
 
     context = {
         'teacher': teacher,
-        'subject_cards': dict(subject_cards),
-        'no_subject': no_subject,
+        'teacher_classes': teacher_classes,
+        'teacher_subjects': teacher_subjects,
         'exams': exams,
     }
     return render(request, 'dashboards/manage_grades.html', context)
@@ -1363,78 +313,133 @@ def manage_grades(request, teacher_id):
 
 
 @login_required(login_url='login')
-def input_grades(request, teacher_id, class_id, subject_id):
-    from .models import Teacher, Class, Subject, Student, Exam, Grade, Term
-    from django.shortcuts import get_object_or_404, redirect
-    import datetime
-
+def input_grades(request, teacher_id, class_id, subject_id, exam_id):
     teacher = get_object_or_404(Teacher, id=teacher_id)
     class_group = get_object_or_404(Class, id=class_id)
     subject = get_object_or_404(Subject, id=subject_id)
-    
-    # Get exam from GET param
-    selected_exam = None
-    exam_id = request.GET.get('exam_id')
-    if exam_id:
-        selected_exam = get_object_or_404(Exam, id=exam_id)
+    exam = get_object_or_404(Exam, id=exam_id)
 
-    # Handle POST request for saving grades or creating a new exam
     if request.method == 'POST':
-        # Handle creating a new exam
-        if 'create_exam' in request.POST:
-            new_exam_name = request.POST.get('new_exam_name')
-            term_id = request.POST.get('term')
-            if new_exam_name and term_id:
-                term = get_object_or_404(Term, id=term_id)
-                exam, created = Exam.objects.get_or_create(
-                    name=new_exam_name, 
-                    term=term,
-                    defaults={'date': datetime.date.today()}
-                )
-                if created:
-                    messages.success(request, f'Successfully created exam "{exam.name}".')
-                else:
-                    messages.info(request, f'Exam "{exam.name}" already exists.')
-                return redirect(f"{request.path}?exam_id={exam.id}")
-        
-        # Handle saving grades
-        elif 'save_grades' in request.POST and selected_exam:
-            students = Student.objects.filter(class_group=class_group)
-            for student in students:
-                score = request.POST.get(f'score_{student.id}')
-                if score and score.strip():
+        students = Student.objects.filter(class_group=class_group)
+        for student in students:
+            score_str = request.POST.get(f'score_{student.id}')
+            if score_str and score_str.strip():
+                try:
+                    score = float(score_str)
+                    grade_letter, remarks = 'F', 'NEEDS IMPROVEMENT'
+                    if 80 <= score <= 100:
+                        grade_letter, remarks = 'A', 'EXCELLENT'
+                    elif 60 <= score < 80:
+                        grade_letter, remarks = 'B', 'VERY GOOD'
+                    elif 40 <= score < 60:
+                        grade_letter, remarks = 'C', 'GOOD'
+                    elif 20 <= score < 40:
+                        grade_letter, remarks = 'D', 'AVERAGE'
+
                     Grade.objects.update_or_create(
                         student=student,
+                        exam=exam,
                         subject=subject,
-                        exam=selected_exam,
-                        defaults={'score': score}
+                        defaults={'score': score, 'grade_letter': grade_letter, 'remarks': remarks}
                     )
-            messages.success(request, f"Grades for {selected_exam.name} have been saved.")
-            return redirect(f"{request.path}?exam_id={selected_exam.id}")
+                except (ValueError, TypeError):
+                    messages.error(request, f"Invalid score for student {student.id}. Please enter a number.")
+                    continue
+        
+        messages.success(request, 'Grades saved successfully!')
+        return redirect('exam_results', teacher_id=teacher.id, class_id=class_group.id, subject_id=subject.id, exam_id=exam.id)
 
-    # Prepare context for template
     students = Student.objects.filter(class_group=class_group).order_by('user__last_name', 'user__first_name')
-    # Get all exams associated with this class/subject through existing grades
-    exam_ids = Grade.objects.filter(student__in=students, subject=subject).values_list('exam_id', flat=True).distinct()
-    exams = Exam.objects.filter(id__in=exam_ids).order_by('-date')
-    terms = Term.objects.all().order_by('-academic_year__year', 'name')
+    grades = Grade.objects.filter(student__in=students, subject=subject, exam=exam).select_related('student')
     
-    grade_map = {}
-    if selected_exam:
-        existing_grades = Grade.objects.filter(exam=selected_exam, subject=subject, student__in=students)
-        grade_map = {grade.student_id: grade.score for grade in existing_grades}
+    grades_map = {grade.student.id: grade for grade in grades}
+
+    for student in students:
+        student.grade = grades_map.get(student.id)
 
     context = {
         'teacher': teacher,
         'class_group': class_group,
         'subject': subject,
+        'exam': exam,
         'students': students,
-        'exams': exams,
-        'terms': terms,
-        'selected_exam': selected_exam,
-        'grade_map': grade_map,
     }
     return render(request, 'dashboards/input_grades.html', context)
+
+
+@login_required(login_url='login')
+def exam_results(request, teacher_id, class_id, subject_id, exam_id):
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    class_group = get_object_or_404(Class, id=class_id)
+    subject = get_object_or_404(Subject, id=subject_id)
+    exam = get_object_or_404(Exam, id=exam_id)
+
+    students = Student.objects.filter(class_group=class_group).order_by('user__last_name', 'user__first_name')
+    grades = Grade.objects.filter(student__in=students, subject=subject, exam=exam).select_related('student')
+
+    grades_map = {grade.student.id: grade for grade in grades}
+
+    for student in students:
+        student.grade = grades_map.get(student.id)
+
+    context = {
+        'teacher': teacher,
+        'class_group': class_group,
+        'subject': subject,
+        'exam': exam,
+        'students': students,
+    }
+    return render(request, 'dashboards/exam_results.html', context)
+
+
+@login_required(login_url='login')
+def gradebook(request, teacher_id):
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+
+    # Get all unique classes and subjects assigned to the teacher
+    teacher_classes = Class.objects.filter(teacherclassassignment__teacher=teacher).distinct()
+    teacher_subjects = Subject.objects.filter(teacher=teacher).distinct()
+
+    selected_class = None
+    selected_subject = None
+    students_grades = []
+    exams = []
+
+    if request.method == 'POST':
+        class_id = request.POST.get('class_id')
+        subject_id = request.POST.get('subject_id')
+
+        if class_id and subject_id:
+            selected_class = get_object_or_404(Class, id=class_id)
+            selected_subject = get_object_or_404(Subject, id=subject_id)
+
+            # Fetch students in the selected class
+            students = Student.objects.filter(class_group=selected_class).order_by('user__last_name', 'user__first_name')
+            
+            # Fetch all exams that have grades for this subject and class
+            grades_for_subject = Grade.objects.filter(subject=selected_subject, student__class_group=selected_class)
+            exam_ids = grades_for_subject.values_list('exam_id', flat=True).distinct()
+            exams = Exam.objects.filter(id__in=exam_ids).order_by('date')
+
+            # Prepare a data structure for the template
+            for student in students:
+                grades = {grade.exam_id: grade for grade in grades_for_subject.filter(student=student)}
+                students_grades.append({
+                    'student': student,
+                    'grades': [grades.get(exam.id) for exam in exams]
+                })
+
+    context = {
+        'teacher': teacher,
+        'teacher_classes': teacher_classes,
+        'teacher_subjects': teacher_subjects,
+        'selected_class': selected_class,
+        'selected_subject': selected_subject,
+        'students_grades': students_grades,
+        'exams': exams,
+    }
+    return render(request, 'dashboards/gradebook.html', context)
+
 
 # Admin Students View
 
@@ -1445,6 +450,20 @@ from django.http import HttpResponseRedirect
 from django.urls import reverse
 
 @login_required(login_url='login')
+@login_required(login_url='login')
+def admin_overview(request):
+    if not request.user.role == 'admin':
+        return HttpResponseForbidden("You are not authorized to view this page.")
+    
+    # Placeholder context
+    context = {
+        'teacher_count': Teacher.objects.count(),
+        'student_count': Student.objects.count(),
+        'class_count': Class.objects.count(),
+        'subject_count': Subject.objects.count(),
+    }
+    return render(request, 'dashboards/admin_overview.html', context)
+
 def edit_user(request, user_id):
     if request.user.role != 'admin':
         return redirect('dashboard')
@@ -2020,14 +1039,118 @@ def teacher_exams(request, teacher_id):
     teacher = Teacher.objects.get(id=teacher_id)
     assignments = TeacherClassAssignment.objects.filter(teacher=teacher).select_related('subject', 'class_group')
     subject_students = {}
+    subject_grades = {}
+    from .models import Exam, Grade
     for assignment in assignments:
         students = Student.objects.filter(class_group=assignment.class_group)
         subject_students[(assignment.subject, assignment.class_group)] = students
+
+        # Get latest exam for this class level
+        latest_exam = Exam.objects.filter(level=assignment.class_group.level).order_by('-date').first()
+        grades_map = {}
+        if latest_exam:
+            grades = Grade.objects.filter(exam=latest_exam, subject=assignment.subject, student__in=students)
+            for grade in grades:
+                grades_map[grade.student_id] = grade
+
+        # Use nested dictionary instead of tuple key
+        if assignment.subject.id not in subject_grades:
+            subject_grades[assignment.subject.id] = {}
+        subject_grades[assignment.subject.id][assignment.class_group.id] = {'exam': latest_exam, 'grades': grades_map}
+    # Get subject_id and class_id from query params to show specific table
+    show_subject_id = request.GET.get('subject_id')
+    show_class_id = request.GET.get('class_id')
+
     context = {
         'teacher': teacher,
         'subject_students': subject_students,
+        'subject_grades': subject_grades,
+        'show_subject_id': show_subject_id,
+        'show_class_id': show_class_id,
     }
     return render(request, 'dashboards/teacher_exams.html', context)
+
+@login_required(login_url='login')
+def teacher_exam_entry(request, teacher_id, class_id, subject_id, exam_id):
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    if request.user != teacher.user:
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        scores = request.POST.getlist('scores[]')
+        student_ids = request.POST.getlist('student_ids[]')
+        
+        exam = get_object_or_404(Exam, id=exam_id)
+        subject = get_object_or_404(Subject, id=subject_id)
+        class_group = get_object_or_404(Class, id=class_id)
+        
+        # Validate scores
+        for score in scores:
+            try:
+                score = float(score)
+                if score < 0 or score > 100:
+                    messages.error(request, 'Scores must be between 0 and 100')
+                    return redirect('teacher_exam_entry', teacher_id=teacher_id, 
+                                  class_id=class_id, subject_id=subject_id, exam_id=exam_id)
+            except ValueError:
+                messages.error(request, 'Invalid score format')
+                return redirect('teacher_exam_entry', teacher_id=teacher_id, 
+                              class_id=class_id, subject_id=subject_id, exam_id=exam_id)
+
+        # Save scores
+        try:
+            for student_id, score in zip(student_ids, scores):
+                student = Student.objects.get(id=student_id)
+                Grade.objects.update_or_create(
+                    student=student,
+                    exam=exam,
+                    subject=subject,
+                    defaults={'score': score}
+                )
+            messages.success(request, 'Scores saved successfully')
+        except Exception as e:
+            messages.error(request, f'Error saving scores: {str(e)}')
+            return redirect('teacher_exam_entry', teacher_id=teacher_id, 
+                          class_id=class_id, subject_id=subject_id, exam_id=exam_id)
+
+        return redirect('teacher_exam_entry', teacher_id=teacher_id, 
+                       class_id=class_id, subject_id=subject_id, exam_id=exam_id)
+
+    # Get teacher's subjects and classes
+    subjects = teacher.subjects.all()
+    classes = Class.objects.filter(teachers=teacher)
+    
+    # Get exam details
+    exam = get_object_or_404(Exam, id=exam_id)
+    subject = get_object_or_404(Subject, id=subject_id)
+    class_group = get_object_or_404(Class, id=class_id)
+
+    # Get students for this class and subject
+    students = Student.objects.filter(
+        class_group_id=class_id
+    ).order_by('user__last_name', 'user__first_name')
+
+    # Get existing grades for this exam
+    grade_map = {}
+    existing_grades = Grade.objects.filter(
+        exam=exam,
+        subject=subject,
+        student__in=students
+    )
+    for grade in existing_grades:
+        grade_map[grade.student_id] = grade.score
+
+    context = {
+        'teacher': teacher,
+        'subjects': subjects,
+        'classes': classes,
+        'exam': exam,
+        'subject': subject,
+        'class_group': class_group,
+        'students': students,
+        'grade_map': grade_map,
+    }
+    return render(request, 'dashboards/teacher_exam_entry.html', context)
 
 @login_required(login_url='login')
 def upload_marksheet(request):
@@ -2131,6 +1254,80 @@ def upload_marksheet(request):
     teacher = request.user.teacher
     return render(request, 'dashboards/upload_marksheet.html', {'teacher': teacher})
 
+@login_required(login_url='login')
+def admin_teachers(request):
+    teachers = Teacher.objects.all()
+    form = AddTeacherForm()
+    context = {'teachers': teachers, 'form': form}
+    return render(request, 'dashboards/admin_teachers.html', context)
+
+@login_required(login_url='login')
+def edit_teacher(request, teacher_id):
+    return redirect('admin_teachers')
+
+@login_required(login_url='login')
+def delete_teacher(request, teacher_id):
+    return redirect('admin_teachers')
+
+@login_required(login_url='login')
+def admin_fees(request):
+    return render(request, 'dashboards/admin_fees.html', {})
+
+@login_required(login_url='login')
+def admin_payment(request):
+    return render(request, 'dashboards/admin_payment.html', {})
+
+@login_required(login_url='login')
+def admin_events(request):
+    return render(request, 'dashboards/admin_events.html', {})
+
+@login_required(login_url='login')
+def teacher_timetable(request, teacher_id):
+    return render(request, 'dashboards/teacher_timetable.html', {})
+
+@login_required(login_url='login')
+def student_fees(request):
+    return render(request, 'dashboards/student_fees.html', {})
+
+
+# API and AJAX placeholders
+def exam_events_api(request):
+    return JsonResponse([], safe=False)
+
+@require_POST
+def add_student_ajax(request):
+    return JsonResponse({'status': 'ok'})
+
+@require_POST
+def add_teacher_ajax(request):
+    return JsonResponse({'status': 'ok'})
+
+@require_POST
+def add_class_ajax(request):
+    return JsonResponse({'status': 'ok'})
+
+@require_POST
+def add_subject_ajax(request):
+    return JsonResponse({'status': 'ok'})
+
+def events_json(request):
+    return JsonResponse([], safe=False)
+
+@require_POST
+def event_create(request):
+    return JsonResponse({'status': 'ok'})
+
+@require_POST
+def event_update(request):
+    return JsonResponse({'status': 'ok'})
+
+@require_POST
+def event_delete(request):
+    return JsonResponse({'status': 'ok'})
+
+def events_feed(request):
+    return JsonResponse([], safe=False)
+
 def custom_login_view(request):
     # Always log out any existing user/session on visiting login page
     from django.contrib.auth import logout
@@ -2184,61 +1381,28 @@ def admin_exams(request):
     table_html = None
     summary = {'added': 0, 'removed': 0, 'errors': []}
 
+    # Grades card support: get selected exam, students, and grades
+    selected_exam = None
+    students = []
+    student_grades = {}
+    exam_id = request.GET.get('exam_id')
+    if exam_id:
+        try:
+            selected_exam = Exam.objects.get(id=exam_id)
+            # Get all students for the exam's level
+            students = Student.objects.filter(class_group__level=selected_exam.level).select_related('user')
+            # Get all grades for this exam
+            grades = Grade.objects.filter(exam=selected_exam)
+            for grade in grades:
+                student_grades[grade.student_id] = grade
+        except Exam.DoesNotExist:
+            selected_exam = None
+
     # Handle exam creation POST
     if request.method == 'POST' and 'add_exam' in request.POST:
         if exam_form.is_valid():
-            new_exam = exam_form.save()
-            # Notification logic
-            from .event_utils import send_exam_notification_email, send_exam_notification_sms
-            from .models import TeacherClassAssignment, User
-
-            # 1. Class Teachers
-            class_teachers = set()
-            if new_exam.level:
-                classes = Class.objects.filter(level=new_exam.level)
-                for c in classes:
-                    if c.class_teacher and c.class_teacher.user.email:
-                        class_teachers.add((c.class_teacher.user.email, c.class_teacher.phone))
-
-            # 2. Subject Teachers
-            subject_teachers = set()
-            assignments = TeacherClassAssignment.objects.filter(class_group__level=new_exam.level)
-            for assign in assignments:
-                if assign.teacher.user.email:
-                    subject_teachers.add((assign.teacher.user.email, assign.teacher.phone))
-
-            # 3. Admins
-            admins = User.objects.filter(role='admin')
-            admin_contacts = [(a.email, getattr(a, 'phone', None)) for a in admins if a.email]
-
-            # 4. Parents (using student user email/phone)
-            students = Student.objects.filter(class_group__level=new_exam.level)
-            parent_contacts = set()
-            for s in students:
-                if s.user and s.user.email:
-                    parent_contacts.add((s.user.email, s.phone))
-
-            # Compose message
-            subject = f"Exam Scheduled: {new_exam.name}"
-            message = f"An exam ({new_exam.name}) has been scheduled for level {new_exam.level} on {new_exam.date}. Please check the portal for details."
-
-            # Gather all emails and phone numbers
-            all_emails = set()
-            all_phones = set()
-            for group in [class_teachers, subject_teachers, admin_contacts, parent_contacts]:
-                for email, phone in group:
-                    if email:
-                        all_emails.add(email)
-                    if phone:
-                        all_phones.add(phone)
-
-            # Send notifications
-            if all_emails:
-                send_exam_notification_email(list(all_emails), subject, message)
-            if all_phones:
-                send_exam_notification_sms(list(all_phones), message)
-
-            messages.success(request, 'Exam created successfully! Notifications sent.')
+            exam_form.save()
+            messages.success(request, 'Exam created successfully!')
             exam_form = ExamForm()  # Reset form
         else:
             messages.error(request, 'Please correct the errors below.')

@@ -1,99 +1,58 @@
 {% extends 'base.html' %}
-{% load static %}
 
 {% block title %}Teacher Dashboard{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-md-2"></div>
-        <div class="col-md-10">
-            <!-- Welcome/Profile Summary -->
-            <div class="row">
-                <div class="col-md-10 mx-auto">
-                    <div class="card shadow p-4 mt-4">
-                        <div class="d-flex align-items-center mb-3">
-                            <img src="https://ui-avatars.com/api/?name={{ teacher.user.get_full_name|default:teacher.user.username }}&background=6C2EB7&color=fff&size=100" class="rounded-circle me-4" width="100" height="100" alt="Profile Picture">
-                            <div>
-                                <h2 class="mb-1">Welcome, {{ greeting_name }}</h2>
-                                <div class="mb-1 text-muted">Teacher</div>
-                                <div><strong>Subjects:</strong> {{ teacher_subjects|join:', ' }}</div>
-                                <div><strong>Classes:</strong> {{ teacher_classes|join:', ' }}</div>
-                            </div>
-                        </div>
-                        {% if notifications %}
-                            <div class="alert alert-warning">
-                                <ul class="mb-0">
-                                    {% for note in notifications %}
-                                        <li>{{ note }}</li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
+<div class="container-fluid px-0">
+    <!-- Welcome/Profile Summary -->
+    <div class="card shadow-sm p-4 mb-4 rounded-0">
+        <div class="d-flex align-items-center">
+            <img src="https://ui-avatars.com/api/?name={{ teacher.user.get_full_name|default:teacher.user.username }}&background=6C2EB7&color=fff&size=100" class="rounded-circle me-4" width="100" height="100" alt="Profile Picture">
+            <div>
+                <h1 class="mb-1">Welcome, {{ greeting_name }}</h1>
+                <div class="mb-1 text-muted">Teacher</div>
+                <div><strong>Subjects:</strong> {{ teacher_subjects|join:', ' }}</div>
+                <div><strong>Classes:</strong> {{ teacher_classes|join:', ' }}</div>
             </div>
-            <!-- Assigned Classes & Subjects Cards -->
-            <div class="row mt-4">
-                {% for card in class_cards %}
-                    <div class="col-md-6 col-lg-4 mb-4">
-                        <a href="{% if card.subject %}{% url 'input_grades' teacher_id=teacher.id class_id=card.class_group.id subject_id=card.subject.id %}{% else %}#{% endif %}" class="text-decoration-none text-dark">
-                            <div class="card h-100 shadow-sm hover-shadow">
-                                <div class="card-body">
-                                    <h5 class="card-title">{{ card.class_group.name }}</h5>
-                                    {% if card.subject %}
-                                        <h6 class="card-subtitle mb-2 text-muted">Subject: {{ card.subject.name }}</h6>
-                                    {% endif %}
-                                    {% if card.is_class_teacher %}
-                                        <span class="badge bg-success mb-2">Class Teacher</span>
-                                    {% endif %}
-                                    <p><strong>Students:</strong> {{ card.student_count }}</p>
-                                    <p><strong>Exams marked:</strong> {{ card.exams_marked }}/{{ card.total_exams }}</p>
-                                    <p><strong>Average Score:</strong> {% if card.avg_score %}{{ card.avg_score|floatformat:2 }}%{% else %}-{% endif %}</p>
-                                    <p><strong>Low performers:</strong> {{ card.low_performers }}</p>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                {% empty %}
-                    <div class="col-12">
-                        <div class="alert alert-info">No classes assigned.</div>
-                    </div>
+        </div>
+        {% if notifications %}
+        <div class="alert alert-warning mt-3">
+            <ul class="mb-0">
+                {% for note in notifications %}
+                <li>{{ note }}</li>
                 {% endfor %}
-            </div>
-                        <div class="row">
-                            {% for card in class_cards %}
-                                <div class="col-md-6 mb-4">
-                                    <div class="card h-100 shadow-sm">
-                                        <div class="card-body">
-                                            <h5 class="card-title">{{ card.class_group.name }}</h5>
-                                            {% if card.subject %}
-                                                <h6 class="card-subtitle mb-2 text-muted">Subject: {{ card.subject.name }}</h6>
-                                            {% endif %}
-                                            {% if card.is_class_teacher %}
-                                                <span class="badge bg-success mb-2">Class Teacher</span>
-                                            {% endif %}
-                                            <p><strong>Number of Students:</strong> {{ card.student_count }}</p>
-                                            {% if card.avg_score %}
-                                                <p><strong>Average Score:</strong> {{ card.avg_score|floatformat:2 }}</p>
-                                            {% endif %}
-                                            <div class="d-flex flex-wrap gap-2 mt-2">
-                                                <a href="{% if card.subject %}{% url 'input_grades' teacher_id=teacher.id class_id=card.class_group.id subject_id=card.subject.id %}{% else %}#{% endif %}" class="btn btn-primary btn-sm" {% if not card.subject %}disabled{% endif %}>Manage Grades</a>
-                                                <a href="{% url 'manage_attendance' teacher.id %}" class="btn btn-outline-secondary btn-sm">Attendance</a>
-                                                <a href="#" class="btn btn-outline-info btn-sm">Upload Results</a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            {% empty %}
-                                <div class="col-12">
-                                    <div class="alert alert-info">No classes assigned.</div>
-                                </div>
-                            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Grid-like card layout -->
+    <div class="container-fluid">
+        <div class="row mt-4">
+            {% for card in class_cards %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 shadow-sm text-white bg-primary">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">{{ card.class_group.name }}</h5>
+                            <i class="bi bi-easel fs-3"></i>
                         </div>
+                        {% if card.subject %}
+                        <h6 class="card-subtitle mt-2 mb-2 text-white-50">Subject: {{ card.subject.name }}</h6>
+                        {% endif %}
+                        <hr>
+                        <p><strong>Students:</strong> {{ card.student_count }}</p>
+                        <p><strong>Avg Score:</strong> {% if card.avg_score %}{{ card.avg_score|floatformat:2 }}%{% else %}N/A{% endif %}</p>
+                        <a href="{% url 'manage_grades' teacher_id=teacher.id %}" class="btn btn-light btn-sm mt-2">Manage Grades</a>
                     </div>
                 </div>
             </div>
+            {% empty %}
+            <div class="col-12">
+                <div class="alert alert-info">No classes assigned.</div>
+            </div>
+            {% endfor %}
+        </div>
 
             <!-- Upcoming Deadlines -->
             <div class="card shadow mb-4">
@@ -102,261 +61,24 @@
                 </div>
                 <div class="card-body">
                     {% if upcoming_deadlines %}
-                        <ul class="list-group list-group-flush">
-    {% for deadline in upcoming_deadlines %}
-        <li class="list-group-item py-3">
-            <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
-                <div class="flex-grow-1">
-                    <h6 class="mb-1 fw-bold">{{ deadline.title }}</h6>
-                    <div class="small text-muted mb-1">
-                        <span>Start: <strong>{{ deadline.start|date:'M d, Y H:i' }}</strong></span>
-                        {% if deadline.all_day %}<span class="badge bg-info ms-2">All Day</span>{% endif %}
-                        {% if deadline.end %}<span class="ms-3">End: <strong>{{ deadline.end|date:'M d, Y H:i' }}</strong></span>{% endif %}
-                    </div>
-                </div>
-                <span class="badge bg-primary p-2 fs-6 deadline-countdown mt-2 mt-md-0 ms-md-3" data-deadline="{{ deadline.start|date:'c' }}"></span>
-            </div>
-        </li>
-    {% endfor %}
-</ul>
+                        <ul class="list-group">
+                            {% for deadline in upcoming_deadlines %}
+                                <li class="list-group-item">{{ deadline.title }} - {{ deadline.due_date }} for {{ deadline.class_group.name }} ({{ deadline.subject.name }})</li>
+                            {% endfor %}
+                        </ul>
                     {% else %}
                         <p>No upcoming deadlines.</p>
                     {% endif %}
-                 </div>
-             </div>
-
-             <!-- Color-coded deadline countdowns -->
-             <script src="{% static 'deadline_countdown.js' %}"></script>
-
-             <!-- Teacher Event Calendar -->
-            <div class="row mt-4">
-                <div class="col-12">
-                    <div class="card shadow mb-4">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">School Events Calendar</h6>
-                        </div>
-                        <div class="card-body">
-                            <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
-                            <div id="teacher-calendar"></div>
-                            <!-- Teacher Event Modal -->
-                            <div class="modal fade" id="teacherEventModal" tabindex="-1" aria-labelledby="teacherEventModalLabel" aria-hidden="true">
-                              <div class="modal-dialog">
-                                <div class="modal-content">
-                                  <div class="modal-header">
-                                    <h5 class="modal-title" id="teacherEventModalLabel">Event</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                  </div>
-                                  <div class="modal-body">
-                                    <form id="teacherEventForm">
-                                      <input type="hidden" id="teacherEventId">
-                                      <div class="mb-3">
-                                        <label for="teacherEventTitle" class="form-label">Title</label>
-                                        <input type="text" class="form-control" id="teacherEventTitle" required>
-                                      </div>
-                                      <div class="mb-3">
-                                        <label for="teacherEventStartDate" class="form-label">Start Date</label>
-                                        <input type="date" class="form-control" id="teacherEventStartDate" required>
-                                      </div>
-                                      <div class="mb-3">
-                                        <label for="teacherEventStartTime" class="form-label">Start Time</label>
-                                        <input type="time" class="form-control" id="teacherEventStartTime" required>
-                                      </div>
-                                      <div class="mb-3">
-                                        <label for="teacherEventEndDate" class="form-label">End Date</label>
-                                        <input type="date" class="form-control" id="teacherEventEndDate">
-                                      </div>
-                                      <div class="mb-3">
-                                        <label for="teacherEventEndTime" class="form-label">End Time</label>
-                                        <input type="time" class="form-control" id="teacherEventEndTime">
-                                      </div>
-                                      <div class="form-check mb-3">
-                                        <input class="form-check-input" type="checkbox" id="teacherEventAllDay">
-                                        <label class="form-check-label" for="teacherEventAllDay">All Day</label>
-                                      </div>
-                                      <button type="submit" class="btn btn-primary">Save</button>
-                                      <button type="button" class="btn btn-danger ms-2" id="teacherDeleteEventBtn" style="display:none;">Delete</button>
-                                    </form>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
-                            <script>
-                            document.addEventListener('DOMContentLoaded', function() {
-                              var calendarEl = document.getElementById('teacher-calendar');
-                              var modal = new bootstrap.Modal(document.getElementById('teacherEventModal'));
-                              var eventForm = document.getElementById('teacherEventForm');
-                              var eventId = document.getElementById('teacherEventId');
-                              var eventTitle = document.getElementById('teacherEventTitle');
-                              var eventStartDate = document.getElementById('teacherEventStartDate');
-                              var eventStartTime = document.getElementById('teacherEventStartTime');
-                              var eventEndDate = document.getElementById('teacherEventEndDate');
-                              var eventEndTime = document.getElementById('teacherEventEndTime');
-                              var eventAllDay = document.getElementById('teacherEventAllDay');
-                              var deleteBtn = document.getElementById('teacherDeleteEventBtn');
-
-                              var calendar = new FullCalendar.Calendar(calendarEl, {
-                                initialView: 'dayGridMonth',
-                                editable: true,
-                                selectable: true,
-                                events: '/dashboard/events/json/',
-                                eventClick: function(info) {
-                                  eventId.value = info.event.id;
-                                  eventTitle.value = info.event.title;
-                                  if (info.event.start) {
-                                    eventStartDate.value = info.event.start.toISOString().slice(0,10);
-                                    eventStartTime.value = info.event.start.toTimeString().slice(0,5);
-                                  } else {
-                                    eventStartDate.value = '';
-                                    eventStartTime.value = '';
-                                  }
-                                  if (info.event.end) {
-                                    eventEndDate.value = info.event.end.toISOString().slice(0,10);
-                                    eventEndTime.value = info.event.end.toTimeString().slice(0,5);
-                                  } else {
-                                    eventEndDate.value = '';
-                                    eventEndTime.value = '';
-                                  }
-                                  eventAllDay.checked = info.event.allDay;
-                                  deleteBtn.style.display = '';
-                                  modal.show();
-                                },
-                                select: function(info) {
-                                  eventId.value = '';
-                                  eventTitle.value = '';
-                                  eventStartDate.value = info.startStr.slice(0,10);
-                                  eventStartTime.value = info.startStr.slice(11,16);
-                                  eventEndDate.value = info.endStr ? info.endStr.slice(0,10) : '';
-                                  eventEndTime.value = info.endStr ? info.endStr.slice(11,16) : '';
-                                  eventAllDay.checked = info.allDay;
-                                  deleteBtn.style.display = 'none';
-                                  modal.show();
-                                },
-                                eventDrop: function(info) {
-                                  updateEvent(info.event);
-                                },
-                                eventResize: function(info) {
-                                  updateEvent(info.event);
-                                },
-                                eventDidMount: function(info) {
-                                  var now = new Date();
-                                  var startDate = new Date(info.event.start);
-                                  if (startDate < now) {
-                                    var cross = document.createElement('i');
-                                    cross.className = 'bi bi-x-circle-fill text-danger ms-2';
-                                    cross.title = 'Event has passed';
-                                    info.el.querySelector('.fc-event-title')?.appendChild(cross);
-                                  }
-                                }
-                              });
-                              calendar.render();
-
-                              eventForm.onsubmit = function(e) {
-                                e.preventDefault();
-                                var id = eventId.value;
-                                var data = new FormData();
-                                data.append('title', eventTitle.value);
-                                var start = eventStartDate.value + 'T' + eventStartTime.value;
-                                data.append('start', start);
-                                var end = '';
-                                if (eventEndDate.value && eventEndTime.value) {
-                                  end = eventEndDate.value + 'T' + eventEndTime.value;
-                                }
-                                data.append('end', end);
-                                data.append('allDay', eventAllDay.checked);
-                                var url = id ? '/dashboard/events/update/' : '/dashboard/events/create/';
-                                if (id) data.append('id', id);
-                                fetch(url, {
-                                  method: 'POST',
-                                  headers: {'X-Requested-With': 'XMLHttpRequest'},
-                                  body: data
-                                }).then(res => res.json()).then(function(resp) {
-                                  if (resp.success) {
-                                    modal.hide();
-                                    calendar.refetchEvents();
-                                  } else {
-                                    alert(resp.error || 'Error saving event.');
-                                  }
-                                });
-                              };
-                              deleteBtn.onclick = function() {
-                                if (!eventId.value) return;
-                                if (!confirm('Delete this event?')) return;
-                                var data = new FormData();
-                                data.append('id', eventId.value);
-                                fetch('/dashboard/events/delete/', {
-                                  method: 'POST',
-                                  headers: {'X-Requested-With': 'XMLHttpRequest'},
-                                  body: data
-                                }).then(res => res.json()).then(function(resp) {
-                                  if (resp.success) {
-                                    modal.hide();
-                                    calendar.refetchEvents();
-                                  } else {
-                                    alert(resp.error || 'Error deleting event.');
-                                  }
-                                });
-                              };
-                              function updateEvent(event) {
-                                var data = new FormData();
-                                data.append('id', event.id);
-                                data.append('title', event.title);
-                                data.append('start', event.start ? event.start.toISOString() : '');
-                                data.append('end', event.end ? event.end.toISOString() : '');
-                                data.append('allDay', event.allDay);
-                                fetch('/dashboard/events/update/', {
-                                  method: 'POST',
-                                  headers: {'X-Requested-With': 'XMLHttpRequest'},
-                                  body: data
-                                }).then(res => res.json()).then(function(resp) {
-                                  if (!resp.success) {
-                                    alert(resp.error || 'Error updating event.');
-                                    calendar.refetchEvents();
-                                  }
-                                });
-                              }
-                            });
-                            </script>
-                        </div>
-                    </div>
                 </div>
-            </div>
-            <!-- FullCalendar JS CDN fallback -->
 
-
-        </div>
-    </div>
-</div>
 {% endblock %}
-                new Chart(ctxBar, {
-                    type: 'bar',
-                    data: {
-                        labels: ['Student1', 'Student2'],
-                        datasets: [{
-                            label: 'Scores',
-                            data: [70, 85],
-                            backgroundColor: 'rgba(54, 162, 235, 0.7)'
-                        }]
-                    },
-                    options: {responsive: true}
-                });
-            }
-            // Grade Distribution Pie Example
-            var ctxPie = document.getElementById('gradeDistChart_{{ class.class }}');
-            if (ctxPie) {
-                new Chart(ctxPie, {
-                    type: 'pie',
-                    data: {
-                        labels: ['A', 'B', 'C'],
-                        datasets: [{
-                            data: [5, 10, 3],
-                            backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc']
-                        }]
-                    },
-                    options: {responsive: true}
-                });
-            }
-            // Mean calculation placeholder
+                    new Chart(ctxBar, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Student1', 'Student2'],
+                            datasets: [{
+                                label: 'Scores',
+                                data: [70, 85],
                                 backgroundColor: 'rgba(54, 162, 235, 0.7)'
                             }]
                         },
