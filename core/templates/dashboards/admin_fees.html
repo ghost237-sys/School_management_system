@@ -7,16 +7,233 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <!-- Add CSS for analytics section -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 <style>
+    body {
+        min-height: 100vh;
+        background: linear-gradient(120deg, #e0e7ff 0%, #f8fafc 100%);
+        background-size: 400% 400%;
+        animation: gradientBG 12s ease infinite;
+    }
+    @keyframes gradientBG {
+        0% {background-position: 0% 50%;}
+        50% {background-position: 100% 50%;}
+        100% {background-position: 0% 50%;}
+    }
+    .glass-card {
+        background: rgba(255, 255, 255, 0.78);
+        border-radius: 14px;
+        box-shadow: 0 4px 20px rgba(56, 189, 248, 0.12), 0 1px 4px rgba(80, 120, 200, 0.10);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(56, 189, 248, 0.07);
+        padding: 1.1rem 1.2rem 1rem 1.2rem;
+        transition: box-shadow 0.2s, transform 0.15s;
+    }
+    .glass-card:hover {
+        box-shadow: 0 8px 32px rgba(56, 189, 248, 0.16), 0 2px 8px rgba(80, 120, 200, 0.12);
+        transform: translateY(-2px) scale(1.01);
+    }
+    .dashboard-hero {
+        display: flex;
+        align-items: center;
+        gap: 1.1rem;
+        margin-bottom: 1.3rem;
+        padding: 1.1rem 1.2rem 0.9rem 1.2rem;
+        border-radius: 1.1rem;
+        background: rgba(255,255,255,0.89);
+        box-shadow: 0 2px 16px rgba(56, 189, 248, 0.07);
+    }
+    .dashboard-hero-icon {
+        font-size: 2.3rem;
+        color: #2563eb;
+        background: linear-gradient(90deg, #2563eb 30%, #38bdf8 100%);
+        border-radius: 0.7rem;
+        padding: 0.45rem 0.7rem;
+        box-shadow: 0 1px 8px rgba(56, 189, 248, 0.10);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .dashboard-hero-content h2 {
+        font-weight: 800;
+        color: #2563eb;
+        margin-bottom: 0.1rem;
+        font-size: 1.25rem;
+    }
+    .dashboard-hero-content p {
+        color: #475569;
+        font-size: 0.98rem;
+        margin-bottom: 0;
+    }
+    .section-divider {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.2rem 0 0.7rem 0;
+    }
+    .section-divider .divider-icon {
+        font-size: 1.05rem;
+        color: #38bdf8;
+        background: #e0f2fe;
+        border-radius: 50%;
+        padding: 0.12rem 0.32rem;
+        box-shadow: 0 1px 4px rgba(56, 189, 248, 0.08);
+    }
+    .section-divider .divider-title {
+        font-size: 0.97rem;
+        font-weight: 700;
+        color: #2563eb;
+        letter-spacing: 0.3px;
+    }
+    .btn-success, .btn-primary {
+        border-radius: 12px;
+        font-weight: 500;
+        padding: 0.5rem 1.5rem;
+        transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+        box-shadow: 0 2px 12px rgba(80, 120, 200, 0.12);
+    }
+    .btn-success:hover, .btn-primary:hover {
+        box-shadow: 0 8px 24px rgba(56, 189, 248, 0.20);
+        filter: brightness(0.97);
+        transform: translateY(-2px) scale(1.03);
+    }
+    .form-control, select {
+        border-radius: 10px !important;
+        border: 1px solid #d1d5db;
+        box-shadow: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        background: #f8fafc;
+    }
+    .form-control:focus, select:focus {
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 3px #38bdf844;
+        background: #fff;
+    }
+    .table {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 18px rgba(80, 120, 200, 0.10);
+        margin-bottom: 1.5rem;
+    }
+    .table-title {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #fff;
+    }
+    .alert-success {
+        border-radius: 12px;
+        font-weight: 500;
+        font-size: 1.05rem;
+        background: linear-gradient(90deg, #bbf7d0 0%, #dbeafe 100%);
+        color: #166534;
+        border: none;
+        box-shadow: 0 2px 8px rgba(80, 120, 200, 0.10);
+    }
+    .mb-4, .my-4 {
+        margin-bottom: 2rem !important;
+    }
+    .mb-3, .my-3 {
+        margin-bottom: 1.25rem !important;
+    }
+</style>
     .analytics-section {
         margin-top: 2rem;
     }
     .chart-container {
         position: relative;
         height: 300px;
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: 0 4px 24px rgba(80, 120, 200, 0.10);
+        padding: 1rem;
+        margin-bottom: 2rem;
     }
-    .chart-container canvas {
-        max-width: 100%;
+    .card {
+        border: none;
+        border-radius: 18px;
+        box-shadow: 0 4px 32px rgba(56, 189, 248, 0.12), 0 1.5px 6px rgba(80, 120, 200, 0.10);
+        margin-bottom: 1.5rem;
+        transition: box-shadow 0.2s, transform 0.2s;
+        opacity: 0;
+        animation: fadeInCard 0.8s ease forwards;
+    }
+    .card:nth-child(2) { animation-delay: 0.1s; }
+    .card:nth-child(3) { animation-delay: 0.2s; }
+    .card:nth-child(4) { animation-delay: 0.3s; }
+    @keyframes fadeInCard {
+        to { opacity: 1; }
+    }
+    .card:hover {
+        box-shadow: 0 16px 48px rgba(56, 189, 248, 0.18), 0 2px 8px rgba(80, 120, 200, 0.18);
+        transform: translateY(-2px) scale(1.01);
+    }
+    .card-header {
+        border-radius: 18px 18px 0 0 !important;
+        font-weight: 600;
+        font-size: 1.15rem;
+        letter-spacing: 0.5px;
+        background: linear-gradient(90deg, #2563eb 30%, #38bdf8 100%) !important;
+        color: #fff !important;
+        box-shadow: 0 2px 8px rgba(56, 189, 248, 0.08);
+        border: none;
+    }
+    .btn-success, .btn-primary {
+        border-radius: 12px;
+        font-weight: 500;
+        padding: 0.5rem 1.5rem;
+        transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+        box-shadow: 0 2px 12px rgba(80, 120, 200, 0.12);
+    }
+    .btn-success:hover, .btn-primary:hover {
+        box-shadow: 0 8px 24px rgba(56, 189, 248, 0.20);
+        filter: brightness(0.97);
+        transform: translateY(-2px) scale(1.03);
+    }
+    .btn-success:hover, .btn-primary:hover {
+        box-shadow: 0 4px 16px rgba(80, 120, 200, 0.18);
+        filter: brightness(0.95);
+    }
+    .form-control, select {
+        border-radius: 10px !important;
+        border: 1px solid #d1d5db;
+        box-shadow: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        background: #f8fafc;
+    }
+    .form-control:focus, select:focus {
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 3px #38bdf844;
+        background: #fff;
+    }
+    .table {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 18px rgba(80, 120, 200, 0.10);
+        margin-bottom: 1.5rem;
+    }
+    .table-title {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #fff;
+    }
+    .alert-success {
+        border-radius: 12px;
+        font-weight: 500;
+        font-size: 1.05rem;
+        background: linear-gradient(90deg, #bbf7d0 0%, #dbeafe 100%);
+        color: #166534;
+        border: none;
+        box-shadow: 0 2px 8px rgba(80, 120, 200, 0.10);
+    }
+    .mb-4, .my-4 {
+        margin-bottom: 2rem !important;
+    }
+    .mb-3, .my-3 {
+        margin-bottom: 1.25rem !important;
     }
 </style>
 
@@ -117,33 +334,65 @@ document.addEventListener('DOMContentLoaded', function() {
 {% endblock %}
 {% block content %}
     <div class="container py-4">
+    <div class="dashboard-hero d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <div class="dashboard-hero-icon">
+                <i class="bi bi-speedometer2"></i>
+            </div>
+            <div class="dashboard-hero-content">
+                <h2>Fee Management Dashboard</h2>
+                <p>Manage, assign, and review school fees with clarity and ease. See trends, assign fees, and track payments all in one place.</p>
+            </div>
+        </div>
+        <div>
+            <a href="{% url 'admin_send_arrears_message' %}" class="btn btn-warning btn-lg d-flex align-items-center shadow-sm" style="font-weight:600; border-radius:0.8rem; gap:0.5rem;">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> Send Fee Arrears Notice
+            </a>
+        </div>
+    </div>
     {% if current_term %}
     <div class="alert alert-success">
         <strong>Current Term:</strong> {{ current_term.name }} ({{ current_term.start_date|date:'M d, Y' }} to {{ current_term.end_date|date:'M d, Y' }}) in Academic Year {{ current_term.academic_year.year }}
     </div>
     {% endif %}
-    <h2 class="mb-4">Fee Management</h2>
+    <div class="section-divider"><span class="divider-icon"><i class="bi bi-cash-coin"></i></span><span class="divider-title">Set & Assign Fees</span></div>
     <div class="row mb-4">
         <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-primary text-white">Set Fee for Term & Level</div>
+            <div class="card glass-card">
+                <div class="card-header bg-primary text-white"><i class="bi bi-cash-coin me-2"></i>Set Fee for Term & Level</div>
                 <div class="card-body">
                     <form method="post">
                         {% csrf_token %}
                         {{ fee_form.as_p }}
-                        <button type="submit" class="btn btn-success">Save Fee</button>
+                        <button type="submit" class="btn btn-success"><i class="bi bi-save me-1"></i>Save Fee</button>
                     </form>
                 </div>
             </div>
         </div>
         <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-info text-white">Assign Fee to Students</div>
+            <div class="card glass-card">
+                <div class="card-header bg-info text-white"><i class="bi bi-people-fill me-2"></i>Assign Fee to Students</div>
                 <div class="card-body">
                     <form method="post">
                         {% csrf_token %}
-                        {{ assign_form.as_p }}
-                        <button type="submit" class="btn btn-primary">Assign Fee</button>
+                        <div class="mb-3">
+    {{ assign_form.fee_category.label_tag }}
+    {{ assign_form.fee_category }}
+</div>
+<div class="mb-3">
+    {{ assign_form.class_group.label_tag }}
+    {{ assign_form.class_group }}
+    <small class="form-text text-muted">Hold Ctrl (Windows) or Command (Mac) to select multiple classes.</small>
+</div>
+<div class="mb-3">
+    {{ assign_form.term.label_tag }}
+    {{ assign_form.term }}
+</div>
+<div class="mb-3">
+    {{ assign_form.amount.label_tag }}
+    {{ assign_form.amount }}
+</div>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Assign Fee</button>
                     </form>
                 </div>
             </div>
@@ -151,27 +400,28 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <div class="row">
         <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-secondary text-white">Fees Overview</div>
+            <div class="section-divider"><span class="divider-icon"><i class="bi bi-table"></i></span><span class="divider-title">Fees Overview</span></div>
+            <div class="card glass-card">
+                <div class="card-header bg-secondary text-white"><i class="bi bi-table me-2"></i>Fees Overview</div>
                 <div class="card-body">
                     <table class="table table-striped">
                         <thead>
                             <tr>
-                                <th>Level</th>
+                                <th>Class</th>
                                 <th>Term</th>
+                                <th>Fee Category</th>
                                 <th>Amount</th>
-                                <th>Description</th>
                                 <th>Assigned Students</th>
                             </tr>
                         </thead>
                         <tbody>
                         {% for fee in fees %}
                             <tr>
-                                <td>{{ fee.level }}</td>
+                                <td>{{ fee.class_group }}</td>
                                 <td>{{ fee.term }}</td>
+                                <td>{{ fee.fee_category }}</td>
                                 <td>{{ fee.amount }}</td>
-                                <td>{{ fee.description }}</td>
-                                <td>{{ fee.student_assignments.count }}</td>
+                                <td>{{ fee.class_group.student_set.count }}</td>
                             </tr>
                         {% empty %}
                             <tr><td colspan="5">No fees set.</td></tr>
@@ -184,9 +434,10 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <div class="row mt-4">
         <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-success text-white">
-                    <h3 class="table-title">Student Fee Assignments</h3>
+            <div class="section-divider"><span class="divider-icon"><i class="bi bi-person-lines-fill"></i></span><span class="divider-title">Student Fee Assignments</span></div>
+            <div class="card glass-card fade-in">
+                 <div class="card-header bg-success text-white">
+                     <h3 class="table-title"><i class="bi bi-person-lines-fill me-2"></i>Student Fee Assignments</h3>
                     <form method="get" style="margin-bottom: 1em; display: flex; gap: 1em; align-items: center;">
                         <label for="class_group">Filter by Class: </label>
                         <select name="class_group" id="class_group" onchange="this.form.submit()">
@@ -203,40 +454,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     </form>
                 </div>
                 <div class="card-body">
-                    <!-- Analytics Section -->
-                    <div class="analytics-section">
-                        <h4>Fee Analytics</h4>
-                        <div class="row">
-                            <!-- Pie Chart Container -->
-                            <div class="col-md-6 mb-4">
-                                <div class="card">
-                                    <div class="card-header bg-info text-white">
-                                        Fee Category Distribution
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <canvas id="feeCategoryChart"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Line Graph Container -->
-                            <div class="col-md-6 mb-4">
-                                <div class="card">
-                                    <div class="card-header bg-info text-white">
-                                        Payments Over Time
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <canvas id="paymentTrendChart"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Table Section -->
                     <table class="table table-striped table-bordered">
                         <thead>
@@ -265,8 +482,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <td>{{ student_paid|dict_get:student.id }}</td>
                                 <td>{{ student_balances|dict_get:student.id }}</td>
                             </tr>
-                        {% empty %}
-                            <tr><td colspan="10">No students found.</td></tr>
                         {% endfor %}
                         </tbody>
                     </table>

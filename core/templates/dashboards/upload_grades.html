@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Upload Grades{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Bulk Grade Upload</h4>
+                    <p class="card-category">Upload an Excel file with student grades.</p>
+                </div>
+                <div class="card-body">
+                    <p>Please upload an Excel file (`.xlsx`) with two columns in this exact order:</p>
+                    <ul>
+                        <li><strong>Column A:</strong> Student Name</li>
+                        <li><strong>Column B:</strong> Grade</li>
+                    </ul>
+                    <p>The first row should be a header and will be ignored. Student names must match the names in the system exactly.</p>
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        {{ form|crispy }}
+                        <button type="submit" class="btn btn-primary">Upload Grades</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

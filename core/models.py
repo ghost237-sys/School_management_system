@@ -101,6 +101,9 @@ class Exam(models.Model):
     date = models.DateField()
     type = models.CharField(max_length=10, choices=EXAM_TYPE_CHOICES, default='others')
 
+    def __str__(self):
+        return f"{self.name} - {self.term.name}"
+
 class Grade(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE)

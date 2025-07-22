@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5" style="background: linear-gradient(135deg, #e3f0ff 0%, #f5f7fa 100%); min-height: 100vh;">
+  <div class="row justify-content-center">
+    <div class="col-lg-7 col-md-9">
+      <div class="card shadow-lg border-0" style="border-radius: 2rem; background: linear-gradient(135deg, #fff 80%, #e3f0ff 100%);">
+        <div class="card-body p-5">
+          <div class="text-center mb-1">
+            <span style="font-size:2.5rem; color: #1976d2;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="38" height="38" fill="currentColor" class="bi bi-envelope-heart" viewBox="0 0 16 16"><path d="M7.654 2.93c.532-1.06 2.16-1.06 2.692 0l.217.432.478.07c1.17.172 1.635 1.612.789 2.453l-.346.338.082.48c.2 1.174-1.034 2.07-2.062 1.516l-.43-.226-.43.226c-1.028.554-2.262-.342-2.062-1.516l.082-.48-.346-.338c-.846-.841-.381-2.281.789-2.453l.478-.07.217-.432z"/><path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2zm13 2.383-4.708 2.825a.5.5 0 0 1-.584 0L1 5.383V12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5.383z"/></svg>
+            </span>
+          </div>
+          <h2 class="mb-1 text-center" style="color:#1976d2; font-weight:700;">Send Message to Users</h2>
+          <p class="mb-4 text-center text-secondary" style="font-size:1.1rem;">Reach out to your users instantly with a friendly message!</p>
+          <form method="post" autocomplete="off">
+            {% csrf_token %}
+            <div class="mb-3">
+  <label class="form-label">{{ form.recipient.label }}</label>
+  <div class="input-group input-group-lg shadow-sm rounded">
+    <span class="input-group-text bg-white border-end-0"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#1976d2" class="bi bi-person-badge" viewBox="0 0 16 16"><path d="M6.5 2a.5.5 0 0 0-.5.5V3h-2A1.5 1.5 0 0 0 2.5 4.5v7A1.5 1.5 0 0 0 4 13h8a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 12 3h-2v-.5a.5.5 0 0 0-.5-.5h-3zm0 1h3V3h-3v.5zm-3 1A.5.5 0 0 1 4 3.5h8a.5.5 0 0 1 .5.5v.5h-9v-.5zM13 5v6.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V5h10z"/></svg></span>
+    {{ form.recipient }}
+  </div>
+</div>
+            <div class="mb-3">
+  <label class="form-label">{{ form.subject.label }}</label>
+  <div class="input-group input-group-lg shadow-sm rounded">
+    <span class="input-group-text bg-white border-end-0"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#1976d2" class="bi bi-chat-text" viewBox="0 0 16 16"><path d="M2 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H2zm12 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h12z"/><path d="M3 5h10v1H3V5zm0 2h7v1H3V7zm0 2h5v1H3V9z"/></svg></span>
+    {{ form.subject }}
+  </div>
+</div>
+            <div class="mb-3">
+  <label class="form-label">{{ form.message.label }}</label>
+  <div class="input-group input-group-lg shadow-sm rounded">
+    <span class="input-group-text bg-white border-end-0 align-items-start"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#1976d2" class="bi bi-pencil-square" viewBox="0 0 16 16"><path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.708 0l-1-1a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .708 0l1 1zm-1.75 2.456l-8.482 8.482a.5.5 0 0 1-.168.11l-4 1a.5.5 0 0 1-.606-.606l1-4a.5.5 0 0 1 .11-.168l8.482-8.482a.5.5 0 0 1 .707 0l2.293 2.293a.5.5 0 0 1 0 .707z"/></svg></span>
+    {{ form.message }}
+  </div>
+</div>
+            <div class="mb-4 d-flex gap-4 align-items-center">
+  <div class="form-check form-switch">
+    {{ form.send_email }}
+    <label class="form-check-label" style="margin-left: 0.5em;">Send email</label>
+  </div>
+  <div class="form-check form-switch">
+    {{ form.send_sms }}
+    <label class="form-check-label" style="margin-left: 0.5em;">Send sms</label>
+  </div>
+</div>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary btn-lg">Send</button>
+            </div>
+          </form>
+          {% if messages %}
+            <ul class="mt-3">
+              {% for message in messages %}
+                <li class="alert alert-info">{{ message }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

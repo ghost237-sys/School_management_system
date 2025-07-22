@@ -18,6 +18,15 @@ INSTALLED_APPS = [
     'crispy_bootstrap5',
 ]
 
+# Email settings (Gmail SMTP for real email delivery)
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'emiliomurithi4@gmail.com'
+EMAIL_HOST_PASSWORD = 'mxhvtzfbdezcezhv'
+DEFAULT_FROM_EMAIL = 'emiliomurithi4@gmail.com'
+
 # Use custom user model
 AUTH_USER_MODEL = 'core.User'
 
@@ -82,6 +91,7 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

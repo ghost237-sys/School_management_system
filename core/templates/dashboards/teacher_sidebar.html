@@ -8,8 +8,8 @@
             </a>
         </li>
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'manage_grades' %}active{% endif %}" href="{% url 'manage_grades' teacher_id=teacher.id %}">
-                Manage Grades
+            <a class="nav-link text-white {% if request.resolver_match.url_name == 'gradebook' %}active{% endif %}" href="{% url 'gradebook' teacher_id=teacher.id %}">
+                Gradebook
             </a>
         </li>
         <li class="nav-item mb-2">
@@ -18,8 +18,13 @@
             </a>
         </li>
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'teacher_exams' %}active{% endif %}" href="{% url 'teacher_exams' teacher_id=teacher.id %}">
+            <a class="nav-link text-white {% if request.resolver_match.url_name in 'manage_grades,input_grades,exam_results' %}active{% endif %}" href="{% url 'manage_grades' teacher_id=teacher.id %}">
                 Exams
+            </a>
+        </li>
+        <li class="nav-item mb-2">
+            <a class="nav-link text-white {% if request.resolver_match.url_name == 'upload_grades' %}active{% endif %}" href="{% url 'upload_grades' teacher_id=teacher.id %}">
+                Upload Grades
             </a>
         </li>
         <li class="nav-item mb-2">

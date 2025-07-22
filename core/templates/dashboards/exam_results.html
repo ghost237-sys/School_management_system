@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}Exam Results{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Exam Results</h1>
+            <p class="mb-0 text-muted">For: {{ class_group.name }} / {{ subject.name }} / {{ exam.name }}</p>
+        </div>
+        <a href="{% url 'manage_grades' teacher_id=teacher.id %}" class="btn btn-sm btn-secondary">Back to Selection</a>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="width: 10%;">Student ID</th>
+                            <th style="width: 40%;">Student Name</th>
+                            <th style="width: 20%;">Score</th>
+                            <th style="width: 30%;">Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in students %}
+                        <tr>
+                            <td>{{ student.id }}</td>
+                            <td>{{ student.user.get_full_name|default:student.user.username }}</td>
+                            <td>{% if student.grade %}{{ student.grade.score }}{% else %}N/A{% endif %}</td>
+                            <td>{% if student.grade %}{{ student.grade.remarks }}{% else %}N/A{% endif %}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">No results found for this exam.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
