@@ -116,11 +116,19 @@
                         <i class="bi bi-calendar-event me-2"></i> Events
                     </a>
                 </li>
-                <li class="nav-item mb-2">
-                    <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_send_message' %}active{% endif %}" href="{% url 'admin_send_message' %}">
-                        <i class="bi bi-envelope-paper me-2"></i> Messages
-                    </a>
-                </li>
+                {% if user.is_authenticated and user.role == 'admin' and user.id %}
+<li class="nav-item mb-2">
+    <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_send_message' %}active{% endif %}" href="{% url 'admin_send_message' %}">
+        <i class="bi bi-envelope-paper me-2"></i> Messages
+    </a>
+</li>
+{% else %}
+<li class="nav-item mb-2">
+    <a class="nav-link d-flex align-items-center disabled" href="#" tabindex="-1" aria-disabled="true">
+        <i class="bi bi-envelope-paper me-2"></i> Messages
+    </a>
+</li>
+{% endif %}
             </ul>
             <form method="post" action="{% url 'logout' %}" class="mt-4">
                 {% csrf_token %}

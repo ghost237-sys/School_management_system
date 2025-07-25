@@ -2,6 +2,33 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term, Grade
 
+USER_CATEGORY_CHOICES = [
+    ('admin', 'Admin'),
+    ('teacher', 'Teacher'),
+    ('student', 'Student'),
+]
+
+class MessagingForm(forms.Form):
+    user_category = forms.ChoiceField(choices=USER_CATEGORY_CHOICES, label='User Category', required=True)
+    recipient = forms.ModelChoiceField(queryset=User.objects.none(), label='Recipient', required=True)
+    subject = forms.CharField(max_length=255, label='Subject/Title', required=True)
+    message = forms.CharField(widget=forms.Textarea(attrs={'rows':4}), label='Message', required=True)
+    send_email = forms.BooleanField(label='Send Email', required=False, initial=True)
+    send_sms = forms.BooleanField(label='Send SMS', required=False, initial=False)
+
+    def __init__(self, *args, **kwargs):
+        category = kwargs.pop('category', None)
+        super().__init__(*args, **kwargs)
+        import sys
+        if category:
+            category = category.lower()
+            qs = User.objects.filter(role=category)
+            print(f"[DEBUG] MessagingForm category={category} queryset_count={qs.count()}", file=sys.stderr)
+            self.fields['recipient'].queryset = qs
+        else:
+            print("[DEBUG] MessagingForm category=None (empty queryset)", file=sys.stderr)
+            self.fields['recipient'].queryset = User.objects.none()
+
 class ExamForm(forms.ModelForm):
     class Meta:
         model = Exam
@@ -30,6 +57,29 @@ class AddSubjectForm(forms.ModelForm):
     class Meta:
         model = Subject
         fields = ['name', 'department']
+
+
+    class_group = forms.ModelChoiceField(queryset=Class.objects.all(), widget=forms.HiddenInput())
+    subjects = forms.ModelMultipleChoiceField(
+        queryset=Subject.objects.all(),
+        widget=forms.CheckboxSelectMultiple,
+        required=True,
+        label='Assign Subjects'
+    )
+
+    def __init__(self, *args, **kwargs):
+        class_group = kwargs.pop('class_group', None)
+        super().__init__(*args, **kwargs)
+        if class_group:
+            self.fields['class_group'].initial = class_group.id
+        # Optionally filter subjects by department or other logic here
+
+    def save(self):
+        class_group = self.cleaned_data['class_group']
+        subjects = self.cleaned_data['subjects']
+        # Remove existing assignments if using M2M or a through model
+        class_group.subject_set.set(subjects)
+        return class_group
 
 class EditTermDatesForm(forms.ModelForm):
     class Meta:

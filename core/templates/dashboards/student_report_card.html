@@ -30,7 +30,7 @@
                     <tr>
                         <td>{{ grade.subject.name }}</td>
                         <td>{{ grade.exam.name }}</td>
-                        <td>{{ grade.score|floatformat:2 }}</td>
+                        <td>{{ grade.score|floatformat:1 }}</td>
                         <td>{{ grade.grade_letter }}</td>
                         <td>{{ grade.remarks }}</td>
                     </tr>
@@ -41,6 +41,15 @@
             </table>
             <div class="mt-4">
                 <strong>Average Score:</strong> {{ average_score|floatformat:2 }}<br>
+                {% if class_rank and class_total %}
+                <strong>Class Rank:</strong> {{ class_rank }} out of {{ class_total }}<br>
+                {% endif %}
+                {% if level_rank and level_total %}
+                <strong>Level Rank:</strong> {{ level_rank }} out of {{ level_total }}<br>
+                {% endif %}
+                {% if overall_level_rank and overall_level_total %}
+                <strong>Overall Level Rank:</strong> {{ overall_level_rank }} out of {{ overall_level_total }}<br>
+                {% endif %}
             </div>
         </div>
     </div>

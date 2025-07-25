@@ -18,6 +18,8 @@ urlpatterns = [
     path('admin_teachers/delete/<int:teacher_id>/', views.delete_teacher, name='delete_teacher'),
     path('admin_students/', views.admin_students, name='admin_students'),
     path('admin_classes/', views.admin_classes, name='admin_classes'),
+    path('admin_class_result_slip/<int:class_id>/', views.admin_class_result_slip, name='admin_class_result_slip'),
+    path('overall_student_results/<int:class_id>/', views.overall_student_results, name='overall_student_results'),
     path('class_profile/<int:class_id>/', views.class_profile, name='class_profile'),
     path('edit_class/<int:class_id>/', views.edit_class, name='edit_class'),
     path('delete_class/<int:class_id>/', views.delete_class, name='delete_class'),
@@ -28,6 +30,7 @@ urlpatterns = [
     path('admin_fees/', views.admin_fees, name='admin_fees'),
     path('admin_payment/', views.admin_payment, name='admin_payment'),
     path('admin_events/', views.admin_events, name='admin_events'),
+    path('admin_send_message/', views.admin_send_message, name='admin_send_message'),
 
     # Teacher URLs
     path('teacher_dashboard/<int:teacher_id>/', views.teacher_dashboard, name='teacher_dashboard'),

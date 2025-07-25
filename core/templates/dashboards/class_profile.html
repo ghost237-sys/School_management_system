@@ -3,6 +3,11 @@
 {% block content %}
 <div class="container">
   <h2>Class Profile: {{ class_obj.name }} (Level {{ class_obj.level }})</h2>
+  {% if current_term %}
+    <span class="badge bg-info text-dark mb-3" style="font-size:1rem;">
+      Current Term: {{ current_term.name }} ({{ current_term.start_date|date:'M d, Y' }} to {{ current_term.end_date|date:'M d, Y' }}) in Academic Year {{ current_term.academic_year.year }}
+    </span>
+  {% endif %}
   <div class="mb-3">
     <strong>Class Teacher:</strong>
     {% if class_obj.class_teacher %}
@@ -11,32 +16,175 @@
       Not assigned
     {% endif %}
   </div>
-  <h4>Subjects & Assigned Teachers</h4>
-  <table class="table table-bordered">
-    <thead>
-      <tr><th>Subject</th><th>Teacher</th></tr>
-    </thead>
-    <tbody>
-      {% for st in subjects_and_teachers %}
-      <tr>
-        <td>{{ st.subject.name }}</td>
-        <td>{% if st.teacher %}{{ st.teacher.user.get_full_name|default:st.teacher.user.username }}{% else %}<span class="text-muted">Not assigned</span>{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <h4>Students</h4>
-  <table class="table table-striped">
-    <thead><tr><th>Name</th><th>Email</th></tr></thead>
-    <tbody>
-      {% for student in students %}
-      <tr>
-        <td>{{ student.user.get_full_name|default:student.user.username }}</td>
-        <td>{{ student.user.email }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <a href="{% url 'admin_classes' %}" class="btn btn-secondary">Back to Classes</a>
+  <div class="mb-4">
+    <input type="text" id="classSearchInput" class="form-control" placeholder="Search student or subject...">
+  </div>
+  <ul class="nav nav-tabs" id="classProfileTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="subjects-tab" data-bs-toggle="tab" data-bs-target="#subjects" type="button" role="tab" aria-controls="subjects" aria-selected="true">Subjects</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="students-tab" data-bs-toggle="tab" data-bs-target="#students" type="button" role="tab" aria-controls="students" aria-selected="false">Students</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance" type="button" role="tab" aria-controls="performance" aria-selected="false">Performance</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="finances-tab" data-bs-toggle="tab" data-bs-target="#finances" type="button" role="tab" aria-controls="finances" aria-selected="false">Finances</button>
+    </li>
+  </ul>
+  <div class="tab-content mt-3" id="classProfileTabsContent">
+    <div class="tab-pane fade show active" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
+      <h4>Subjects & Assigned Teachers</h4>
+      <table class="table table-bordered">
+        <thead>
+          <tr><th>Subject</th><th>Teacher</th></tr>
+        </thead>
+        <tbody>
+          {% for st in subjects_and_teachers %}
+          <tr>
+            <td>{{ st.subject.name }}</td>
+            <td>{% if st.teacher %}{{ st.teacher.user.get_full_name|default:st.teacher.user.username }}{% else %}<span class="text-muted">Not assigned</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="tab-pane fade" id="students" role="tabpanel" aria-labelledby="students-tab">
+      <h4>Students</h4>
+      <table class="table table-striped" id="studentsTable">
+        <thead><tr><th>Name</th><th>Email</th></tr></thead>
+        <tbody>
+          {% for student in students %}
+          <tr>
+            <td>
+              <a href="{% url 'student_profile' student.id %}">
+                {% if student.user %}
+                  {{ student.user.get_full_name|default:student.user.username }}
+                {% else %}
+                  (No user)
+                {% endif %}
+              </a>
+            </td>
+            <td>{{ student.user.email }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="tab-pane fade" id="performance" role="tabpanel" aria-labelledby="performance-tab">
+      <h4>Level Ranking Table (All Classes in Level)</h4>
+      <table class="table table-bordered table-sm">
+        <thead class="table-light">
+          <tr>
+            <th>Rank</th>
+            <th>Name</th>
+            <th>Average Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in level_scores_table %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ entry.name }}</td>
+            <td>{{ entry.avg|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="tab-pane fade" id="finances" role="tabpanel" aria-labelledby="finances-tab">
+      <h4>Finances</h4>
+      <h5>Students With Outstanding Fee Balances</h5>
+      {% if students_with_balances %}
+        <table class="table table-bordered table-sm">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Admission No</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in students_with_balances %}
+              <tr>
+                <td>{{ entry.student.user.get_full_name|default:entry.student.user.username }}</td>
+                <td>{{ entry.student.admission_no }}</td>
+                <td>{{ entry.balance|floatformat:2 }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="alert alert-info">No students in this class have outstanding fee balances for the current term.</div>
+      {% endif %}
+    </div>
+  </div>
+  <a href="{% url 'admin_classes' %}" class="btn btn-secondary mt-3">Back to Classes</a>
 </div>
+<script>
+  // Bootstrap 5 tab activation (if needed for custom JS)
+  var triggerTabList = [].slice.call(document.querySelectorAll('#classProfileTabs button'));
+  triggerTabList.forEach(function (triggerEl) {
+    var tabTrigger = new bootstrap.Tab(triggerEl);
+    triggerEl.addEventListener('click', function (event) {
+      event.preventDefault();
+      tabTrigger.show();
+    });
+  });
+</script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('classSearchInput');
+    if (!searchInput) return;
+
+    function filterTable(tableId) {
+      const table = document.getElementById(tableId);
+      if (!table) return;
+      const filter = searchInput.value.toLowerCase();
+      let found = false;
+      const rows = table.getElementsByTagName('tr');
+      for (let i = 1; i < rows.length; i++) { // skip header
+        let rowText = rows[i].textContent.toLowerCase();
+        if (rowText.includes(filter)) {
+          rows[i].style.display = '';
+          found = true;
+        } else {
+          rows[i].style.display = 'none';
+        }
+      }
+      // Handle 'No results found'
+      let noResultRow = table.querySelector('.no-results');
+      if (!found) {
+        if (!noResultRow) {
+          noResultRow = document.createElement('tr');
+          noResultRow.className = 'no-results';
+          let td = document.createElement('td');
+          td.colSpan = rows[0].children.length;
+          td.className = 'text-center text-muted';
+          td.textContent = 'No results found.';
+          noResultRow.appendChild(td);
+          table.querySelector('tbody').appendChild(noResultRow);
+        }
+        noResultRow.style.display = '';
+      } else if (noResultRow) {
+        noResultRow.style.display = 'none';
+      }
+    }
+
+    function filterActiveTabTable() {
+      const activeTab = document.querySelector('.tab-pane.active.show');
+      if (!activeTab) return;
+      const table = activeTab.querySelector('table');
+      if (!table) return;
+      filterTable(table.id);
+    }
+
+    searchInput.addEventListener('input', filterActiveTabTable);
+    // Also filter when switching tabs
+    document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(btn => {
+      btn.addEventListener('shown.bs.tab', filterActiveTabTable);
+    });
+  });
+</script>
 {% endblock %}

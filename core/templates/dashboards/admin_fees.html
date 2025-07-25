@@ -334,7 +334,8 @@ document.addEventListener('DOMContentLoaded', function() {
 {% endblock %}
 {% block content %}
     <div class="container py-4">
-    <div class="dashboard-hero d-flex justify-content-between align-items-center">
+        <!-- Send Message Test Button (for current admin) -->
+            <div class="dashboard-hero d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center">
             <div class="dashboard-hero-icon">
                 <i class="bi bi-speedometer2"></i>
@@ -345,9 +346,9 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         </div>
         <div>
-            <a href="{% url 'admin_send_arrears_message' %}" class="btn btn-warning btn-lg d-flex align-items-center shadow-sm" style="font-weight:600; border-radius:0.8rem; gap:0.5rem;">
-                <i class="bi bi-exclamation-triangle-fill me-1"></i> Send Fee Arrears Notice
-            </a>
+            <a href="{% url 'admin_send_message' %}" class="btn btn-warning btn-lg d-flex align-items-center shadow-sm rounded gap-2" style="font-weight:600;">
+    <i class="bi bi-exclamation-triangle-fill me-1"></i> Send Fee Arrears Notice
+</a>
         </div>
     </div>
     {% if current_term %}
@@ -392,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function() {
     {{ assign_form.amount.label_tag }}
     {{ assign_form.amount }}
 </div>
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Assign Fee</button>
+                        <button type="submit" class="btn btn-primary" name="assign_fee"><i class="bi bi-check2-circle me-1"></i>Assign Fee</button>
                     </form>
                 </div>
             </div>
@@ -465,6 +466,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <th>Total Billed: {{ cat.name }}</th>
                                 {% endfor %}
                                 <th>Total Billed (All)</th>
+                                <th>Outstanding (Prev. Terms)</th>
                                 <th>Total Paid</th>
                                 <th>Total Balance</th>
                             </tr>
@@ -479,6 +481,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <td>{{ student_category_totals|dict_get:student.id|dict_get:cat.id }}</td>
                                 {% endfor %}
                                 <td>{{ student_totals|dict_get:student.id }}</td>
+                                <td>{{ student_outstanding|dict_get:student.id }}</td>
                                 <td>{{ student_paid|dict_get:student.id }}</td>
                                 <td>{{ student_balances|dict_get:student.id }}</td>
                             </tr>

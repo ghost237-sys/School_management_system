@@ -26,6 +26,7 @@ class Class(models.Model):
     name = models.CharField(max_length=100)
     level = models.CharField(max_length=50)
     class_teacher = models.ForeignKey('Teacher', null=True, blank=True, on_delete=models.SET_NULL)
+    subjects = models.ManyToManyField('Subject', blank=True, related_name='classes')
 
     def __str__(self):
         return f"{self.name} (Level {self.level})"
@@ -211,3 +212,14 @@ class Event(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.start:%Y-%m-%d %H:%M})"
+
+# --- Messaging Module ---
+class Message(models.Model):
+    sender = models.ForeignKey(User, related_name='sent_messages', on_delete=models.CASCADE)
+    recipient = models.ForeignKey(User, related_name='received_messages', on_delete=models.CASCADE)
+    content = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"From {self.sender.username} to {self.recipient.username} at {self.timestamp:%Y-%m-%d %H:%M}"

@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+  <h2>Send Message</h2>
+  {% if sent %}
+    <div class="alert alert-success">Message sent successfully!</div>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+      {{ form.user_category.label_tag }}
+      {{ form.user_category }}
+    </div>
+    <div class="mb-3">
+      {{ form.recipient.label_tag }}
+      {{ form.recipient }}
+    </div>
+    <div class="mb-3">
+      {{ form.subject.label_tag }}
+      {{ form.subject }}
+    </div>
+    <div class="mb-3">
+      {{ form.message.label_tag }}
+      {{ form.message }}
+    </div>
+    <div class="form-check form-switch mb-2">
+      {{ form.send_email }} {{ form.send_email.label_tag }}
+    </div>
+    <div class="form-check form-switch mb-4">
+      {{ form.send_sms }} {{ form.send_sms.label_tag }}
+    </div>
+    <button type="submit" class="btn btn-primary">Send</button>
+    <a href="{% url 'admin_fees' %}" class="btn btn-secondary">Cancel</a>
+  </form>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const categorySelect = document.querySelector('select[name="user_category"]');
+    if (categorySelect) {
+        categorySelect.addEventListener('change', function() {
+            this.form.submit();
+        });
+    }
+});
+</script>
+{% endblock %}

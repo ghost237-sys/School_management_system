@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+{% load dict_extras %}
+{% block title %}Class Result Slip{% endblock %}
+{% block content %}
+<div class="container">
+    <h2>Class Result Slip: {{ class_obj.name }} (Level {{ class_obj.level }})</h2>
+    <form method="get" class="row g-3 mb-4">
+        <div class="col-md-4">
+            <label for="term" class="form-label">Term</label>
+            <select name="term" id="term" class="form-select">
+                {% for t in terms %}
+                    <option value="{{ t.id }}" {% if t.id == selected_term.id %}selected{% endif %}>{{ t.name }} ({{ t.academic_year.year }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label for="exam" class="form-label">Exam</label>
+            <select name="exam" id="exam" class="form-select">
+                {% for e in exams %}
+                    <option value="{{ e.id }}" {% if e.id == selected_exam.id %}selected{% endif %}>{{ e.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4 align-self-end">
+            <button type="submit" class="btn btn-primary">View</button>
+        </div>
+    </form>
+    <button class="btn btn-primary mb-3" onclick="printSection('class-result-slip-section', 'Class Result Slip')"><i class="fa fa-print"></i> Print Result Slip</button>
+    <div id="class-result-slip-section">
+        <table class="table table-bordered table-striped">
+            <thead class="table-light">
+                <tr>
+                    <th>Rank</th>
+                    <th>Student</th>
+                    {% for subject in subjects %}
+                        <th>{% if subject.code == 'TELAG_NLC_A' or subject.code == 'SC_TELAG_NLC_A' %}INT-SCI{% else %}{{ subject.code }}{% endif %}</th>
+                    {% endfor %}
+                    <th>Average</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                <tr>
+                    <td>{{ ranks|get_item:student.id }}</td>
+                    <td>{{ student.user.get_full_name|default:student.user.username }}</td>
+                    {% for subject in subjects %}
+                        <td>
+                            {% with grade=grades|dict_get:student.id|dict_get:subject.id %}
+                                {% if grade %}
+                                    {{ grade.score|floatformat:1 }} ({{ grade.grade_letter }})
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                    {% endfor %}
+                    <td>{{ averages|get_item:student.id|floatformat:1 }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="{{ subjects|length|add:'3' }}">No students found for this class.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    </div> <!-- end class-result-slip-section -->
+    <hr>
+    <h4>Class Performance Comparison (Same Level)</h4>
+    <div class="table-responsive mb-4">
+        <table class="table table-bordered table-striped w-auto">
+            <thead class="table-light">
+                <tr>
+                    <th>Class</th>
+                    <th>Average Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cname in comparison_classes %}
+                <tr{% if cname == class_obj.name %} class="table-primary"{% endif %}>
+                    <td>{{ cname }}</td>
+                    <td>{{ class_comparison_averages|get_item:cname|floatformat:1 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <hr>
+    <div class="mb-3">
+        <a href="{% url 'overall_student_results' class_obj.id %}?term={{ selected_term.id }}&exam={{ selected_exam.id }}" class="btn btn-info">View Overall Results (Detailed per Student & Subject)</a>
+    </div>
+    <h4>Overall Student Ranking (All Classes, Level {{ class_obj.level }})</h4>
+    <div class="table-responsive mb-4">
+        <table class="table table-bordered table-striped w-auto">
+            <thead class="table-light">
+                <tr>
+                    <th>Rank</th>
+                    <th>Student</th>
+                    <th>Class</th>
+                    <th>Average Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in overall_students_ranked %}
+                <tr{% if entry.student.id in ranks %} class="table-primary"{% endif %}>
+                    <td>{{ entry.rank }}</td>
+                    <td>{{ entry.student.user.get_full_name|default:entry.student.user.username }}</td>
+                    <td>{{ entry.class_name }}</td>
+                    <td>{{ entry.average|floatformat:0 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <a href="{% url 'admin_classes' %}" class="btn btn-secondary mt-3">Back to Classes</a>
+<script>
+function printSection(sectionId, title) {
+    var content = document.getElementById(sectionId);
+    if (!content) {
+        alert('Section not found!');
+        return;
+    }
+    var printWindow = window.open('', '', 'height=600,width=900');
+    printWindow.document.write('<html><head><title>' + title + '</title>');
+    // Optionally copy stylesheets
+    var styles = Array.from(document.querySelectorAll('link[rel=stylesheet], style')).map(node => node.outerHTML).join('');
+    printWindow.document.write(styles);
+    printWindow.document.write('</head><body >');
+    printWindow.document.write(content.innerHTML);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    setTimeout(function(){ printWindow.print(); printWindow.close(); }, 500);
+}
+</script>
+
+  </div>
+{% endblock %}

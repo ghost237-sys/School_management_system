@@ -6,7 +6,9 @@
 <button class="btn btn-primary mb-4" type="button" data-bs-toggle="collapse" data-bs-target="#addStudentFormCollapse" aria-expanded="false" aria-controls="addStudentFormCollapse">
   Add New Student
 </button>
-<div class="collapse mb-4" id="addStudentFormCollapse"></div>
+<div class="collapse mb-4" id="addStudentFormCollapse">
+    {% include 'partials/add_student_form.html' with form=add_student_form %}
+</div>
 <div id="toast-container"></div>
 <div class="mb-3 d-flex flex-wrap gap-2">
   <form class="d-flex flex-wrap gap-2" method="get">

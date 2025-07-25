@@ -45,10 +45,115 @@ def dashboard(request):
 
 
 @login_required(login_url='login')
-def student_profile(request):
-    student = get_object_or_404(Student, user=request.user)
+def student_profile(request, student_id):
+    from django.utils import timezone
+    student = get_object_or_404(Student, id=student_id)
+    now = timezone.now()
+
+    # Get current term (where today is between start_date and end_date)
+    today = timezone.now().date()
+    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
+
+    # Get all fee assignments for the student's class and current term
+    fee_assignments = FeeAssignment.objects.filter(class_group=student.class_group)
+    if current_term:
+        fee_assignments = fee_assignments.filter(term=current_term)
+
+    from django.db.models import Sum, Avg
+    # Total billed = sum of all assigned fees for this student in current term
+    total_billed = fee_assignments.aggregate(total=Sum('amount'))['total'] or 0
+
+    # Total paid = sum of all payments by this student for these assignments
+    total_paid = FeePayment.objects.filter(student=student, fee_assignment__in=fee_assignments).aggregate(total=Sum('amount_paid'))['total'] or 0
+
+    # Balance
+    balance = total_billed - total_paid
+
+    # --- Performance/Grades Section ---
+    grades = []
+    average_score = None
+    if current_term:
+        exams = Exam.objects.filter(term=current_term, level=student.class_group.level)
+        grades = Grade.objects.filter(student=student, exam__in=exams).select_related('subject', 'exam')
+        average_score = grades.aggregate(avg=Avg('score'))['avg'] if grades.exists() else None
+
+    # --- Performance per Term for Graph ---
+    # Get all terms for this student's class academic years
+    all_terms = Term.objects.filter(academic_year__in=AcademicYear.objects.all()).order_by('academic_year__year', 'start_date')
+    performance_per_term = []
+    for term in all_terms:
+        exams = Exam.objects.filter(term=term, level=student.class_group.level)
+        term_grades = Grade.objects.filter(student=student, exam__in=exams)
+        avg_score = term_grades.aggregate(avg=Avg('score'))['avg'] if term_grades.exists() else None
+        performance_per_term.append({
+            'term': str(term.name),
+            'year': str(term.academic_year.year),
+            'average_score': float(avg_score) if avg_score is not None else None,
+        })
+
+    # --- Ranking Logic ---
+    class_rank = None
+    level_rank = None
+    if current_term and average_score is not None:
+        # --- Class Ranking ---
+        class_students = Student.objects.filter(class_group=student.class_group)
+        class_scores = []
+        for s in class_students:
+            exams = Exam.objects.filter(term=current_term, level=student.class_group.level)
+            grades = Grade.objects.filter(student=s, exam__in=exams)
+            avg = grades.aggregate(avg=Avg('score'))['avg'] if grades.exists() else None
+            class_scores.append({'student_id': s.id, 'avg': avg})
+        # Remove students with no grades
+        class_scores = [x for x in class_scores if x['avg'] is not None]
+        class_scores.sort(key=lambda x: x['avg'], reverse=True)
+        for idx, entry in enumerate(class_scores, start=1):
+            if entry['student_id'] == student.id:
+                class_rank = idx
+                break
+        # --- Level Ranking ---
+        level_students = Student.objects.filter(class_group__level=student.class_group.level)
+        level_scores = []
+        for s in level_students:
+            exams = Exam.objects.filter(term=current_term, level=student.class_group.level)
+            grades = Grade.objects.filter(student=s, exam__in=exams)
+            avg = grades.aggregate(avg=Avg('score'))['avg'] if grades.exists() else None
+            level_scores.append({'student_id': s.id, 'avg': avg})
+        # Remove students with no grades
+        level_scores = [x for x in level_scores if x['avg'] is not None]
+        level_scores.sort(key=lambda x: x['avg'], reverse=True)
+    class_total = len(class_scores)
+    level_total = len(level_scores)
+    # Prepare level scores table for display
+    level_scores_table = []
+    overall_level_rank = None
+    overall_level_total = level_total
+    for idx, entry in enumerate(level_scores, start=1):
+        try:
+            s = Student.objects.get(id=entry['student_id'])
+            name = s.user.get_full_name() or s.user.username
+        except Exception:
+            name = 'Unknown'
+        level_scores_table.append({'name': name, 'avg': entry['avg']})
+        if entry['student_id'] == student.id:
+            overall_level_rank = idx
+
     context = {
         'student': student,
+        'current_term': current_term,
+        'total_billed': total_billed,
+        'total_paid': total_paid,
+        'balance': balance,
+        'grades': grades,
+        'average_score': average_score,
+        'performance_per_term': performance_per_term,
+        'class_rank': class_rank,
+        'level_rank': level_rank,
+        'class_total': class_total,
+        'level_total': level_total,
+        'overall_level_rank': overall_level_rank,
+        'overall_level_total': overall_level_total,
+        'fee_assignments': fee_assignments,
+        'fee_payments': FeePayment.objects.filter(student=student, fee_assignment__in=fee_assignments),
     }
     return render(request, 'dashboards/student_profile.html', context)
 
@@ -455,12 +560,32 @@ def admin_overview(request):
     if not request.user.role == 'admin':
         return HttpResponseForbidden("You are not authorized to view this page.")
     
-    # Placeholder context
+    # Dashboard context with correct variable names for the template
+    from .models import FeeCategory, FeeAssignment, FeePayment, Event, Term
+    from django.utils import timezone
+    now = timezone.now()
+
+    total_students = Student.objects.filter(graduated=False).count()
+    total_teachers = Teacher.objects.count()
+    total_classes = Class.objects.count()
+    total_subjects = Subject.objects.count()
+    total_fees = FeeCategory.objects.count()
+
+    # Current term
+    today = timezone.now().date()
+    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
+
+    # Upcoming events (next 5, not done, starting today or later)
+    upcoming_events = Event.objects.filter(is_done=False, start__gte=now).order_by('start')[:5]
+
     context = {
-        'teacher_count': Teacher.objects.count(),
-        'student_count': Student.objects.count(),
-        'class_count': Class.objects.count(),
-        'subject_count': Subject.objects.count(),
+        'total_students': total_students,
+        'total_teachers': total_teachers,
+        'total_classes': total_classes,
+        'total_subjects': total_subjects,
+        'total_fees': total_fees,
+        'current_term': current_term,
+        'upcoming_events': upcoming_events,
     }
     return render(request, 'dashboards/admin_overview.html', context)
 
@@ -716,7 +841,7 @@ def admin_classes(request):
 
 @login_required(login_url='login')
 def class_profile(request, class_id):
-    from .models import Class, Student, TeacherClassAssignment, Subject
+    from .models import Class, Student, TeacherClassAssignment, Subject, FeeAssignment, FeePayment
     class_obj = Class.objects.select_related('class_teacher').get(id=class_id)
     students = Student.objects.filter(class_group=class_obj).select_related('user')
     assignments = TeacherClassAssignment.objects.filter(class_group=class_obj).select_related('teacher__user', 'subject')
@@ -727,16 +852,66 @@ def class_profile(request, class_id):
             'subject': subj,
             'teacher': assignment.teacher if assignment else None,
         })
+    # --- Level Ranking Table for This Class's Level ---
+    from django.db.models import Avg, Sum
+    from django.utils import timezone
+    from .models import Exam
+    level_students = Student.objects.filter(class_group__level=class_obj.level)
+    today = timezone.now().date()
+    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
+    level_scores = []
+    if current_term:
+        for s in level_students:
+            exams = Exam.objects.filter(term=current_term, level=class_obj.level)
+            grades = Grade.objects.filter(student=s, exam__in=exams)
+            avg = grades.aggregate(avg=Avg('score'))['avg'] if grades.exists() else None
+            if avg is not None:
+                name = s.user.get_full_name() or s.user.username
+                level_scores.append({'name': name, 'avg': avg})
+        level_scores.sort(key=lambda x: x['avg'], reverse=True)
+
+    # --- Finance Data ---
+    fee_assignments = FeeAssignment.objects.filter(class_group=class_obj)
+    total_billed = fee_assignments.aggregate(total=Sum('amount'))['total'] or 0
+    payments = FeePayment.objects.filter(fee_assignment__in=fee_assignments)
+    total_paid = payments.aggregate(total=Sum('amount_paid'))['total'] or 0
+    balance = total_billed - total_paid
+    class_finances = {
+        'total_billed': total_billed,
+        'total_paid': total_paid,
+        'balance': balance,
+        'fee_assignments': fee_assignments,
+        'payments': payments,
+    }
+
+    # --- Students With Outstanding Balances ---
+    student_fees = fee_assignments.aggregate(total=Sum('amount'))['total'] or 0
+    students_with_balances = []
+    for student in students:
+        student_paid = FeePayment.objects.filter(fee_assignment__in=fee_assignments, student=student).aggregate(total=Sum('amount_paid'))['total'] or 0
+        student_balance = student_fees - student_paid
+        if student_balance > 0:
+            students_with_balances.append({
+                'student': student,
+                'balance': student_balance,
+            })
+
     context = {
         'class_obj': class_obj,
         'students': students,
         'subjects_and_teachers': subjects_and_teachers,
+        'level_scores_table': level_scores,
+        'class_finances': class_finances,
+        'students_with_balances': students_with_balances,
+        'current_term': current_term,
     }
+
     return render(request, 'dashboards/class_profile.html', context)
 
 @login_required(login_url='login')
 def edit_class(request, class_id):
     from .models import Class, Teacher
+    # ... (rest of the code remains the same)
     from django.contrib import messages
     class_obj = Class.objects.get(id=class_id)
     if request.method == 'POST':
@@ -779,6 +954,152 @@ def delete_class(request, class_id):
 # Admin Academic Years & Terms View
 from .models import AcademicYear, Term
 from django.views.decorators.csrf import csrf_protect
+
+@login_required(login_url='login')
+def admin_class_result_slip(request, class_id):
+    if request.user.role != 'admin':
+        return redirect('dashboard')
+    from .models import Class, Student, Subject, Exam, Grade, Term
+    class_obj = get_object_or_404(Class, id=class_id)
+    students = Student.objects.filter(class_group=class_obj).select_related('user')
+    subjects = Subject.objects.all()
+    terms = Term.objects.order_by('-start_date')
+    exams = Exam.objects.none()
+    selected_term = None
+    selected_exam = None
+    grades = {}
+    averages = {}
+    ranks = {}
+    if terms:
+        # Get selected term from GET or default to latest
+        term_id = request.GET.get('term')
+        if term_id:
+            selected_term = terms.filter(id=term_id).first()
+        if not selected_term:
+            selected_term = terms.first()
+        exams = Exam.objects.filter(term=selected_term)
+        # Get selected exam from GET or default to latest in term
+        exam_id = request.GET.get('exam')
+        if exam_id:
+            selected_exam = exams.filter(id=exam_id).first()
+        if not selected_exam:
+            selected_exam = exams.first()
+        if selected_exam:
+            # Build grades dict: grades[student.id][subject.id] = Grade instance
+            grades = {s.id: {} for s in students}
+            grade_qs = Grade.objects.filter(student__in=students, exam=selected_exam)
+            for g in grade_qs:
+                grades[g.student.id][g.subject.id] = g
+            # Compute averages and ranks
+            for s in students:
+                subj_scores = [g.score for g in grades[s.id].values() if hasattr(g, 'score') and g.score is not None]
+                averages[s.id] = sum(subj_scores) / len(subj_scores) if subj_scores else 0
+            sorted_students = sorted(students, key=lambda s: averages[s.id], reverse=True)
+            for idx, s in enumerate(sorted_students, 1):
+                ranks[s.id] = idx
+            # Sort students by rank before passing to template
+            students = sorted(students, key=lambda s: ranks.get(s.id, 9999))
+    # --- Class-level comparison ---
+    comparison_classes = []
+    class_comparison_averages = {}
+    if selected_exam and class_obj.level:
+        peer_classes = Class.objects.filter(level=class_obj.level)
+        for peer_class in peer_classes:
+            peer_students = Student.objects.filter(class_group=peer_class)
+            peer_grades = Grade.objects.filter(student__in=peer_students, exam=selected_exam)
+            peer_scores = [g.score for g in peer_grades if g.score is not None]
+            avg_score = sum(peer_scores) / len(peer_scores) if peer_scores else 0
+            class_comparison_averages[peer_class.name] = avg_score
+            comparison_classes.append(peer_class.name)
+    # --- Overall student ranking across all classes at this level ---
+    overall_students_ranked = []
+    if selected_exam and class_obj.level:
+        all_level_classes = Class.objects.filter(level=class_obj.level)
+        all_level_students = Student.objects.filter(class_group__in=all_level_classes).select_related('user', 'class_group')
+        student_averages = {}
+        for s in all_level_students:
+            grades_qs = Grade.objects.filter(student=s, exam=selected_exam)
+            scores = [g.score for g in grades_qs if g.score is not None]
+            avg = sum(scores) / len(scores) if scores else 0
+            student_averages[s.id] = avg
+        ranked_students = sorted(all_level_students, key=lambda s: student_averages.get(s.id, 0), reverse=True)
+        for idx, s in enumerate(ranked_students, 1):
+            overall_students_ranked.append({
+                'rank': idx,
+                'student': s,
+                'class_name': s.class_group.name if s.class_group else '',
+                'average': student_averages.get(s.id, 0)
+            })
+    context = {
+        'class_obj': class_obj,
+        'students': students,
+        'subjects': subjects,
+        'terms': terms,
+        'exams': exams,
+        'selected_term': selected_term,
+        'selected_exam': selected_exam,
+        'grades': grades,
+        'averages': averages,
+        'ranks': ranks,
+        'comparison_classes': comparison_classes,
+        'class_comparison_averages': class_comparison_averages,
+        'overall_students_ranked': overall_students_ranked,
+    }
+    return render(request, 'dashboards/admin_class_result_slip.html', context)
+
+@login_required(login_url='login')
+def overall_student_results(request, class_id):
+    if request.user.role != 'admin':
+        return redirect('dashboard')
+    from .models import Class, Student, Subject, Exam, Grade
+    class_obj = get_object_or_404(Class, id=class_id)
+    level = class_obj.level
+    subjects = Subject.objects.all()
+    # Use same term/exam selection logic as result slip
+    terms = Term.objects.order_by('-start_date')
+    selected_term = None
+    selected_exam = None
+    if terms:
+        term_id = request.GET.get('term')
+        if term_id:
+            selected_term = terms.filter(id=term_id).first()
+        if not selected_term:
+            selected_term = terms.first()
+        exams = Exam.objects.filter(term=selected_term)
+        exam_id = request.GET.get('exam')
+        if exam_id:
+            selected_exam = exams.filter(id=exam_id).first()
+        if not selected_exam:
+            selected_exam = exams.first()
+    overall_students_ranked = []
+    if selected_exam and level:
+        all_level_classes = Class.objects.filter(level=level)
+        all_level_students = Student.objects.filter(class_group__in=all_level_classes).select_related('user', 'class_group')
+        student_averages = {}
+        student_grades = {}
+        for s in all_level_students:
+            grades_qs = Grade.objects.filter(student=s, exam=selected_exam)
+            student_grades[s.id] = {g.subject.id: g for g in grades_qs}
+            scores = [g.score for g in grades_qs if g.score is not None]
+            avg = sum(scores) / len(scores) if scores else 0
+            student_averages[s.id] = avg
+        ranked_students = sorted(all_level_students, key=lambda s: student_averages.get(s.id, 0), reverse=True)
+        for idx, s in enumerate(ranked_students, 1):
+            overall_students_ranked.append({
+                'rank': idx,
+                'student': s,
+                'class_name': s.class_group.name if s.class_group else '',
+                'grades': student_grades.get(s.id, {}),
+                'average': student_averages.get(s.id, 0)
+            })
+    context = {
+        'level': level,
+        'subjects': subjects,
+        'selected_exam': selected_exam,
+        'overall_students_ranked': overall_students_ranked,
+        'back_url': request.META.get('HTTP_REFERER', '/')
+    }
+    return render(request, 'dashboards/overall_student_results.html', context)
 
 @login_required(login_url='login')
 def admin_academic_years(request):
@@ -1257,21 +1578,19 @@ def upload_marksheet(request):
 @login_required(login_url='login')
 def admin_teachers(request):
     teachers = Teacher.objects.all()
-    form = AddTeacherForm()
-    context = {'teachers': teachers, 'form': form}
+    add_teacher_form = AddTeacherForm()
+    context = {'teachers': teachers, 'add_teacher_form': add_teacher_form}
     return render(request, 'dashboards/admin_teachers.html', context)
+
+@login_required(login_url='login')
+def delete_teacher(request, teacher_id):
+    # Placeholder for teacher deletion logic
+    # Optionally, implement actual deletion if needed
+    return redirect('admin_teachers')
 
 @login_required(login_url='login')
 def edit_teacher(request, teacher_id):
     return redirect('admin_teachers')
-
-@login_required(login_url='login')
-def delete_teacher(request, teacher_id):
-    return redirect('admin_teachers')
-
-@login_required(login_url='login')
-def admin_fees(request):
-    return render(request, 'dashboards/admin_fees.html', {})
 
 @login_required(login_url='login')
 def admin_payment(request):
@@ -1279,7 +1598,61 @@ def admin_payment(request):
 
 @login_required(login_url='login')
 def admin_events(request):
-    return render(request, 'dashboards/admin_events.html', {})
+    from .forms import EventForm
+    from .models import Event
+    from django.utils import timezone
+
+    # Handle marking event as done
+    if request.method == 'POST' and 'mark_done_event_id' in request.POST:
+        event_id = request.POST.get('mark_done_event_id')
+        is_done = request.POST.get('is_done') == 'on'
+        comment = request.POST.get('comment', '').strip()
+        try:
+            event = Event.objects.get(id=event_id)
+            event.is_done = is_done
+            event.comment = comment
+            event.save()
+            messages.success(request, 'Event status updated.')
+        except Event.DoesNotExist:
+            messages.error(request, 'Event not found.')
+        return redirect(request.path + '?' + request.META.get('QUERY_STRING', ''))
+
+    filter_type = request.GET.get('filter', 'all')
+    now = timezone.now()
+    events = Event.objects.all().order_by('-start')
+
+    # Filtering logic
+    if filter_type == 'upcoming':
+        filtered_events = events.filter(start__gte=now, is_done=False)
+    elif filter_type == 'done':
+        filtered_events = events.filter(is_done=True)
+    elif filter_type == 'undone':
+        filtered_events = events.filter(is_done=False)
+    else:
+        filtered_events = events
+
+    # Past events that are not marked as done
+    past_events = events.filter(start__lt=now, is_done=False)
+
+    # Event form (for modal)
+    form = EventForm()
+    edit_event = None
+    if 'edit' in request.GET:
+        try:
+            edit_event = Event.objects.get(id=request.GET['edit'])
+            form = EventForm(instance=edit_event)
+        except Event.DoesNotExist:
+            edit_event = None
+
+    context = {
+        'filtered_events': filtered_events,
+        'past_events': past_events,
+        'filter_type': filter_type,
+        'form': form,
+        'edit_event': edit_event,
+    }
+    return render(request, 'dashboards/admin_events.html', context)
+
 
 @login_required(login_url='login')
 def teacher_timetable(request, teacher_id):
@@ -1289,6 +1662,140 @@ def teacher_timetable(request, teacher_id):
 def student_fees(request):
     return render(request, 'dashboards/student_fees.html', {})
 
+
+@login_required(login_url='login')
+def admin_fees(request):
+    from .forms import FeeCategoryForm, FeeAssignmentForm
+    from .models import FeeCategory, FeeAssignment, FeePayment, Student, Class, Term
+    from django.db.models import Sum
+    from django.contrib import messages
+    import json
+
+    fee_form = FeeCategoryForm()
+    assign_form = FeeAssignmentForm()
+    
+    # Handle FeeAssignment POST
+    if request.method == 'POST' and 'assign_fee' in request.POST:
+        assign_form = FeeAssignmentForm(request.POST)
+        if assign_form.is_valid():
+            try:
+                assign_form.save()
+                messages.success(request, 'Fee assignment saved successfully!')
+            except Exception as e:
+                messages.error(request, f'Error saving fee assignment: {e}')
+        else:
+            messages.error(request, 'Please correct the errors in the fee assignment form.')
+
+    today = timezone.now().date()
+    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
+    all_classes = Class.objects.all()
+    all_fee_categories = FeeCategory.objects.all()
+    all_students = Student.objects.filter(graduated=False)
+
+    selected_class_id = request.GET.get('class_group', '')
+    sort_order = request.GET.get('sort', 'largest')
+    if selected_class_id:
+        all_students = all_students.filter(class_group_id=selected_class_id)
+    if sort_order == 'largest':
+        all_students = sorted(all_students, key=lambda s: s.id)
+    elif sort_order == 'smallest':
+        all_students = sorted(all_students, key=lambda s: s.id, reverse=True)
+
+    fees = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term')
+    if current_term:
+        fees = fees.filter(term=current_term)
+
+    student_category_totals = {}
+    student_totals = {}
+    student_paid = {}
+    student_balances = {}
+
+    student_outstanding = {}
+    for student in all_students:
+        category_totals = {}
+        total_billed = 0
+        total_paid = 0
+        assignments = FeeAssignment.objects.filter(class_group=student.class_group)
+        if current_term:
+            assignments = assignments.filter(term=current_term)
+        for cat in all_fee_categories:
+            cat_total = assignments.filter(fee_category=cat).aggregate(total=Sum('amount'))['total'] or 0
+            category_totals[cat.id] = cat_total
+            total_billed += cat_total
+        paid = FeePayment.objects.filter(student=student).aggregate(total=Sum('amount_paid'))['total'] or 0
+        # Outstanding calculation for this student
+        if current_term:
+            previous_terms = Term.objects.filter(start_date__lt=current_term.start_date).order_by('start_date')
+            last_term = previous_terms.last() if previous_terms.exists() else None
+        else:
+            previous_terms = Term.objects.all().order_by('start_date')
+            last_term = previous_terms.last() if previous_terms.exists() else None
+        outstanding = 0
+        # All terms before current (including last term)
+        prev_assignments = FeeAssignment.objects.filter(class_group=student.class_group, term__in=previous_terms)
+        for cat in all_fee_categories:
+            cat_total_prev = prev_assignments.filter(fee_category=cat).aggregate(total=Sum('amount'))['total'] or 0
+            paid_prev = FeePayment.objects.filter(student=student, fee_assignment__fee_category=cat, fee_assignment__term__in=previous_terms).aggregate(total=Sum('amount_paid'))['total'] or 0
+            outstanding += (cat_total_prev - paid_prev)
+        # Now, explicitly add last term's unpaid balance (if not already included)
+        if last_term:
+            last_assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=last_term)
+            for cat in all_fee_categories:
+                cat_total_last = last_assignments.filter(fee_category=cat).aggregate(total=Sum('amount'))['total'] or 0
+                paid_last = FeePayment.objects.filter(student=student, fee_assignment__fee_category=cat, fee_assignment__term=last_term).aggregate(total=Sum('amount_paid'))['total'] or 0
+                last_term_balance = cat_total_last - paid_last
+                # Only add if last_term is not already in previous_terms (avoid double-count)
+                if not previous_terms.filter(pk=last_term.pk).exists():
+                    outstanding += last_term_balance
+        student_category_totals[student.id] = category_totals
+        student_totals[student.id] = total_billed
+        student_paid[student.id] = paid
+        student_outstanding[student.id] = outstanding
+        student_balances[student.id] = total_billed + outstanding - paid
+
+
+    category_labels = list(all_fee_categories.values_list('name', flat=True))
+    category_data = [float(fees.filter(fee_category=cat).aggregate(total=Sum('amount'))['total'] or 0) for cat in all_fee_categories]
+    payment_labels = []
+    payment_data = []
+    payments_by_month = (
+        FeePayment.objects
+        .extra(select={'month': "strftime('%%Y-%%m', payment_date)"})
+        .values('month')
+        .annotate(total=Sum('amount_paid'))
+        .order_by('month')
+    )
+    for entry in payments_by_month:
+        payment_labels.append(entry['month'])
+        payment_data.append(float(entry['total']) if entry['total'] is not None else 0.0)
+
+    context = {
+        'fee_form': fee_form,
+        'assign_form': assign_form,
+        'fees': fees,
+        'all_classes': all_classes,
+        'all_fee_categories': all_fee_categories,
+        'all_students': all_students,
+        'student_category_totals': student_category_totals,
+        'student_totals': student_totals,
+        'student_paid': student_paid,
+        'student_balances': student_balances,
+        'selected_class_id': selected_class_id,
+        'sort_order': sort_order,
+        'current_term': current_term,
+        'category_labels': json.dumps(category_labels),
+        'category_data': json.dumps(category_data),
+        'payment_labels': json.dumps(payment_labels),
+        'payment_data': json.dumps(payment_data),
+        'student_outstanding': student_outstanding,
+    }
+    return render(request, 'dashboards/admin_fees.html', context)
+
+@login_required(login_url='login')
+def admin_users(request):
+    # Placeholder for admin user management
+    users = User.objects.all()
+    return render(request, 'dashboards/admin_users.html', {'users': users})
 
 # API and AJAX placeholders
 def exam_events_api(request):
@@ -1310,8 +1817,26 @@ def add_class_ajax(request):
 def add_subject_ajax(request):
     return JsonResponse({'status': 'ok'})
 
+from django.core.serializers.json import DjangoJSONEncoder
+
 def events_json(request):
-    return JsonResponse([], safe=False)
+    from .models import Event
+    from django.utils import timezone
+    now = timezone.now()
+    if not request.user.is_authenticated or request.user.role not in ['admin', 'teacher']:
+        return JsonResponse([], safe=False)
+    events = Event.objects.filter(is_done=False)
+    event_list = []
+    for e in events:
+        event_list.append({
+            'id': e.id,
+            'title': e.title,
+            'start': e.start.isoformat(),
+            'end': e.end.isoformat() if e.end else None,
+            'allDay': e.all_day,
+            'category': e.category,
+        })
+    return JsonResponse(event_list, safe=False, encoder=DjangoJSONEncoder)
 
 @require_POST
 def event_create(request):
@@ -1602,3 +2127,49 @@ def admin_exams(request):
         'all_subjects': all_subjects,
     }
     return render(request, 'dashboards/admin_exams.html', context)
+
+# --- Messaging Module ---
+from .models import Message
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import get_object_or_404, redirect, render
+from django.db.models import Q
+
+from .forms import MessagingForm
+from django.core.mail import send_mail
+
+@login_required(login_url='login')
+def admin_send_message(request):
+    category = request.GET.get('user_category')
+    form = MessagingForm(request.POST or None, category=category)
+    sent = False
+    if request.method == 'POST' and form.is_valid():
+        sender = request.user
+        recipient = form.cleaned_data['recipient']
+        subject = form.cleaned_data['subject']
+        message_body = form.cleaned_data['message']
+        send_email = form.cleaned_data['send_email']
+        send_sms = form.cleaned_data['send_sms']
+
+        # Save message to DB
+        Message.objects.create(sender=sender, recipient=recipient, subject=subject, content=message_body)
+
+        # Send email if requested
+        if send_email and recipient.email:
+            send_mail(subject, message_body, sender.email, [recipient.email], fail_silently=True)
+        # Send SMS if requested (placeholder, implement actual SMS logic)
+        if send_sms and hasattr(recipient, 'phone') and recipient.phone:
+            pass  # Integrate with SMS API here
+
+        messages.success(request, 'Message sent successfully!')
+        sent = True
+        form = MessagingForm(category=category)  # Reset form
+
+    # Filter recipients based on selected category
+    # Fix: ensure category is lowercased and valid
+    valid_roles = [choice[0] for choice in User.ROLE_CHOICES]
+    if category and category.lower() in valid_roles:
+        form.fields['recipient'].queryset = User.objects.filter(role=category.lower())
+    else:
+        form.fields['recipient'].queryset = User.objects.none()
+
+    return render(request, 'messaging/send_message.html', {'form': form, 'sent': sent})

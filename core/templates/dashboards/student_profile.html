@@ -195,9 +195,64 @@
 
   </div>
   <div class="tab-pane fade" id="performance" role="tabpanel" aria-labelledby="performance-tab">
+    {# Render performance_per_term as JSON for JS #}
+    {{ performance_per_term|json_script:"perf-data" }}
+    <div class="mb-4">
+      <div class="card">
+        <div class="card-header bg-info text-white">
+          <strong>Overall Performance by Term</strong>
+        </div>
+        <div class="card-body">
+          <canvas id="performanceChart" height="100"></canvas>
+        </div>
+      </div>
+    </div>
     <div id="result-slip-section">
     {% include 'dashboards/student_report_card.html' with student=student grades=grades average_score=average_score term=current_term %}
-</div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      const perfData = JSON.parse(document.getElementById('perf-data').textContent);
+      const labels = perfData.map(e => `${e.term} (${e.year})`);
+      const scores = perfData.map(e => e.average_score);
+      if (scores.some(s => s !== null)) {
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Average Score',
+              data: scores,
+              borderColor: '#007bff',
+              backgroundColor: 'rgba(0,123,255,0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 5,
+              pointHoverRadius: 7
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: true },
+              tooltip: { enabled: true }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Average Score' }
+              },
+              x: {
+                title: { display: true, text: 'Term' }
+              }
+            }
+          }
+        });
+      } else {
+        document.getElementById('performanceChart').parentNode.innerHTML += '<div class="text-muted text-center mt-3">No performance data available for chart.</div>';
+      }
+    </script>
   </div>
 <!-- Fee Details Modal -->
 <div class="modal fade" id="feeDetailsModal" tabindex="-1" aria-labelledby="feeDetailsModalLabel" aria-hidden="true">
