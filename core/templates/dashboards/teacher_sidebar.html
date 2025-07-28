@@ -4,6 +4,7 @@
     <ul class="nav nav-pills flex-column mb-auto">
         <li class="nav-item mb-2">
             <a class="nav-link text-white {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}" href="{% url 'teacher_dashboard' teacher_id=teacher.id %}">
+                <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
                 Dashboard
             </a>
         </li>
@@ -13,7 +14,8 @@
             </a>
         </li>
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'view_timetable' %}active{% endif %}" href="#">
+            <a class="nav-link text-white {% if request.resolver_match.url_name == 'timetable_view' %}active{% endif %}" href="{% url 'timetable_view' %}">
+                <div class="sb-nav-link-icon"><i class="fas fa-calendar-alt"></i></div>
                 Timetable
             </a>
         </li>
@@ -38,8 +40,20 @@
             </a>
         </li>
     </ul>
-    <form method="post" action="{% url 'logout' %}" class="mt-4">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-secondary w-100">Logout</button>
-    </form>
+    <div class="mt-auto">
+        <div class="dropdown">
+            <a href="#" class="nav-link text-white d-flex align-items-center" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-bell fs-5"></i>
+                <span class="badge rounded-pill bg-danger ms-2" id="notification-count" style="display: none;"></span>
+                <span class="ms-2">Notifications</span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-dark text-small shadow" aria-labelledby="notificationDropdown" id="notification-list" style="width: 280px;">
+                <li><a class="dropdown-item" href="#">No new notifications</a></li>
+            </ul>
+        </div>
+        <form method="post" action="{% url 'logout' %}" class="mt-3">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary w-100 d-flex align-items-center justify-content-center"><i class="bi bi-box-arrow-right me-2"></i> Logout</button>
+        </form>
+    </div>
 </nav>

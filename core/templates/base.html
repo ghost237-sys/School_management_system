@@ -102,12 +102,18 @@
                     </a>
                 </li>
                 <li class="nav-item mb-2">
+                    <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'timetable_view' %}active{% endif %}" href="{% url 'timetable_view' %}">
+                        <i class="bi bi-calendar-week me-2"></i> Timetable
+                    </a>
+                </li>
+
+                <li class="nav-item mb-2">
                     <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_exams' %}active{% endif %}" href="{% url 'admin_exams' %}">
                         <i class="bi bi-clipboard-data me-2"></i> Exams
                     </a>
                 </li>
                 <li class="nav-item mb-2">
-                    <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_fees' %}active{% endif %}" href="{% url 'admin_fees' %}">
+                    <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_payment' %}active{% endif %}" href="{% url 'admin_payment' %}">
                         <i class="bi bi-cash-coin me-2"></i> Fees
                     </a>
                 </li>
@@ -130,10 +136,22 @@
 </li>
 {% endif %}
             </ul>
-            <form method="post" action="{% url 'logout' %}" class="mt-4">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-secondary w-100 d-flex align-items-center justify-content-center"><i class="bi bi-box-arrow-right me-2"></i> Logout</button>
-            </form>
+            <div class="mt-auto">
+                <div class="dropdown">
+                    <a href="#" class="nav-link text-white d-flex align-items-center" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-bell fs-5"></i>
+                        <span class="badge rounded-pill bg-danger ms-2" id="notification-count" style="display: none;"></span>
+                        <span class="ms-2">Notifications</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-dark text-small shadow" aria-labelledby="notificationDropdown" id="notification-list" style="width: 280px;">
+                        <li><a class="dropdown-item" href="#">No new notifications</a></li>
+                    </ul>
+                </div>
+                <form method="post" action="{% url 'logout' %}" class="mt-3">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary w-100 d-flex align-items-center justify-content-center"><i class="bi bi-box-arrow-right me-2"></i> Logout</button>
+                </form>
+            </div>
         </nav>
         {% elif user.is_authenticated and user.role == 'teacher' and teacher %}
             {% include 'dashboards/teacher_sidebar.html' %}
@@ -149,5 +167,69 @@
     </div>
     <!-- Bootstrap Bundle JS (with Popper) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    {% if user.is_authenticated %}
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const notificationCountEl = document.getElementById('notification-count');
+        const notificationListEl = document.getElementById('notification-list');
+        const notificationsUrl = "{% url 'get_notifications_api' %}";
+
+        function fetchNotifications() {
+            fetch(notificationsUrl)
+                .then(response => response.json())
+                .then(data => {
+                    updateNotificationUI(data.notifications, data.count);
+                })
+                .catch(error => console.error('Error fetching notifications:', error));
+        }
+
+        function updateNotificationUI(notifications, count) {
+            if (count > 0) {
+                notificationCountEl.textContent = count;
+                notificationCountEl.style.display = 'inline-block';
+            } else {
+                notificationCountEl.style.display = 'none';
+            }
+
+            notificationListEl.innerHTML = '';
+            if (notifications.length > 0) {
+                notifications.forEach(n => {
+                    const item = document.createElement('li');
+                    item.innerHTML = `<a class="dropdown-item" href="#" data-id="${n.id}" style="white-space: normal;">${n.message}</a>`;
+                    notificationListEl.appendChild(item);
+                });
+            } else {
+                notificationListEl.innerHTML = '<li><a class="dropdown-item" href="#">No new notifications</a></li>';
+            }
+        }
+
+        notificationListEl.addEventListener('click', function(e) {
+            if (e.target && e.target.matches('a.dropdown-item')) {
+                const notificationId = e.target.dataset.id;
+                if (!notificationId) return;
+
+                const markAsReadUrl = `/timetable/api/notifications/${notificationId}/read/`;
+                fetch(markAsReadUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json'
+                    }
+                }).then(response => response.json())
+                  .then(data => {
+                      if (data.success) {
+                          fetchNotifications(); // Refresh list after marking as read
+                      }
+                  });
+            }
+        });
+
+        // Fetch notifications on page load and then every 60 seconds
+        fetchNotifications();
+        setInterval(fetchNotifications, 60000);
+    });
+    </script>
+    {% endif %}
 </body>
 </html>

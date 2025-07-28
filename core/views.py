@@ -4,11 +4,13 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, Sum, Avg
 from django.urls import reverse
-from django.http import JsonResponse, HttpResponseRedirect, HttpResponseForbidden
+from django.http import JsonResponse, HttpResponseRedirect, HttpResponseForbidden, HttpResponse
 from django.template.loader import render_to_string
+from weasyprint import HTML
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_protect, csrf_exempt
+from django.views.decorators.http import require_POST
 from django.utils.dateparse import parse_datetime
 from django.db import transaction
 
@@ -20,13 +22,14 @@ import pandas as pd
 from .models import (
     User, Student, Teacher, Class, Subject, Exam, Term, Grade, 
     FeeCategory, FeeAssignment, FeePayment, Event, Deadline, 
-    TeacherClassAssignment, Department, AcademicYear
+    TeacherClassAssignment, Department, AcademicYear, Notification,
+    PeriodSlot, DefaultTimetable
 )
 from .forms import (
     AddStudentForm, StudentContactUpdateForm, EditStudentClassForm, FeeCategoryForm,
     FeeAssignmentForm, FeePaymentForm, GradeInputForm, ExamForm,
     EventForm, AddTeacherForm, AddSubjectForm, AddClassForm, EditTermDatesForm,
-    GradeUploadForm, CustomUserCreationForm
+    GradeUploadForm, CustomUserCreationForm #, TimeTableSlotForm
 )
 
 @login_required(login_url='login')
@@ -2136,6 +2139,7 @@ from django.db.models import Q
 
 from .forms import MessagingForm
 from django.core.mail import send_mail
+from .models import Class, Subject, Teacher, Term
 
 @login_required(login_url='login')
 def admin_send_message(request):
@@ -2173,3 +2177,159 @@ def admin_send_message(request):
         form.fields['recipient'].queryset = User.objects.none()
 
     return render(request, 'messaging/send_message.html', {'form': form, 'sent': sent})
+
+@login_required
+def timetable_view(request):
+    """Displays the timetable for a selected class."""
+    classes = Class.objects.all().order_by('level', 'name')
+    selected_class_id = request.GET.get('class_id')
+    selected_class = None
+    
+    periods = PeriodSlot.objects.filter(is_class_slot=True).order_by('start_time')
+    days = [day[0] for day in DefaultTimetable.DAY_CHOICES]
+    timetable_grid = {p.id: {d: None for d in days} for p in periods}
+    subjects = Subject.objects.none()
+    teachers = Teacher.objects.none()
+
+    if selected_class_id:
+        try:
+            selected_class = Class.objects.get(id=selected_class_id)
+
+            # Correctly fetch subjects and teachers from the TeacherClassAssignment model
+            assignments = TeacherClassAssignment.objects.filter(class_group=selected_class).select_related('subject', 'teacher__user')
+            
+            subject_ids = assignments.values_list('subject_id', flat=True).distinct()
+            subjects = Subject.objects.filter(id__in=subject_ids).order_by('name')
+            
+            teacher_ids = assignments.values_list('teacher_id', flat=True).distinct()
+            teachers = Teacher.objects.filter(id__in=teacher_ids).select_related('user').order_by('user__first_name', 'user__last_name')
+
+            # Populate the grid with existing timetable entries
+            entries = DefaultTimetable.objects.filter(class_group=selected_class)
+            for entry in entries:
+                if entry.period_id in timetable_grid:
+                    timetable_grid[entry.period_id][entry.day] = entry
+
+        except Class.DoesNotExist:
+            messages.error(request, "The selected class does not exist.")
+            selected_class = None
+
+    context = {
+        'classes': classes,
+        'selected_class': selected_class,
+        'periods': periods,
+        'days': days,
+        'timetable_grid': timetable_grid,
+        'subjects': subjects,
+        'teachers': teachers,
+    }
+    return render(request, 'timetable/timetable.html', context)
+
+
+@login_required
+@require_POST
+def timetable_edit_api(request):
+    try:
+        data = json.loads(request.body)
+        class_id = data.get('class_id')
+        period_id = data.get('period_id')
+        day = data.get('day')
+        subject_id = data.get('subject')
+        teacher_id = data.get('teacher')
+
+        if not all([class_id, period_id, day]):
+            return JsonResponse({'success': False, 'error': 'Missing required parameters.'}, status=400)
+
+        class_group = get_object_or_404(Class, id=class_id)
+        period = get_object_or_404(PeriodSlot, id=period_id)
+
+        # If subject is empty, delete the entry
+        if not subject_id:
+            DefaultTimetable.objects.filter(class_group=class_group, period=period, day=day).delete()
+            return JsonResponse({'success': True, 'message': 'Slot cleared successfully.'})
+
+        # Get or create the timetable entry
+        slot, created = DefaultTimetable.objects.get_or_create(
+            class_group=class_group,
+            period=period,
+            day=day,
+            defaults={'subject_id': subject_id, 'teacher_id': teacher_id or None}
+        )
+
+        if not created:
+            # If it already exists, update it
+            slot.subject_id = subject_id
+            slot.teacher_id = teacher_id or None
+            slot.save()
+        
+        # Fetch teacher name for the response
+        teacher_name = ''
+        if slot.teacher:
+            teacher_name = slot.teacher.user.get_full_name()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Timetable updated successfully.',
+            'entry': {
+                'subject_name': slot.subject.name,
+                'teacher_name': teacher_name
+            }
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# @login_required
+# @require_POST
+# def add_slot_api(request):
+#     # This API will be rewritten for the new model.
+#     pass
+
+from datetime import date, timedelta, datetime
+
+@login_required
+def timetable_api(request):
+    # This API will be rewritten to use the DefaultTimetable model.
+    return JsonResponse([], safe=False)
+
+
+# @login_required
+# @require_POST
+# def edit_slot_api(request, slot_id):
+#     # This API will be rewritten for the new model.
+#     pass
+
+
+@login_required
+def get_notifications_api(request):
+    notifications = Notification.objects.filter(user=request.user, is_read=False).order_by('-created_at')
+    data = [
+        {
+            'id': n.id,
+            'message': n.message,
+            'created_at': n.created_at.strftime('%Y-%m-%d %H:%M')
+        }
+        for n in notifications
+    ]
+    return JsonResponse({'notifications': data, 'count': notifications.count()})
+
+
+@login_required
+@require_POST
+def mark_notification_as_read_api(request, notification_id):
+    notification = get_object_or_404(Notification, id=notification_id, user=request.user)
+    notification.is_read = True
+    notification.save()
+    return JsonResponse({'success': True})
+#         'days': [name for val, name in TimeTableSlot.DAY_CHOICES if val <= 4]
+#     }
+#
+#     html_string = render_to_string('timetable/timetable_pdf.html', context)
+#     pdf_file = HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
+#
+#     response = HttpResponse(pdf_file, content_type='application/pdf')
+#     response['Content-Disposition'] = 'attachment; filename="timetable.pdf"'
+#     return response

@@ -1,5 +1,8 @@
-from django.urls import path
+from django.urls import path, include
 from django.contrib.auth import views as auth_views
+from . import views
+from .views_admin_messaging import admin_send_message
+from . import timetable_urls
 from . import views
 
 urlpatterns = [
@@ -27,10 +30,12 @@ urlpatterns = [
     path('admin_subjects/', views.admin_subjects, name='admin_subjects'),
     path('admin_academic_years/', views.admin_academic_years, name='admin_academic_years'),
     path('admin_exams/', views.admin_exams, name='admin_exams'),
-    path('admin_fees/', views.admin_fees, name='admin_fees'),
     path('admin_payment/', views.admin_payment, name='admin_payment'),
     path('admin_events/', views.admin_events, name='admin_events'),
-    path('admin_send_message/', views.admin_send_message, name='admin_send_message'),
+    path('admin/send-message/', admin_send_message, name='admin_send_message'),
+
+    # Timetable URLs
+    path('timetable/', include(timetable_urls)),
 
     # Teacher URLs
     path('teacher_dashboard/<int:teacher_id>/', views.teacher_dashboard, name='teacher_dashboard'),
