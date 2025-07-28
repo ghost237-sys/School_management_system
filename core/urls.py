@@ -31,6 +31,7 @@ urlpatterns = [
     path('admin_academic_years/', views.admin_academic_years, name='admin_academic_years'),
     path('admin_exams/', views.admin_exams, name='admin_exams'),
     path('admin_payment/', views.admin_payment, name='admin_payment'),
+    path('admin_fees/', views.admin_fees, name='admin_fees'),
     path('admin_events/', views.admin_events, name='admin_events'),
     path('admin/send-message/', admin_send_message, name='admin_send_message'),
 
