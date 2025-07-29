@@ -9,25 +9,50 @@ USER_CATEGORY_CHOICES = [
 ]
 
 class MessagingForm(forms.Form):
-    user_category = forms.ChoiceField(choices=USER_CATEGORY_CHOICES, label='User Category', required=True)
-    recipient = forms.ModelChoiceField(queryset=User.objects.none(), label='Recipient', required=True)
-    subject = forms.CharField(max_length=255, label='Subject/Title', required=True)
-    message = forms.CharField(widget=forms.Textarea(attrs={'rows':4}), label='Message', required=True)
+    min_balance = forms.DecimalField(label='Minimum Balance', required=False, min_value=0, decimal_places=2, max_digits=10)
+    max_balance = forms.DecimalField(label='Maximum Balance', required=False, min_value=0, decimal_places=2, max_digits=10)
+    class_group = forms.ModelChoiceField(label='Class', queryset=Class.objects.all(), required=False)
+    recipient = forms.ModelMultipleChoiceField(queryset=User.objects.none(), label='Recipients', required=True, widget=forms.SelectMultiple(attrs={'class': 'form-control'}))
+    subject = forms.CharField(max_length=255, label='Subject/Title', required=True, initial='Fee Balance Notification', widget=forms.TextInput(attrs={'readonly': 'readonly'}))
+    message = forms.CharField(
+    widget=forms.Textarea(attrs={'rows':4, 'readonly': 'readonly'}),
+    label='Message',
+    required=True,
+    initial='Dear Parent/Guardian,\n\nOur records indicate that {student_name} (Admission No: {admission_no}) has an outstanding fee balance of Ksh. {fee_balance}. Kindly clear the arrears at your earliest convenience.\n\nThank you.\nSchool Administration'
+)
     send_email = forms.BooleanField(label='Send Email', required=False, initial=True)
     send_sms = forms.BooleanField(label='Send SMS', required=False, initial=False)
 
     def __init__(self, *args, **kwargs):
-        category = kwargs.pop('category', None)
         super().__init__(*args, **kwargs)
-        import sys
-        if category:
-            category = category.lower()
-            qs = User.objects.filter(role=category)
-            print(f"[DEBUG] MessagingForm category={category} queryset_count={qs.count()}", file=sys.stderr)
-            self.fields['recipient'].queryset = qs
-        else:
-            print("[DEBUG] MessagingForm category=None (empty queryset)", file=sys.stderr)
-            self.fields['recipient'].queryset = User.objects.none()
+        from .models import User, Student, FeeAssignment, FeePayment, Term, Class
+        from django.utils import timezone
+        from django.db.models import Sum
+
+        today = timezone.now().date()
+        current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('-start_date').first()
+        students = Student.objects.select_related('user', 'class_group')
+
+        min_balance = self.data.get('min_balance')
+        max_balance = self.data.get('max_balance')
+        class_group = self.data.get('class_group')
+
+        students_with_balance = []
+        for student in students:
+            if class_group and str(student.class_group_id) != str(class_group):
+                continue
+            fee_assignments = FeeAssignment.objects.filter(class_group=student.class_group)
+            total_billed = fee_assignments.aggregate(total=Sum('amount'))['total'] or 0
+            total_paid = FeePayment.objects.filter(student=student).aggregate(total=Sum('amount_paid'))['total'] or 0
+            balance = total_billed - total_paid
+            if balance <= 0:
+                continue
+            if min_balance and balance < float(min_balance):
+                continue
+            if max_balance and balance > float(max_balance):
+                continue
+            students_with_balance.append(student.user.id)
+        self.fields['recipient'].queryset = User.objects.filter(id__in=students_with_balance).order_by('username')
 
 class ExamForm(forms.ModelForm):
     class Meta:
@@ -272,15 +297,24 @@ class GradeUploadForm(forms.Form):
             self.fields['subject'].queryset = assigned_subjects
 
 class FeeAssignmentForm(forms.ModelForm):
+    class_group = forms.ModelMultipleChoiceField(
+        queryset=None,
+        widget=forms.SelectMultiple(attrs={'class': 'form-control'}),
+        label='Class Group',
+        required=True
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        from .models import Class
+        self.fields['class_group'].queryset = Class.objects.all()
         # Ensure the term dropdown uses the __str__ method (term name & year)
         self.fields['term'].queryset = self.fields['term'].queryset.select_related('academic_year')
         self.fields['term'].label_from_instance = lambda obj: str(obj)
 
     class Meta:
         model = FeeAssignment
-        fields = ['fee_category', 'class_group', 'term', 'amount']
+        fields = ['fee_category', 'term', 'amount']
 
 class FeePaymentForm(forms.ModelForm):
     class Meta:

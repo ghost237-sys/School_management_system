@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <div class="card shadow-lg">
+        <div class="card-header bg-info text-white">
+            <h3 class="mb-0"><i class="bi bi-cash-coin me-2"></i>Finance Messaging</h3>
+        </div>
+        <div class="card-body">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+            <form method="post" id="finance-messaging-form" autocomplete="off">
+    {% csrf_token %}
+    <div id="email-feedback"></div>
+    {% csrf_token %}
+    <div class="row mb-3">
+        <div class="col-md-4">
+            {{ form.min_balance.label_tag }}
+            {{ form.min_balance }}
+        </div>
+        <div class="col-md-4">
+            {{ form.max_balance.label_tag }}
+            {{ form.max_balance }}
+        </div>
+        <div class="col-md-4">
+            {{ form.class_group.label_tag }}
+            {{ form.class_group }}
+        </div>
+    </div>
+    <button type="submit" class="btn btn-secondary mb-3">Apply Filters</button>
+    <button type="button" class="btn btn-outline-secondary mb-3 ms-2" onclick="window.location.href=window.location.pathname">Reset Filters</button>
+
+    {% if show_full_form %}
+    <div class="mb-3">
+        {{ form.recipient.label_tag }}
+        {{ form.recipient }}
+        <small class="form-text text-muted">Hold Ctrl (Windows) or Cmd (Mac) to select multiple students.</small>
+    </div>
+    <div class="mb-3">
+        {{ form.subject.label_tag }}
+        {{ form.subject }}
+    </div>
+    <div class="mb-3">
+        {{ form.message.label_tag }}
+        {{ form.message }}
+        <button type="button" id="regenerate-msg-btn" class="btn btn-outline-info btn-sm ms-2">Regenerate Message</button>
+    </div>
+    <script>
+    // Message templates array
+    const messageTemplates = [
+        `Dear Parent/Guardian,\n\nOur records indicate that {student_name} (Admission No: {admission_no}) has an outstanding fee balance of Ksh. {fee_balance}. Kindly clear the arrears at your earliest convenience.\n\nThank you.\nSchool Administration`,
+        `Attention: Outstanding Fees\n\nThis is to notify you that {student_name} (Admission No: {admission_no}) currently has a fee balance of Ksh. {fee_balance}. Please arrange payment as soon as possible.\n\nRegards,\nFinance Office`,
+        `Dear Parent/Guardian,\n\nPlease note that {student_name} (Admission Number: {admission_no}) has an unpaid balance of Ksh. {fee_balance}. Your prompt action will be appreciated.\n\nThank you.\nAccounts Department`,
+        `Hello,\n\nWe wish to remind you that {student_name} (Admission No: {admission_no}) has a pending fee balance of Ksh. {fee_balance}. Kindly settle this amount at your earliest convenience.\n\nBest regards,\nSchool Management`,
+        `Fee Reminder\n\n{student_name} (Admission No: {admission_no}) has an outstanding balance of Ksh. {fee_balance}. Please clear the balance to avoid any interruptions.\n\nThank you.\nSchool Bursar`
+    ];
+    document.addEventListener('DOMContentLoaded', function() {
+        const regenBtn = document.getElementById('regenerate-msg-btn');
+        const msgBox = document.getElementById('id_message');
+        if (regenBtn && msgBox) {
+            regenBtn.addEventListener('click', function() {
+                const idx = Math.floor(Math.random() * messageTemplates.length);
+                msgBox.value = messageTemplates[idx];
+            });
+        }
+    });
+    </script>
+    <div class="form-check mb-2">
+        {{ form.send_email }} {{ form.send_email.label_tag }}
+    </div>
+    <div class="form-check mb-2">
+        {{ form.send_sms }} {{ form.send_sms.label_tag }}
+    </div>
+    <button type="submit" class="btn btn-primary" id="send-btn">Send Message</button>
+    {% endif %}
+</form>
+        </div>
+    </div>
+
+    <!-- Message History Table -->
+    <div class="card mt-4 shadow">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Finance Message History</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if message_history and message_history|length > 0 %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Recipient</th>
+                            <th>Message Preview</th>
+                            <th>Sent By</th>
+                            <th>Sent At</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for msg in message_history %}
+                        <tr>
+                            <td>{{ msg.recipient.get_full_name|default:msg.recipient.username }}</td>
+                            <td>
+                                <span title="{{ msg.message_content|linebreaksbr }}">
+                                    {{ msg.message_content|truncatechars:60 }}
+                                </span>
+                            </td>
+                            <td>{{ msg.sent_by.get_full_name|default:msg.sent_by.username }}</td>
+                            <td>{{ msg.sent_at|date:'Y-m-d H:i' }}</td>
+                            <td>{{ msg.delivery_method|upper }}</td>
+                            <td>
+                                {% if msg.status == 'sent' %}
+                                    <span class="badge bg-success">Sent</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Failed</span>
+                                    <div class="small text-danger mt-1">{{ msg.status }}</div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+                <div class="alert alert-info m-3 mb-0">No finance messages have been sent yet.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('finance-messaging-form');
+    var feedbackDiv = document.getElementById('email-feedback');
+    var sendBtn = document.getElementById('send-btn');
+    if(form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var recipients = document.getElementById('id_recipient');
+            if (recipients && recipients.selectedOptions.length === 0) {
+                feedbackDiv.innerHTML = '<div class="alert alert-warning">Please select at least one recipient.</div>';
+                return false;
+            }
+            var formData = new FormData(form);
+            feedbackDiv.innerHTML = '';
+            sendBtn.disabled = true;
+            // CSRF helper
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+fetch(window.location.pathname, {
+    method: 'POST',
+    headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': csrftoken,
+    },
+    body: formData
+})
+            .then(response => response.json())
+            .then(data => {
+                if(data.success) {
+                    feedbackDiv.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
+                    form.reset();
+                } else {
+                    feedbackDiv.innerHTML = '<div class="alert alert-danger">' + (data.error || 'Failed to send email.') + '</div>';
+                }
+                sendBtn.disabled = false;
+            })
+            .catch(error => {
+                feedbackDiv.innerHTML = '<div class="alert alert-danger">Error sending email. Please try again.</div>';
+                sendBtn.disabled = false;
+            });
+        });
+    }
+});
+</script>
+<script>
+// Display selected students' class/stream dynamically
+const studentSelect = document.getElementById('id_students');
+const classInfoDiv = document.getElementById('student-class-info');
+if (studentSelect) {
+    studentSelect.addEventListener('change', function() {
+        let selected = Array.from(studentSelect.selectedOptions).map(opt => opt.text);
+        classInfoDiv.innerHTML = selected.length ? '<b>Selected:</b><br>' + selected.join('<br>') : '';
+    });
+}
+</script>
+{% endblock %}

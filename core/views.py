@@ -1236,37 +1236,113 @@ def admin_academic_years(request):
     }
     return render(request, 'dashboards/admin_academic_years.html', context)
 
-# Admin Analytics View
 import json
 from .forms import AddSubjectForm
 from django.db.models import Avg
 
+from django.views.generic import ListView
+from django.db.models import Q
+from .models import FeePayment, Term, Class, FeeCategory
+from .forms import FeePaymentForm
+
+class AdminAnalyticsView(ListView):
+    model = FeePayment
+    template_name = 'dashboards/admin_analytics.html'
+    context_object_name = 'fee_payments'
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = FeePayment.objects.select_related('student__user', 'fee_assignment__fee_category', 'fee_assignment__class_group', 'fee_assignment__term')
+        term = self.request.GET.get('term')
+        class_group = self.request.GET.get('class_group')
+        fee_category = self.request.GET.get('fee_category')
+        search = self.request.GET.get('search')
+        if term:
+            queryset = queryset.filter(fee_assignment__term__id=term)
+        if class_group:
+            queryset = queryset.filter(fee_assignment__class_group__id=class_group)
+        if fee_category:
+            queryset = queryset.filter(fee_assignment__fee_category__id=fee_category)
+        if search:
+            queryset = queryset.filter(
+                Q(student__user__username__icontains=search) |
+                Q(student__admission_no__icontains=search) |
+                Q(fee_assignment__fee_category__name__icontains=search) |
+                Q(fee_assignment__class_group__name__icontains=search) |
+                Q(amount_paid__icontains=search) |
+                Q(reference__icontains=search)
+            )
+        return queryset.order_by('-payment_date')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['terms'] = Term.objects.all()
+        context['class_groups'] = Class.objects.all()
+        context['fee_categories'] = FeeCategory.objects.all()
+        context['search_query'] = self.request.GET.get('search', '')
+        context['selected_term'] = self.request.GET.get('term', '')
+        context['selected_class'] = self.request.GET.get('class_group', '')
+        context['selected_category'] = self.request.GET.get('fee_category', '')
+        context['add_form'] = FeePaymentForm()
+
+        # --- Analytics calculations ---
+        today = timezone.now().date()
+        current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
+        context['current_term'] = current_term
+
+        # Average performance per subject (across all grades)
+        from django.db.models import Avg
+        avg_performance = []
+        subject_labels = []
+        avg_scores = []
+        subjects = Subject.objects.all()
+        for subject in subjects:
+            avg = Grade.objects.filter(subject=subject).aggregate(avg_score=Avg('score'))['avg_score']
+            if avg is not None:
+                avg_performance.append({'subject': subject.name, 'avg_score': avg})
+                subject_labels.append(subject.name)
+                avg_scores.append(round(avg, 2))
+        context['avg_performance'] = avg_performance
+        context['subject_labels'] = json.dumps(subject_labels)
+        context['avg_scores'] = json.dumps(avg_scores)
+
+        # Fee analytics
+        fee_assignments = FeeAssignment.objects.all()
+        total_assigned = 0
+        for assignment in fee_assignments:
+            num_students = Student.objects.filter(class_group=assignment.class_group).count()
+            total_assigned += float(assignment.amount) * num_students
+        total_paid = FeePayment.objects.aggregate(total=Sum('amount_paid'))['total'] or 0
+        payment_percentage = (float(total_paid) / float(total_assigned) * 100) if total_assigned else 0
+        context['total_assigned'] = total_assigned
+        context['total_paid'] = total_paid
+        context['payment_percentage'] = round(payment_percentage, 2)
+        # Pie chart: Paid vs Unpaid
+        paid_value = float(total_paid)
+        unpaid_value = float(total_assigned) - float(total_paid)
+        context['pie_labels'] = json.dumps(["Paid", "Unpaid"])
+        context['pie_data'] = json.dumps([paid_value, unpaid_value if unpaid_value > 0 else 0])
+        # Bar chart: Payments over time (by month)
+        from collections import defaultdict
+        payments = FeePayment.objects.filter(fee_assignment__in=fee_assignments)
+        monthly_totals = defaultdict(float)
+        for payment in payments:
+            if payment.payment_date:
+                month = payment.payment_date.strftime('%Y-%m')
+                monthly_totals[month] += float(payment.amount_paid)
+        months_sorted = sorted(monthly_totals.keys())
+        context['bar_labels'] = json.dumps(months_sorted)
+        context['bar_data'] = json.dumps([monthly_totals[m] for m in months_sorted])
+
+        return context
+
 @login_required(login_url='login')
 def admin_analytics(request):
-    import json
-    from django.db.models import Sum, Avg
     if request.user.role != 'admin':
         return redirect('dashboard')
-    from .models import Subject, Grade, FeeCategory, FeeAssignment, FeePayment, Student, Term
-    subjects = Subject.objects.all()
-    avg_performance = []
-    for subject in subjects:
-        avg_score = Grade.objects.filter(subject=subject).aggregate(avg=Avg('score'))['avg']
-        avg_performance.append({'subject': subject.name, 'avg_score': avg_score or 0})
-    subject_labels = json.dumps([item['subject'] for item in avg_performance])
-    avg_scores = json.dumps([item['avg_score'] for item in avg_performance])
+    return AdminAnalyticsView.as_view()(request)
 
-    # --- Fee Analytics Section ---
-    # Get current term (by date range)
-    today = timezone.now().date()
-    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('-start_date').first()
-    if not current_term:
-        current_term = Term.objects.filter(start_date__lte=today, end_date__isnull=True).order_by('-start_date').first()
-    if not current_term:
-        current_term = Term.objects.order_by('-start_date').first()
-    all_students = Student.objects.all()
-    all_fee_categories = FeeCategory.objects.all()
-    # Fetch all fee assignments in the system (total billed on all students)
+# ... rest of the code remains the same ...
     fee_assignments = FeeAssignment.objects.all()
 
     # Calculate total assigned as the sum of (amount * number of students in class) for all assignments
@@ -1674,15 +1750,45 @@ def admin_fees(request):
     fee_form = FeeCategoryForm()
     assign_form = FeeAssignmentForm()
     
+    # Handle FeeCategoryForm POST
+    if request.method == 'POST' and 'save_fee_category' in request.POST:
+        fee_form = FeeCategoryForm(request.POST)
+        if fee_form.is_valid():
+            try:
+                fee_form.save()
+                messages.success(request, 'Fee category saved successfully!')
+            except Exception as e:
+                messages.error(request, f'Error saving fee category: {e}')
+        else:
+            messages.error(request, 'Please correct the errors in the fee category form.')
+
     # Handle FeeAssignment POST
     if request.method == 'POST' and 'assign_fee' in request.POST:
         assign_form = FeeAssignmentForm(request.POST)
         if assign_form.is_valid():
-            try:
-                assign_form.save()
-                messages.success(request, 'Fee assignment saved successfully!')
-            except Exception as e:
-                messages.error(request, f'Error saving fee assignment: {e}')
+            fee_category = assign_form.cleaned_data['fee_category']
+            class_groups = assign_form.cleaned_data['class_group']
+            term = assign_form.cleaned_data['term']
+            amount = assign_form.cleaned_data['amount']
+            from .models import FeeAssignment
+            from django.db import IntegrityError
+            assigned_count = 0
+            skipped_count = 0
+            for class_group in class_groups:
+                try:
+                    FeeAssignment.objects.create(
+                        fee_category=fee_category,
+                        class_group=class_group,
+                        term=term,
+                        amount=amount
+                    )
+                    assigned_count += 1
+                except IntegrityError:
+                    skipped_count += 1
+            if assigned_count:
+                messages.success(request, f'Fee assignment saved for {assigned_count} class(es)!')
+            if skipped_count:
+                messages.warning(request, f'Skipped {skipped_count} class(es) (already assigned).')
         else:
             messages.error(request, 'Please correct the errors in the fee assignment form.')
 
@@ -1696,11 +1802,7 @@ def admin_fees(request):
     sort_order = request.GET.get('sort', 'largest')
     if selected_class_id:
         all_students = all_students.filter(class_group_id=selected_class_id)
-    if sort_order == 'largest':
-        all_students = sorted(all_students, key=lambda s: s.id)
-    elif sort_order == 'smallest':
-        all_students = sorted(all_students, key=lambda s: s.id, reverse=True)
-
+    # Sort students by balance
     fees = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term')
     if current_term:
         fees = fees.filter(term=current_term)
@@ -1753,6 +1855,12 @@ def admin_fees(request):
         student_outstanding[student.id] = outstanding
         student_balances[student.id] = total_billed + outstanding - paid
 
+    # Sort students by balance
+    if sort_order == 'largest':
+        all_students = sorted(all_students, key=lambda s: student_balances.get(s.id, 0), reverse=True)
+    elif sort_order == 'smallest':
+        all_students = sorted(all_students, key=lambda s: student_balances.get(s.id, 0))
+
 
     category_labels = list(all_fee_categories.values_list('name', flat=True))
     category_data = [float(fees.filter(fee_category=cat).aggregate(total=Sum('amount'))['total'] or 0) for cat in all_fee_categories]
@@ -1768,6 +1876,22 @@ def admin_fees(request):
     for entry in payments_by_month:
         payment_labels.append(entry['month'])
         payment_data.append(float(entry['total']) if entry['total'] is not None else 0.0)
+
+    # --- Payment History Filtering & Sorting ---
+    payment_sort = request.GET.get('payment_sort', 'newest')
+    payment_search = request.GET.get('payment_search', '').strip()
+    payments_qs = FeePayment.objects.select_related('student__user', 'fee_assignment__fee_category')
+    if payment_search:
+        payments_qs = payments_qs.filter(
+            Q(student__admission_number__icontains=payment_search) |
+            Q(student__user__username__icontains=payment_search) |
+            Q(student__user__first_name__icontains=payment_search) |
+            Q(student__user__last_name__icontains=payment_search)
+        )
+    if payment_sort == 'oldest':
+        payments_qs = payments_qs.order_by('payment_date')
+    else:
+        payments_qs = payments_qs.order_by('-payment_date')
 
     context = {
         'fee_form': fee_form,
@@ -1788,6 +1912,7 @@ def admin_fees(request):
         'payment_labels': json.dumps(payment_labels),
         'payment_data': json.dumps(payment_data),
         'student_outstanding': student_outstanding,
+        'all_fee_payments': payments_qs,
     }
     return render(request, 'dashboards/admin_fees.html', context)
 
@@ -1838,9 +1963,68 @@ def events_json(request):
         })
     return JsonResponse(event_list, safe=False, encoder=DjangoJSONEncoder)
 
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+from django.http import JsonResponse
+from .forms import EventForm
+from .models import Term
+from django.utils import timezone
+import json
+
+@login_required(login_url='login')
 @require_POST
 def event_create(request):
-    return JsonResponse({'status': 'ok'})
+    print('--- [DEBUG] event_create called ---')
+    print('[DEBUG] User:', request.user, 'Role:', getattr(request.user, 'role', None))
+    print('[DEBUG] Content-Type:', request.content_type)
+    print('[DEBUG] POST:', dict(request.POST))
+    print('[DEBUG] BODY:', request.body)
+    
+    # Only allow admins and teachers to create events
+    if not hasattr(request.user, 'role') or request.user.role not in ['admin', 'teacher']:
+        return JsonResponse({'success': False, 'error': 'Unauthorized: Only admins and teachers can add events.'}, status=403)
+    try:
+        print('[EVENT_CREATE][DEBUG] user:', request.user, 'role:', getattr(request.user, 'role', None))
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.copy()
+        print('[EVENT_CREATE][DEBUG] incoming data:', dict(data))
+        # If term is not provided, assign current term
+        if not data.get('term'):
+            today = timezone.now().date()
+            current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('-start_date').first()
+            if not current_term:
+                current_term = Term.objects.order_by('-start_date').first()
+            if current_term:
+                data['term'] = current_term.id
+        print('[EVENT_CREATE][DEBUG] data after term assignment:', dict(data))
+        form = EventForm(data)
+        print('[EVENT_CREATE][DEBUG] form.is_valid:', form.is_valid())
+        print('[EVENT_CREATE][DEBUG] form.errors:', form.errors)
+        if form.is_valid():
+            event = form.save()
+            print('[EVENT_CREATE][DEBUG] event created:', event)
+            return JsonResponse({
+                'success': True,
+                'event': {
+                    'id': event.id,
+                    'title': event.title,
+                    'start': event.start.isoformat(),
+                    'end': event.end.isoformat() if event.end else None,
+                    'allDay': event.all_day,
+                    'category': event.category,
+                }
+            })
+        else:
+            print('[EVENT_CREATE][ERRORS]', form.errors)
+            error_msg = 'Please correct the following errors: ' + '; '.join([f'{field}: {errs[0]}' for field, errs in form.errors.items()])
+            return JsonResponse({'success': False, 'errors': form.errors, 'error': error_msg}, status=400)
+    except Exception as e:
+        print('[EVENT_CREATE][EXCEPTION]', str(e))
+        return JsonResponse({'success': False, 'error': 'An unexpected error occurred while adding the event.'}, status=500)
+
+
 
 @require_POST
 def event_update(request):

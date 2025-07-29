@@ -1,8 +1,11 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
-from . import views
+from . import views, views_admin_messaging, views_finance_messaging
 
 urlpatterns = [
+    # ... other patterns ...
+    path('finance_messaging/', views_finance_messaging.finance_messaging_page, name='finance_messaging_page'),
+
     # General Login/Logout
     path('login/', views.custom_login_view, name='login'),
     path('logout/', views.custom_logout_view, name='logout'),
@@ -30,7 +33,7 @@ urlpatterns = [
     path('admin_fees/', views.admin_fees, name='admin_fees'),
     path('admin_payment/', views.admin_payment, name='admin_payment'),
     path('admin_events/', views.admin_events, name='admin_events'),
-    path('admin_send_message/', views.admin_send_message, name='admin_send_message'),
+    path('admin_send_bulk_arrears_notice/', views_admin_messaging.send_bulk_fee_arrears_notice, name='admin_send_bulk_arrears_notice'),
 
     # Teacher URLs
     path('teacher_dashboard/<int:teacher_id>/', views.teacher_dashboard, name='teacher_dashboard'),

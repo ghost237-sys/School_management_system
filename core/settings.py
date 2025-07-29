@@ -19,13 +19,20 @@ INSTALLED_APPS = [
 ]
 
 # Email settings (Gmail SMTP for real email delivery)
+EMAIL_ENABLED = True  # Set to False to disable all outgoing emails
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'emiliomurithi4@gmail.com'
-EMAIL_HOST_PASSWORD = 'mxhvtzfbdezcezhv'
-DEFAULT_FROM_EMAIL = 'emiliomurithi4@gmail.com'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'sevenforksprimaryschool@gmail.com')
+EMAIL_HOST_PASSWORD = 'dfcd rzjc plga ltre'  # App password set directly for immediate fix
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+
+# Twilio SMS settings
+SMS_ENABLED = True  # Set to False to disable all outgoing SMS
+TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
+TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER', '')
 
 # Use custom user model
 AUTH_USER_MODEL = 'core.User'

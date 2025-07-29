@@ -214,6 +214,17 @@ class Event(models.Model):
         return f"{self.title} ({self.start:%Y-%m-%d %H:%M})"
 
 # --- Messaging Module ---
+
+class FinanceMessageHistory(models.Model):
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='finance_messages')
+    message_content = models.TextField()
+    sent_at = models.DateTimeField(auto_now_add=True)
+    sent_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='finance_messages_sent')
+    delivery_method = models.CharField(max_length=10, choices=[('email', 'Email'), ('sms', 'SMS')], default='email')
+    status = models.CharField(max_length=20, default='sent')
+
+    def __str__(self):
+        return f"To {self.recipient.username} at {self.sent_at:%Y-%m-%d %H:%M}"
 class Message(models.Model):
     sender = models.ForeignKey(User, related_name='sent_messages', on_delete=models.CASCADE)
     recipient = models.ForeignKey(User, related_name='received_messages', on_delete=models.CASCADE)

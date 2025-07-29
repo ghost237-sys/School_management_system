@@ -415,49 +415,13 @@
     </div>
   </div>
 
-  <script>
-    // Placeholder for AJAX form loading and submission
-    // You will need to implement AJAX endpoints for each form
-    document.addEventListener('DOMContentLoaded', function() {
-      // Example: Load form HTML into modal body on modal show
-      const loadForm = (modalId, containerId, url, redirectUrl) => {
-        const modal = document.getElementById(modalId);
-        modal.addEventListener('show.bs.modal', function() {
-          const container = document.getElementById(containerId);
-          fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
-            .then(res => res.json())
-            .then(data => {
-              container.innerHTML = data.form_html;
-              attachFormHandler(container, redirectUrl);
-            });
-        });
-      };
-      // Attach AJAX form submission handler
-      const attachFormHandler = (container, redirectUrl) => {
-        const form = container.querySelector('form');
-        if (!form) return;
-        form.addEventListener('submit', function(e) {
-          e.preventDefault();
-          const formData = new FormData(form);
-          fetch(form.action, {method: 'POST', body: formData, headers: {'X-Requested-With': 'XMLHttpRequest'}})
-            .then(res => res.json())
-            .then(data => {
-              if (data.success) {
-                window.location.href = redirectUrl;
-              } else if (data.form_html) {
-                container.innerHTML = data.form_html;
-                attachFormHandler(container, redirectUrl);
-              }
-            });
-        });
-      };
-      // Setup for each modal
-      loadForm('addStudentModal', 'addStudentFormContainer', '/dashboard/students/add/', '/admin/students/');
-      loadForm('addTeacherModal', 'addTeacherFormContainer', '/dashboard/teachers/add/', '/admin/teachers/');
-      loadForm('addClassModal', 'addClassFormContainer', '/dashboard/classes/add/', '/admin/classes/');
-      loadForm('addSubjectModal', 'addSubjectFormContainer', '/dashboard/subjects/add/', '/admin/subjects/');
-    });
-  </script>
+  <div class="row mb-4">
+  <div class="col-12 text-center">
+    <!-- <a href="#" class="btn btn-lg btn-warning" style="font-weight:700;"><i class="bi bi-exclamation-triangle-fill me-2"></i>Send Fee Arrears Notice</a> -->
+
+  </div>
+</div>
+
 
   <!-- Calendar/Events -->
   <div class="row mb-4 g-3">
@@ -465,7 +429,6 @@
   <div class="card h-100">
     <div class="card-body">
       
-      <div id="calendar"></div>
     </div>
   </div>
 </div>
@@ -478,7 +441,19 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <form id="eventForm">
+        <form id="eventForm" autocomplete="off">
+  {% csrf_token %}
+  <div id="eventDebug" class="alert alert-warning d-none" style="white-space:pre-wrap"></div>
+  <div class="mb-3">
+    <label for="eventCategory" class="form-label">Category</label>
+    <select class="form-select" id="eventCategory" required>
+      <option value="exam">Exam Day</option>
+      <option value="midterm">Mid-Term Break</option>
+      <option value="holiday">Holiday</option>
+      <option value="sports">Games/Sports Day</option>
+      <option value="other" selected>Other</option>
+    </select>
+  </div>
           <input type="hidden" id="eventId">
           <div class="mb-3">
             <label for="eventTitle" class="form-label">Title</label>
@@ -564,7 +539,7 @@ document.addEventListener('DOMContentLoaded', function() {
       updateEvent(info.event);
     },
     eventDidMount: function(info) {
-      var now = new Date('2025-06-25T00:00:00');
+      var now = new Date('2025-06-25T00:00:00'); 
       var startDate = new Date(info.event.start);
       if (startDate < now) {
         var cross = document.createElement('i');
@@ -581,28 +556,52 @@ document.addEventListener('DOMContentLoaded', function() {
     var id = eventId.value;
     var data = new FormData();
     data.append('title', eventTitle.value);
-    // Compose ISO datetime string from date+time fields
-    var start = eventStartDate.value + 'T' + eventStartTime.value;
-    data.append('start', start);
-    var end = '';
-    if (eventEndDate.value && eventEndTime.value) {
-      end = eventEndDate.value + 'T' + eventEndTime.value;
-    }
-    data.append('end', end);
-    data.append('allDay', eventAllDay.checked);
-    var url = id ? '/dashboard/events/update/' : '/dashboard/events/create/';
+    // Use the single datetime-local input values directly
+    data.append('start', document.getElementById('eventStart').value);
+    data.append('end', document.getElementById('eventEnd').value);
+    data.append('all_day', eventAllDay.checked);
+    var url = id ? '/dashboard/events/update/' : '/dashboard/events/create/'; // Always use this, ignore form.action
     if (id) data.append('id', id);
-    fetch(url, {
+    // Add category field
+    data.append('category', document.getElementById('eventCategory').value);
+    data.append('is_done', false);
+    data.append('comment', '');
+    // CSRF token handling
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+fetch(url, {
       method: 'POST',
-      headers: {'X-Requested-With': 'XMLHttpRequest'},
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': csrftoken
+      },
       body: data
     }).then(res => res.json()).then(function(resp) {
       if (resp.success) {
+        document.getElementById('eventDebug').classList.add('d-none');
         modal.hide();
         calendar.refetchEvents();
         updateUpcomingEventsList();
       } else {
-        alert(resp.error || 'Error saving event.');
+        let errorMsg = 'Error saving event.';
+        if (resp.error) errorMsg = resp.error;
+        if (resp.errors) errorMsg += '\n' + JSON.stringify(resp.errors);
+        document.getElementById('eventDebug').textContent = errorMsg;
+        document.getElementById('eventDebug').classList.remove('d-none');
+        alert(errorMsg);
       }
     });
   };

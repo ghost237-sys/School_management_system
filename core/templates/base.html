@@ -118,7 +118,7 @@
                 </li>
                 {% if user.is_authenticated and user.role == 'admin' and user.id %}
 <li class="nav-item mb-2">
-    <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_send_message' %}active{% endif %}" href="{% url 'admin_send_message' %}">
+    <!-- <a class="nav-link d-flex align-items-center" href="#"> -->
         <i class="bi bi-envelope-paper me-2"></i> Messages
     </a>
 </li>
