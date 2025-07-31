@@ -113,6 +113,23 @@ class Grade(models.Model):
     grade_letter = models.CharField(max_length=2, blank=True, null=True)
     remarks = models.TextField(blank=True)
 
+class SubjectGradingScheme(models.Model):
+    subject = models.OneToOneField(Subject, on_delete=models.CASCADE, related_name='grading_scheme')
+    # Store grade boundaries as a JSON field: e.g. {"A": [80, 100], "B": [70, 79], ...}
+    grade_boundaries = models.JSONField(default=dict, help_text="Map of grade letter to [min, max] score, e.g. {'A': [80, 100], 'B': [70, 79]}")
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True)
+
+    def get_grade_letter(self, score):
+        """Return the grade letter for a given score based on boundaries."""
+        for letter, (min_score, max_score) in self.grade_boundaries.items():
+            if min_score <= score <= max_score:
+                return letter
+        return None
+
+    def __str__(self):
+        return f"Grading Scheme for {self.subject.name}"
+
 # --- Fee Management Models ---
 
 class FeeCategory(models.Model):
@@ -227,7 +244,7 @@ class FinanceMessageHistory(models.Model):
         return f"To {self.recipient.username} at {self.sent_at:%Y-%m-%d %H:%M}"
 class Message(models.Model):
     sender = models.ForeignKey(User, related_name='sent_messages', on_delete=models.CASCADE)
-    recipient = models.ForeignKey(User, related_name='received_messages', on_delete=models.CASCADE)
+    recipient = models.ForeignKey(User, related_name='received_messages', on_delete=models.CASCADE, null=True, blank=True)
     content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False)

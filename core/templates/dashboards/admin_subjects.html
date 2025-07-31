@@ -53,6 +53,7 @@
             <th>Subject</th>
             <th>Department</th>
             <th>Assigned Teachers</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -69,9 +70,14 @@
                 <span class="text-muted">No teachers assigned</span>
               {% endif %}
             </td>
+            <td>
+              <a href="{% url 'manage_subject_grading' subject.id %}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-pencil-square"></i> Manage Grading
+              </a>
+            </td>
           </tr>
           {% empty %}
-          <tr><td colspan="3">No subjects available.</td></tr>
+          <tr><td colspan="4">No subjects available.</td></tr>
           {% endfor %}
         </tbody>
       </table>

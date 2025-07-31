@@ -30,6 +30,67 @@ from .forms import (
 )
 
 @login_required(login_url='login')
+def manage_class_subjects(request, class_id):
+    if not request.user.role == 'admin':
+        return HttpResponseForbidden("You are not authorized to manage class subjects.")
+    class_obj = get_object_or_404(Class, id=class_id)
+    all_subjects = Subject.objects.all().order_by('name')
+    if request.method == 'POST':
+        selected_subject_ids = request.POST.getlist('subjects')
+        class_obj.subjects.set(selected_subject_ids)
+        messages.success(request, 'Subjects updated successfully!')
+        return redirect('class_profile', class_id=class_obj.id)
+    return render(request, 'dashboards/manage_class_subjects.html', {
+        'class_obj': class_obj,
+        'all_subjects': all_subjects,
+    })
+
+@login_required(login_url='login')
+def manage_subject_grading(request, subject_id):
+    from .models import Subject, SubjectGradingScheme
+    subject = get_object_or_404(Subject, id=subject_id)
+    error = None
+    grading_scheme = getattr(subject, 'grading_scheme', None)
+    grade_boundaries_json = ''
+    last_updated = None
+    updated_by = None
+    if grading_scheme:
+        import json
+        grade_boundaries_json = json.dumps(grading_scheme.grade_boundaries, indent=2)
+        last_updated = grading_scheme.updated_at
+        updated_by = grading_scheme.updated_by
+    if request.method == 'POST':
+        import json
+        try:
+            boundaries = json.loads(request.POST.get('grade_boundaries', '{}'))
+            # Validate boundaries format
+            for k, v in boundaries.items():
+                if not (isinstance(v, list) and len(v) == 2 and all(isinstance(x, (int, float)) for x in v)):
+                    raise ValueError(f"Invalid boundary for {k}: {v}")
+            if grading_scheme:
+                grading_scheme.grade_boundaries = boundaries
+                grading_scheme.updated_by = request.user
+                grading_scheme.save()
+            else:
+                grading_scheme = SubjectGradingScheme.objects.create(
+                    subject=subject,
+                    grade_boundaries=boundaries,
+                    updated_by=request.user
+                )
+            messages.success(request, 'Grading scheme updated successfully!')
+            return redirect('admin_subjects')
+        except Exception as e:
+            error = f"Invalid input: {e}"
+            grade_boundaries_json = request.POST.get('grade_boundaries', '')
+    return render(request, 'dashboards/manage_subject_grading.html', {
+        'subject': subject,
+        'grade_boundaries_json': grade_boundaries_json,
+        'error': error,
+        'last_updated': last_updated,
+        'updated_by': updated_by,
+    })
+
+@login_required(login_url='login')
 def dashboard(request):
     user = request.user
     if user.role == 'admin':
@@ -426,11 +487,25 @@ def input_grades(request, teacher_id, class_id, subject_id, exam_id):
 
     if request.method == 'POST':
         students = Student.objects.filter(class_group=class_group)
+        # Fetch grading scheme for this subject
+        grading_scheme = getattr(subject, 'grading_scheme', None)
+        max_score = 100  # Default max if no scheme
+        if grading_scheme and grading_scheme.grade_boundaries:
+            # Find the highest max value among all grade boundaries
+            try:
+                max_score = max(v[1] for v in grading_scheme.grade_boundaries.values())
+            except Exception:
+                max_score = 100
+        any_error = False
         for student in students:
             score_str = request.POST.get(f'score_{student.id}')
             if score_str and score_str.strip():
                 try:
                     score = float(score_str)
+                    if score > max_score:
+                        messages.error(request, f"Score for {student.user.get_full_name()} exceeds the maximum allowed ({max_score}) for this subject.")
+                        any_error = True
+                        continue
                     grade_letter, remarks = 'F', 'NEEDS IMPROVEMENT'
                     if 80 <= score <= 100:
                         grade_letter, remarks = 'A', 'EXCELLENT'
@@ -449,10 +524,12 @@ def input_grades(request, teacher_id, class_id, subject_id, exam_id):
                     )
                 except (ValueError, TypeError):
                     messages.error(request, f"Invalid score for student {student.id}. Please enter a number.")
+                    any_error = True
                     continue
-        
-        messages.success(request, 'Grades saved successfully!')
-        return redirect('exam_results', teacher_id=teacher.id, class_id=class_group.id, subject_id=subject.id, exam_id=exam.id)
+        if not any_error:
+            messages.success(request, 'Grades saved successfully!')
+            return redirect('exam_results', teacher_id=teacher.id, class_id=class_group.id, subject_id=subject.id, exam_id=exam.id)
+        # If there were errors, do not redirect, show the form again with errors.
 
     students = Student.objects.filter(class_group=class_group).order_by('user__last_name', 'user__first_name')
     grades = Grade.objects.filter(student__in=students, subject=subject, exam=exam).select_related('student')
@@ -982,8 +1059,9 @@ def admin_class_result_slip(request, class_id):
         exam_id = request.GET.get('exam')
         if exam_id:
             selected_exam = exams.filter(id=exam_id).first()
-        if not selected_exam:
-            selected_exam = exams.first()
+        else:
+            # Prefer latest done exam, fallback to latest by date
+            selected_exam = exams.order_by('-date').first()
         if selected_exam:
             # Build grades dict: grades[student.id][subject.id] = Grade instance
             grades = {s.id: {} for s in students}
@@ -1030,6 +1108,10 @@ def admin_class_result_slip(request, class_id):
                 'class_name': s.class_group.name if s.class_group else '',
                 'average': student_averages.get(s.id, 0)
             })
+    class_performance = [
+        {'name': cname, 'average': class_comparison_averages.get(cname, 0)}
+        for cname in comparison_classes
+    ]
     context = {
         'class_obj': class_obj,
         'students': students,
@@ -1044,6 +1126,119 @@ def admin_class_result_slip(request, class_id):
         'comparison_classes': comparison_classes,
         'class_comparison_averages': class_comparison_averages,
         'overall_students_ranked': overall_students_ranked,
+        'class_performance': class_performance,
+    }
+    return render(request, 'dashboards/admin_class_result_slip.html', context)
+@login_required(login_url='login')
+def teacher_class_result_slip(request, class_id):
+    if request.user.role != 'teacher':
+        return redirect('dashboard')
+    from .models import Class, Student, Subject, Exam, Grade, Term
+    class_obj = get_object_or_404(Class, id=class_id)
+    students = Student.objects.filter(class_group=class_obj).select_related('user')
+    subjects = Subject.objects.all()
+    terms = Term.objects.order_by('-start_date')
+    exams = Exam.objects.none()
+    selected_term = None
+    selected_exam = None
+    grades = {}
+    averages = {}
+    ranks = {}
+    if terms:
+        # Get selected term from GET or default to latest
+        term_id = request.GET.get('term')
+    from .models import Class, Student, Subject, Exam, Grade, Term
+    class_obj = get_object_or_404(Class, id=class_id)
+    students = Student.objects.filter(class_group=class_obj).select_related('user')
+    subjects = Subject.objects.all()
+    terms = Term.objects.order_by('-start_date')
+    exams = Exam.objects.none()
+    selected_term = None
+    selected_exam = None
+    grades = {}
+    averages = {}
+    ranks = {}
+    if terms:
+        # Get selected term from GET or default to latest
+        term_id = request.GET.get('term')
+        if term_id:
+            selected_term = terms.filter(id=term_id).first()
+        if not selected_term:
+            selected_term = terms.first()
+        exams = Exam.objects.filter(term=selected_term)
+        # Get selected exam from GET or default to latest in term
+        exam_id = request.GET.get('exam')
+        if exam_id:
+            selected_exam = exams.filter(id=exam_id).first()
+        if not selected_exam:
+            selected_exam = exams.first()
+        if selected_exam:
+            # Build grades dict: grades[student.id][subject.id] = Grade instance
+            all_level_classes = Class.objects.filter(level=class_obj.level)
+            all_level_students = Student.objects.filter(class_group__in=all_level_classes).select_related('user', 'class_group')
+            grades = {s.id: {} for s in all_level_students}
+            grade_qs = Grade.objects.filter(student__in=all_level_students, exam=selected_exam)
+            for g in grade_qs:
+                grades[g.student.id][g.subject.id] = g
+            # Compute averages and ranks
+            for s in students:
+                subj_scores = [g.score for g in grades[s.id].values() if hasattr(g, 'score') and g.score is not None]
+                averages[s.id] = sum(subj_scores) / len(subj_scores) if subj_scores else 0
+            sorted_students = sorted(students, key=lambda s: averages[s.id], reverse=True)
+            for idx, s in enumerate(sorted_students, 1):
+                ranks[s.id] = idx
+            # Sort students by rank before passing to template
+            students = sorted(students, key=lambda s: ranks.get(s.id, 9999))
+    # --- Class-level comparison ---
+    comparison_classes = []
+    class_comparison_averages = {}
+    if selected_exam and class_obj.level:
+        peer_classes = Class.objects.filter(level=class_obj.level)
+        for peer_class in peer_classes:
+            peer_students = Student.objects.filter(class_group=peer_class)
+            peer_grades = Grade.objects.filter(student__in=peer_students, exam=selected_exam)
+            peer_scores = [g.score for g in peer_grades if g.score is not None]
+            avg_score = sum(peer_scores) / len(peer_scores) if peer_scores else 0
+            class_comparison_averages[peer_class.name] = avg_score
+            comparison_classes.append(peer_class.name)
+    # --- Overall student ranking across all classes at this level ---
+    overall_students_ranked = []
+    if selected_exam and class_obj.level:
+        all_level_classes = Class.objects.filter(level=class_obj.level)
+        all_level_students = Student.objects.filter(class_group__in=all_level_classes).select_related('user', 'class_group')
+        student_averages = {}
+        for s in all_level_students:
+            grades_qs = Grade.objects.filter(student=s, exam=selected_exam)
+            scores = [g.score for g in grades_qs if g.score is not None]
+            avg = sum(scores) / len(scores) if scores else 0
+            student_averages[s.id] = avg
+        ranked_students = sorted(all_level_students, key=lambda s: student_averages.get(s.id, 0), reverse=True)
+        for idx, s in enumerate(ranked_students, 1):
+            overall_students_ranked.append({
+                'rank': idx,
+                'student': s,
+                'class_name': s.class_group.name if s.class_group else '',
+                'average': student_averages.get(s.id, 0)
+            })
+    class_performance = [
+        {'name': cname, 'average': class_comparison_averages.get(cname, 0)}
+        for cname in comparison_classes
+    ]
+    context = {
+        'class_obj': class_obj,
+        'students': students,
+        'subjects': subjects,
+        'terms': terms,
+        'exams': exams,
+        'selected_term': selected_term,
+        'selected_exam': selected_exam,
+        'grades': grades,
+        'averages': averages,
+        'ranks': ranks,
+        'comparison_classes': comparison_classes,
+        'class_comparison_averages': class_comparison_averages,
+        'overall_students_ranked': overall_students_ranked,
+        'class_performance': class_performance,
     }
     return render(request, 'dashboards/admin_class_result_slip.html', context)
 

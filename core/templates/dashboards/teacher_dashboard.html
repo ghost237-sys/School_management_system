@@ -44,6 +44,7 @@
                         <p><strong>Students:</strong> {{ card.student_count }}</p>
                         <p><strong>Avg Score:</strong> {% if card.avg_score %}{{ card.avg_score|floatformat:2 }}%{% else %}N/A{% endif %}</p>
                         <a href="{% url 'manage_grades' teacher_id=teacher.id %}" class="btn btn-light btn-sm mt-2">Manage Grades</a>
+                        <a href="{% url 'teacher_class_result_slip' class_id=card.class_group.id %}" class="btn btn-success btn-sm mt-2 ms-2">View Result Slip</a>
                     </div>
                 </div>
             </div>

@@ -25,9 +25,11 @@ urlpatterns = [
     path('overall_student_results/<int:class_id>/', views.overall_student_results, name='overall_student_results'),
     path('class_profile/<int:class_id>/', views.class_profile, name='class_profile'),
     path('edit_class/<int:class_id>/', views.edit_class, name='edit_class'),
+    path('manage_class_subjects/<int:class_id>/', views.manage_class_subjects, name='manage_class_subjects'),
     path('delete_class/<int:class_id>/', views.delete_class, name='delete_class'),
     path('admin_analytics/', views.admin_analytics, name='admin_analytics'),
     path('admin_subjects/', views.admin_subjects, name='admin_subjects'),
+    path('manage_subject_grading/<int:subject_id>/', views.manage_subject_grading, name='manage_subject_grading'),
     path('admin_academic_years/', views.admin_academic_years, name='admin_academic_years'),
     path('admin_exams/', views.admin_exams, name='admin_exams'),
     path('admin_fees/', views.admin_fees, name='admin_fees'),
@@ -36,6 +38,7 @@ urlpatterns = [
     path('admin_send_bulk_arrears_notice/', views_admin_messaging.send_bulk_fee_arrears_notice, name='admin_send_bulk_arrears_notice'),
 
     # Teacher URLs
+    path('teacher_class_result_slip/<int:class_id>/', views.teacher_class_result_slip, name='teacher_class_result_slip'),
     path('teacher_dashboard/<int:teacher_id>/', views.teacher_dashboard, name='teacher_dashboard'),
     path('teacher/<int:teacher_id>/profile/', views.teacher_profile, name='teacher_profile'),
     path('teacher/<int:teacher_id>/timetable/', views.teacher_timetable, name='teacher_timetable'),

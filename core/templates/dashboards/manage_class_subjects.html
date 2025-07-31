@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Manage Subjects for {{ class_obj.name }}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Manage Subjects for {{ class_obj.name }} (Level {{ class_obj.level }})</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="subjects" class="form-label">Assign Subjects</label>
+            <select id="subjects" name="subjects" multiple class="form-select" size="10">
+                {% for subject in all_subjects %}
+                    <option value="{{ subject.id }}" {% if subject in class_obj.subjects.all %}selected{% endif %}>
+                        {{ subject.name }} ({{ subject.code }})
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="{% url 'class_profile' class_obj.id %}" class="btn btn-secondary ms-2">Back to Class Profile</a>
+    </form>
+    <hr>
+    <h5>Currently Assigned Subjects:</h5>
+    <ul>
+        {% for subject in class_obj.subjects.all %}
+            <li>{{ subject.name }} ({{ subject.code }})</li>
+        {% empty %}
+            <li>No subjects assigned to this class.</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

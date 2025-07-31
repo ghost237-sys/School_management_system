@@ -26,102 +26,194 @@
             <button type="submit" class="btn btn-primary">View</button>
         </div>
     </form>
-    <button class="btn btn-primary mb-3" onclick="printSection('class-result-slip-section', 'Class Result Slip')"><i class="fa fa-print"></i> Print Result Slip</button>
-    <div id="class-result-slip-section">
-        <table class="table table-bordered table-striped">
-            <thead class="table-light">
-                <tr>
-                    <th>Rank</th>
-                    <th>Student</th>
-                    {% for subject in subjects %}
-                        <th>{% if subject.code == 'TELAG_NLC_A' or subject.code == 'SC_TELAG_NLC_A' %}INT-SCI{% else %}{{ subject.code }}{% endif %}</th>
-                    {% endfor %}
-                    <th>Average</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for student in students %}
-                <tr>
-                    <td>{{ ranks|get_item:student.id }}</td>
-                    <td>{{ student.user.get_full_name|default:student.user.username }}</td>
-                    {% for subject in subjects %}
-                        <td>
-                            {% with grade=grades|dict_get:student.id|dict_get:subject.id %}
-                                {% if grade %}
-                                    {{ grade.score|floatformat:1 }} ({{ grade.grade_letter }})
-                                {% else %}
-                                    N/A
-                                {% endif %}
-                            {% endwith %}
-                        </td>
-                    {% endfor %}
-                    <td>{{ averages|get_item:student.id|floatformat:1 }}</td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="{{ subjects|length|add:'3' }}">No students found for this class.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <!-- Tabs and content inserted above -->
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="class-results-tab" data-bs-toggle="tab" data-bs-target="#class-results" type="button" role="tab" aria-controls="class-results" aria-selected="true">Class Results</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance" type="button" role="tab" aria-controls="performance" aria-selected="false">Performance Comparison</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="ranking-tab" data-bs-toggle="tab" data-bs-target="#ranking" type="button" role="tab" aria-controls="ranking" aria-selected="false">Student Ranking</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="subject-comparison-tab" data-bs-toggle="tab" data-bs-target="#subject-comparison" type="button" role="tab" aria-controls="subject-comparison" aria-selected="false">Student Subject Comparison</button>
+        </li>
+    </ul>
+    <div class="tab-content" id="myTabContent">
+        <!-- Class Results Tab -->
+        <div class="tab-pane fade show active" id="class-results" role="tabpanel" aria-labelledby="class-results-tab">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th>Rank</th>
+                            <th>Student</th>
+                            {% for subject in subjects %}
+                                <th>{% if subject.code == 'TELAG_NLC_A' or subject.code == 'SC_TELAG_NLC_A' %}INT-SCI{% else %}{{ subject.code }}{% endif %}</th>
+                            {% endfor %}
+                            <th>Average</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in students %}
+                        <tr{% if ranks|get_item:student.id <= 3 %} class="table-success fw-bold"{% endif %}>
+                            <td>{{ ranks|get_item:student.id }}</td>
+                            <td>{{ student.user.get_full_name|default:student.user.username }}</td>
+                            {% for subject in subjects %}
+                                <td>
+                                    {% with grade=grades|dict_get:student.id|dict_get:subject.id %}
+                                        {% if grade %}
+                                            {{ grade.score|floatformat:1 }} ({{ grade.grade_letter }})
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    {% endwith %}
+                                </td>
+                            {% endfor %}
+                            <td>{{ averages|get_item:student.id|floatformat:1 }}</td>
+                        </tr>
+                        {% empty %}
+                            <tr><td colspan="100%">No students found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- Performance Comparison Tab -->
+        <div class="tab-pane fade" id="performance" role="tabpanel" aria-labelledby="performance-tab">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Class Performance Comparison (Same Level)</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Class</th>
+                                    <th>Average Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for c in class_performance %}
+                                    <tr>
+                                        <td>{{ c.name }}</td>
+                                        <td>{{ c.average|floatformat:1 }}</td>
+                                    </tr>
+                                {% empty %}
+                                    <tr><td colspan="2">No class data available.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Student Ranking Tab -->
+        <div class="tab-pane fade" id="ranking" role="tabpanel" aria-labelledby="ranking-tab">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Overall Student Ranking (All Classes, Level {{ class_obj.level }})</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Student</th>
+                                    <th>Class</th>
+                                    <th>Average Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for s in overall_students_ranked %}
+                                    <tr{% if s.class_name == class_obj.name %} class="table-info"{% elif forloop.counter0 == 0 %} class="table-warning fw-bold"{% endif %}>
+                                        <td>{{ forloop.counter }}</td>
+                                        <td>{{ s.student.user.get_full_name|default:s.student.user.username }}</td>
+                                        <td>{{ s.class_name }}</td>
+                                        <td>{{ s.average|floatformat:1 }}</td>
+                                    </tr>
+                                {% empty %}
+                                    <tr><td colspan="4">No ranking data available.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Student Subject Comparison Tab -->
+        <div class="tab-pane fade" id="subject-comparison" role="tabpanel" aria-labelledby="subject-comparison-tab">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Student Subject Comparison (All Students, All Subjects)</h5>
+                    <div class="mb-3">
+                        <label for="subjectSortSelect" class="form-label">Sort by Subject:</label>
+                        <select id="subjectSortSelect" class="form-select" style="max-width: 300px; display: inline-block;">
+                            <option value="">-- No Sorting --</option>
+                            {% for subject in subjects %}
+                                <option value="{{ forloop.counter0 }}">{% if subject.code == 'TELAG_NLC_A' or subject.code == 'SC_TELAG_NLC_A' %}INT-SCI{% else %}{{ subject.code }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle" id="subjectComparisonTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Student</th>
+                                    <th>Class</th>
+                                    {% for subject in subjects %}
+                                        <th>{% if subject.code == 'TELAG_NLC_A' or subject.code == 'SC_TELAG_NLC_A' %}INT-SCI{% else %}{{ subject.code }}{% endif %}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for s in overall_students_ranked %}
+                                    <tr{% if s.class_name == class_obj.name %} class="table-info"{% endif %}>
+                                        <td>{{ s.student.user.get_full_name|default:s.student.user.username }}</td>
+                                        <td>{{ s.class_name }}</td>
+                                        {% for subject in subjects %}
+                                            <td>
+                                                {% with grade=grades|dict_get:s.student.id|dict_get:subject.id %}
+                                                    {% if grade %}
+                                                        {{ grade.score|floatformat:1 }} ({{ grade.grade_letter }})
+                                                    {% else %}
+                                                        <span class="text-muted">N/A</span>
+                                                    {% endif %}
+                                                {% endwith %}
+                                            </td>
+                                        {% endfor %}
+                                    </tr>
+                                {% empty %}
+                                    <tr><td colspan="100%">No students found.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    </div> <!-- end class-result-slip-section -->
-    <hr>
-    <h4>Class Performance Comparison (Same Level)</h4>
-    <div class="table-responsive mb-4">
-        <table class="table table-bordered table-striped w-auto">
-            <thead class="table-light">
-                <tr>
-                    <th>Class</th>
-                    <th>Average Score</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for cname in comparison_classes %}
-                <tr{% if cname == class_obj.name %} class="table-primary"{% endif %}>
-                    <td>{{ cname }}</td>
-                    <td>{{ class_comparison_averages|get_item:cname|floatformat:1 }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    <hr>
-    <div class="mb-3">
-        <a href="{% url 'overall_student_results' class_obj.id %}?term={{ selected_term.id }}&exam={{ selected_exam.id }}" class="btn btn-info">View Overall Results (Detailed per Student & Subject)</a>
-    </div>
-    <h4>Overall Student Ranking (All Classes, Level {{ class_obj.level }})</h4>
-    <div class="table-responsive mb-4">
-        <table class="table table-bordered table-striped w-auto">
-            <thead class="table-light">
-                <tr>
-                    <th>Rank</th>
-                    <th>Student</th>
-                    <th>Class</th>
-                    <th>Average Score</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for entry in overall_students_ranked %}
-                <tr{% if entry.student.id in ranks %} class="table-primary"{% endif %}>
-                    <td>{{ entry.rank }}</td>
-                    <td>{{ entry.student.user.get_full_name|default:entry.student.user.username }}</td>
-                    <td>{{ entry.class_name }}</td>
-                    <td>{{ entry.average|floatformat:0 }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    <a href="{% url 'admin_classes' %}" class="btn btn-secondary mt-3">Back to Classes</a>
+    <!-- End Tab Content -->
+</div>
+</div> <!-- end class-result-slip-section -->
+<hr>
+<a href="{% url 'admin_classes' %}" class="btn btn-secondary mt-3">Back to Classes</a>
+
+<!-- Bootstrap JS for tabs (if not already included in base.html) -->
 <script>
-function printSection(sectionId, title) {
-    var content = document.getElementById(sectionId);
-    if (!content) {
-        alert('Section not found!');
-        return;
+    // If using Bootstrap 5, tabs work automatically if JS is loaded
+    // Optionally, you can set the active tab via JS here
+</script>
+<script>
+    // Print function (existing)
+    function printSection(sectionId, title) {
+        var printContents = document.getElementById(sectionId).innerHTML;
+        var originalContents = document.body.innerHTML;
+        document.body.innerHTML = '<h2>'+title+'</h2>' + printContents;
+        window.print();
+        document.body.innerHTML = originalContents;
+        location.reload();
     }
-    var printWindow = window.open('', '', 'height=600,width=900');
-    printWindow.document.write('<html><head><title>' + title + '</title>');
-    // Optionally copy stylesheets
     var styles = Array.from(document.querySelectorAll('link[rel=stylesheet], style')).map(node => node.outerHTML).join('');
     printWindow.document.write(styles);
     printWindow.document.write('</head><body >');
@@ -129,7 +221,30 @@ function printSection(sectionId, title) {
     printWindow.document.write('</body></html>');
     printWindow.document.close();
     setTimeout(function(){ printWindow.print(); printWindow.close(); }, 500);
-}
+
+</script>
+<script>
+// Sorting for subject comparison table
+const sortSelect = document.getElementById('subjectSortSelect');
+const table = document.getElementById('subjectComparisonTable');
+sortSelect.addEventListener('change', function() {
+    const colIdx = parseInt(this.value);
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if (isNaN(colIdx)) {
+        // No sorting, restore original order
+        rows.sort((a, b) => 0);
+    } else {
+        rows.sort((a, b) => {
+            const aCell = a.cells[colIdx + 2].innerText.split(' ')[0];
+            const bCell = b.cells[colIdx + 2].innerText.split(' ')[0];
+            const aVal = parseFloat(aCell) || -Infinity;
+            const bVal = parseFloat(bCell) || -Infinity;
+            return bVal - aVal;
+        });
+    }
+    rows.forEach(row => tbody.appendChild(row));
+});
 </script>
 
   </div>
