@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
-from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term, Grade
+from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term, Grade, DefaultTimetable
 
 USER_CATEGORY_CHOICES = [
     ('admin', 'Admin'),
@@ -150,6 +150,15 @@ class AddClassForm(forms.ModelForm):
             instance.save()
             self.save_m2m()
         return instance
+
+# class TimeTableSlotForm(forms.ModelForm):
+#     class Meta:
+#         model = TimeTableSlot
+#         fields = ['day_of_week', 'start_time', 'end_time', 'class_group', 'subject', 'teacher', 'term']
+#         widgets = {
+#             'start_time': forms.TimeInput(attrs={'type': 'time'}),
+#             'end_time': forms.TimeInput(attrs={'type': 'time'}),
+#         }
 
 class CustomUserCreationForm(UserCreationForm):
     class Meta:
@@ -408,3 +417,15 @@ class AddTeacherForm(forms.ModelForm):
         if qs.exists():
             raise forms.ValidationError('Email already exists.')
         return email
+
+
+class DefaultTimetableForm(forms.ModelForm):
+    class Meta:
+        model = DefaultTimetable
+        fields = ['subject', 'teacher']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['teacher'].queryset = Teacher.objects.select_related('user').order_by('user__first_name', 'user__last_name')
+        self.fields['subject'].queryset = Subject.objects.order_by('name')
+        self.fields['teacher'].required = False

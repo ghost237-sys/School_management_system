@@ -1,0 +1,239 @@
+{% extends 'base.html' %}
+{% load dict_get %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mt-4">School Timetable</h1>
+
+    <!-- Class Selector -->
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <form method="get" action="{% url 'timetable_view' %}">
+                <div class="input-group">
+                    <select name="class_id" class="form-select" onchange="this.form.submit()">
+                        <option value="">-- Select a Class --</option>
+                        {% for class in classes %}
+                            <option value="{{ class.id }}" {% if selected_class.id == class.id %}selected{% endif %}>
+                                {{ class.name }} (Level {{ class.level }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+    </div>
+
+{% if selected_class %}
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">Timetable for {{ selected_class.name }} (Level {{ selected_class.level }})</h3>
+            
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered text-center" id="timetable-table">
+                    <thead>
+                        <tr>
+                            <th>Period</th>
+                            {% for day in days %}
+                                <th>{{ day }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for period in periods %}
+                            {% if not period.is_break %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ period.name }}</strong><br>
+                                        <small class="text-muted">{{ period.start_time|time:"g:i A" }} - {{ period.end_time|time:"g:i A" }}</small>
+                                    </td>
+                                    {% for day in days %}
+                                        {% with entry=timetable_grid|dict_get:period.id|dict_get:day %}
+                                        <td class="timeslot" style="position: relative;"
+                                            data-day="{{ day }}"  {# Corrected from day.0 #}
+                                            data-period-id="{{ period.id }}"
+                                            data-period-name="{{ period.name }}"
+                                            data-subject-id="{{ entry.subject.id|default:'' }}"
+                                            data-teacher-id="{{ entry.teacher.id|default:'' }}">
+                                            <div class="slot-content">
+                                                {% if entry %}
+                                                    <strong>{{ entry.subject.name }}</strong><br>
+                                                    <small class="text-muted">{{ entry.teacher.user.get_full_name|default:'No teacher' }}</small>
+                                                {% else %}
+                                                    <span class="text-muted">--</span>
+                                                {% endif %}
+                                            </div>
+                                            <a href="#" class="btn btn-sm btn-light edit-slot-btn" style="position: absolute; top: 2px; right: 2px;" title="Edit Slot">
+                                                &#x270E; <!-- Pencil icon -->
+                                            </a>
+                                        </td>
+                                        {% endwith %}
+                                    {% endfor %}
+                                </tr>
+                                {% if forloop.counter == 2 %}
+                                <tr>
+                                    <td></td>
+                                    <td colspan="{{ days|length }}" class="table-info text-center"><strong>Short Break</strong></td>
+                                </tr>
+                                {% elif forloop.counter == 4 %}
+                                <tr>
+                                    <td></td>
+                                    <td colspan="{{ days|length }}" class="table-info text-center"><strong>Long Break</strong></td>
+                                </tr>
+                                {% elif forloop.counter == 6 %}
+                                <tr>
+                                    <td></td>
+                                    <td colspan="{{ days|length }}" class="table-info text-center"><strong>Lunch</strong></td>
+                                </tr>
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Slot Modal -->
+    <div class="modal fade" id="editSlotModal" tabindex="-1" aria-labelledby="editSlotModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editSlotModalLabel">Edit Timetable Slot</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Period:</strong> <span id="modal-period-name"></span></p>
+                    <p><strong>Day:</strong> <span id="modal-day"></span></p>
+                    <form id="editSlotForm">
+                        {% csrf_token %}
+                        <input type="hidden" id="modal-period-id" name="period_id">
+                        <input type="hidden" id="modal-day-input" name="day">
+                        <div class="mb-3">
+                            <label for="modal-subject" class="form-label">Subject</label>
+                            <select id="modal-subject" name="subject" class="form-select">
+                                <option value="">-- Select Subject --</option>
+                                {% for subject in subjects %}
+                                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="modal-teacher" class="form-label">Teacher</label>
+                            <select id="modal-teacher" name="teacher" class="form-select">
+                                <option value="">-- Select Teacher --</option>
+                                {% for teacher in teachers %}
+                                    <option value="{{ teacher.id }}">{{ teacher.user.get_full_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="saveSlotButton">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="alert alert-info mt-4" role="alert">
+        Please select a class to view its timetable.
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const editSlotModal = new bootstrap.Modal(document.getElementById('editSlotModal'));
+    const timetableTable = document.getElementById('timetable-table');
+
+    // Only add event listeners if the timetable table exists on the page
+    if (timetableTable) {
+        let currentCell = null; // To store the cell being edited
+
+        // A single event listener on the table to handle clicks on edit buttons
+        timetableTable.addEventListener('click', function(event) {
+        const editButton = event.target.closest('.edit-slot-btn');
+        
+        // If the click was not on an edit button, do nothing
+        if (!editButton) {
+            return;
+        }
+
+        // Store the cell that is being edited
+        currentCell = editButton.closest('.timeslot');
+
+        // Get data from the cell's data attributes
+        const day = currentCell.dataset.day;
+        const periodId = currentCell.dataset.periodId;
+        const periodName = currentCell.dataset.periodName;
+        const subjectId = currentCell.dataset.subjectId;
+        const teacherId = currentCell.dataset.teacherId;
+
+        // Populate the modal with the data from the cell
+        document.getElementById('modal-period-name').textContent = periodName;
+        document.getElementById('modal-day').textContent = day;
+        document.getElementById('modal-period-id').value = periodId;
+        document.getElementById('modal-day-input').value = day;
+        document.getElementById('modal-subject').value = subjectId || '';
+        document.getElementById('modal-teacher').value = teacherId || '';
+
+        // Show the modal
+        editSlotModal.show();
+    });
+
+    // Add a listener for the modal's save button
+    document.getElementById('saveSlotButton').addEventListener('click', function() {
+        const form = document.getElementById('editSlotForm');
+        const data = {
+            class_id: '{{ selected_class.id }}',
+            period_id: form.querySelector('#modal-period-id').value,
+            day: form.querySelector('#modal-day-input').value,
+            subject: form.querySelector('#modal-subject').value,
+            teacher: form.querySelector('#modal-teacher').value,
+        };
+
+        // Send the data to the API
+        fetch(`{% url 'timetable_edit_api' %}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                const slotContent = currentCell.querySelector('.slot-content');
+                
+                // Update the cell content based on the response
+                if (result.entry && result.entry.subject_name) {
+                    const subjectName = result.entry.subject_name;
+                    const teacherName = result.entry.teacher_name || 'No teacher';
+                    slotContent.innerHTML = `<strong>${subjectName}</strong><br><small class="text-muted">${teacherName}</small>`;
+                    // Update data attributes for future edits
+                    currentCell.dataset.subjectId = data.subject;
+                    currentCell.dataset.teacherId = data.teacher;
+                } else { // This handles clearing a slot
+                    slotContent.innerHTML = `<span class="text-muted">--</span>`;
+                    currentCell.dataset.subjectId = '';
+                    currentCell.dataset.teacherId = '';
+                }
+                editSlotModal.hide();
+            } else {
+                alert('Error: ' + (result.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error saving timetable slot:', error);
+            alert('An unexpected error occurred while saving.');
+        });
+    });
+    } // End of the if(timetableTable) block
+});
+</script>
+{% endblock %}

@@ -18,6 +18,7 @@ class Subject(models.Model):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=10)
     department = models.ForeignKey('Department', null=True, blank=True, on_delete=models.SET_NULL, related_name='subjects')
+    color = models.CharField(max_length=7, default='#007bff', help_text="Color for the timetable events")
 
     def __str__(self):
         return f"{self.name} ({self.department})" if self.department else self.name
@@ -177,6 +178,45 @@ class TeacherClassAssignment(models.Model):
     def __str__(self):
         return f'{self.teacher} - {self.class_group} - {self.subject}'
 
+class PeriodSlot(models.Model):
+    """Represents a static period or break time slot in a day."""
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    label = models.CharField(max_length=50, help_text='e.g., "Period 1", "Break"')
+    is_class_slot = models.BooleanField(default=True, help_text='Is this a slot for a class or a break?')
+
+    class Meta:
+        ordering = ['start_time']
+
+    def __str__(self):
+        return f"{self.label} ({self.start_time.strftime('%H:%M')} - {self.end_time.strftime('%H:%M')})"
+
+
+class DefaultTimetable(models.Model):
+    """A default timetable structure mapping classes, subjects, and periods."""
+    DAY_CHOICES = (
+        ('Monday', 'Monday'),
+        ('Tuesday', 'Tuesday'),
+        ('Wednesday', 'Wednesday'),
+        ('Thursday', 'Thursday'),
+        ('Friday', 'Friday'),
+    )
+
+    class_group = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='timetable_entries')
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
+    period = models.ForeignKey(PeriodSlot, on_delete=models.CASCADE)
+    day = models.CharField(max_length=10, choices=DAY_CHOICES)
+    teacher = models.ForeignKey(Teacher, on_delete=models.SET_NULL, null=True, blank=True)
+    editable = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('class_group', 'day', 'period')  # Ensures one subject per period per class
+        ordering = ['class_group', 'day', 'period__start_time']
+
+    def __str__(self):
+        teacher_name = self.teacher.user.get_full_name() if self.teacher else "Not Assigned"
+        return f"{self.class_group} | {self.day} | {self.period.label}: {self.subject.name} ({teacher_name})"
+
 class Attendance(models.Model):
     STATUS_CHOICES = [
         ('present', 'Present'),
@@ -251,3 +291,15 @@ class Message(models.Model):
 
     def __str__(self):
         return f"From {self.sender.username} to {self.recipient.username} at {self.timestamp:%Y-%m-%d %H:%M}"
+
+
+class Notification(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Notification for {self.user.username}"
+
+
