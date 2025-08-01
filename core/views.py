@@ -1879,7 +1879,7 @@ def admin_payment(request):
             fee_assignment = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term).first()
             if not fee_assignment:
                 fee_assignment = FeeAssignment.objects.first()  # fallback to any fee assignment
-            FeePayment.objects.create(
+            payment = FeePayment.objects.create(
                 student=student,
                 fee_assignment=fee_assignment,
                 amount_paid=amount_paid,
@@ -1887,7 +1887,29 @@ def admin_payment(request):
                 reference=reference,
                 phone_number=phone_number
             )
-            messages.success(request, f'Payment of Ksh. {amount_paid} recorded for {student.full_name}.')
+            # Calculate updated balance
+            from django.db.models import Sum
+            total_billed = fee_assignment.amount
+            total_paid = FeePayment.objects.filter(student=student, fee_assignment=fee_assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
+            balance = total_billed - total_paid
+            # Compose confirmation message
+            payment_date = payment.payment_date.strftime('%Y-%m-%d %H:%M') if hasattr(payment, 'payment_date') else str(timezone.now())
+            confirm_msg = f"Dear {student.full_name}, your payment of Ksh. {amount_paid} has been received on {payment_date}. Outstanding balance: Ksh. {balance:.2f}. Thank you."
+            # Send email if available
+            if student.user and student.user.email:
+                from django.core.mail import send_mail
+                send_mail(
+                    subject='Fee Payment Confirmation',
+                    message=confirm_msg,
+                    from_email=None,
+                    recipient_list=[student.user.email],
+                    fail_silently=True
+                )
+            # Send SMS if phone available
+            if student.phone:
+                from .messaging_utils import send_sms
+                send_sms(student.phone, confirm_msg)
+            messages.success(request, f'Payment of Ksh. {amount_paid} recorded for {student.full_name}. Confirmation sent.')
             return redirect(request.path + f'?student_id={student.id}')
         except Student.DoesNotExist:
             messages.error(request, 'Selected student does not exist.')
@@ -1965,8 +1987,111 @@ def teacher_timetable(request, teacher_id):
 
 @login_required(login_url='login')
 def student_fees(request):
-    return render(request, 'dashboards/student_fees.html', {})
+    from .models import FeeAssignment, FeePayment, Term, Student
+    from django.utils import timezone
+    from django.db.models import Sum
+    from django.contrib import messages
 
+    user = request.user
+    # Get the student object for the logged-in user
+    try:
+        student = Student.objects.get(user=user)
+    except Student.DoesNotExist:
+        messages.error(request, 'Student profile not found.')
+        return redirect('dashboard')
+
+    today = timezone.now().date()
+    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
+    fee_assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term)
+    fee_payments = FeePayment.objects.filter(student=student, fee_assignment__in=fee_assignments)
+    success = False
+
+    if request.method == 'POST':
+        # Extract form data
+        fee_assignment_id = request.POST.get('fee_assignment')
+        amount_paid = request.POST.get('amount_paid')
+        payment_method = request.POST.get('payment_method')
+        reference = request.POST.get('reference')
+        phone_number = request.POST.get('phone_number')
+
+        # Validate and save payment
+        try:
+            fee_assignment = FeeAssignment.objects.get(id=fee_assignment_id, class_group=student.class_group, term=current_term)
+            amount = float(amount_paid)
+            FeePayment.objects.create(
+                student=student,
+                fee_assignment=fee_assignment,
+                amount_paid=amount,
+                payment_method=payment_method,
+                reference=reference,
+                phone_number=phone_number
+            )
+
+            # Calculate outstanding balance for this student (all categories, all terms)
+            from .models import FeeAssignment, FeePayment, FeeCategory
+            all_assignments = FeeAssignment.objects.filter(class_group=student.class_group)
+            total_assigned = all_assignments.aggregate(total=Sum('amount'))['total'] or 0
+            total_paid = FeePayment.objects.filter(student=student).aggregate(total=Sum('amount_paid'))['total'] or 0
+            outstanding = total_assigned - total_paid
+
+            # Calculate per-category balances (only show categories with nonzero balance)
+            categories = FeeCategory.objects.all()
+            category_lines = []
+            for category in categories:
+                assigned = FeeAssignment.objects.filter(class_group=student.class_group, fee_category=category).aggregate(total=Sum('amount'))['total'] or 0
+                paid = FeePayment.objects.filter(student=student, fee_assignment__fee_category=category).aggregate(total=Sum('amount_paid'))['total'] or 0
+                cat_balance = assigned - paid
+                if cat_balance != 0:
+                    category_lines.append(f"- {category.name}: Ksh. {cat_balance:,.2f}")
+            category_breakdown = "\n".join(category_lines) if category_lines else "- None"
+
+            # Format total arrears with comma as thousands separator
+            outstanding_formatted = f"{outstanding:,.2f}"
+
+            # Compose the message in the exact requested format
+            message = (
+                f"Dear {student.full_name},\n\n"
+                f"Your payment of Ksh. {amount:,.2f} for {fee_assignment.fee_category.name} has been received.\n\n"
+                f"Your overall outstanding balance, including previous terms, is Ksh. {outstanding_formatted}.\n\n"
+                f"Breakdown by category:\n"
+                f"{category_breakdown}\n\n"
+                f"Total Arrears (all categories): Ksh. {outstanding_formatted}\n\n"
+                f"Thank you."
+            )
+
+            # Send confirmation email
+            if student.user.email:
+                from django.core.mail import send_mail
+                from django.conf import settings
+                subject = 'Payment Confirmation - School Fees'
+                message = (
+                    f"Dear {student.full_name},\n\n"
+                    f"Your payment of Ksh. {amount:.2f} for {fee_assignment.fee_category.name} has been received.\n\n"
+                    f"Your overall outstanding balance, including previous terms, is Ksh. {outstanding:.2f}.\n\n"
+                    f"Breakdown by category:\n"
+                    f"{category_breakdown}\n\n"
+                    f"Total Arrears (all categories): Ksh. {outstanding:.2f}\n\n"
+                    f"Thank you."
+                )
+                send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [student.user.email])
+
+            messages.success(request, 'Payment submitted successfully!')
+            return redirect(f'{request.path}?success=1')
+        except Exception as e:
+            messages.error(request, f'Error submitting payment: {e}')
+
+    # Check for success flag in GET params
+    if request.GET.get('success') == '1':
+        success = True
+
+    context = {
+        'student': student,
+        'current_term': current_term,
+        'fee_assignments': fee_assignments,
+        'fee_payments': fee_payments,
+        'success': success,
+    }
+    return render(request, 'dashboards/student_fees.html', context)
 
 @login_required(login_url='login')
 def admin_fees(request):

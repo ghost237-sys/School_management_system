@@ -43,13 +43,10 @@
             <div class="mt-4">
                 <strong>Average Score:</strong> {{ average_score|floatformat:2 }}<br>
 {% if stream_rank and stream_total %}
-<strong>Stream Rank:</strong> {{ stream_rank }} out of {{ stream_total }}<br>
-{% endif %}
-{% if class_rank and class_total %}
-<strong>Overall Position (within level):</strong> {{ class_rank }} out of {{ class_total }}<br>
+<strong>Class Rank:</strong> {{ stream_rank }}/{{ stream_total }}<br>
 {% endif %}
 {% if overall_level_rank and overall_level_total %}
-<strong>Level Rank (overall):</strong> {{ overall_level_rank }} out of {{ overall_level_total }}<br>
+<strong>Overall Rank:</strong> {{ overall_level_rank }}/{{ overall_level_total }}<br>
 {% endif %}
             </div>
         </div>

@@ -123,17 +123,9 @@
                     </a>
                 </li>
                 {% if user.is_authenticated and user.role == 'admin' and user.id %}
-<li class="nav-item mb-2">
-    <!-- <a class="nav-link d-flex align-items-center" href="#"> -->
-        <i class="bi bi-envelope-paper me-2"></i> Messages
-    </a>
-</li>
+
 {% else %}
-<li class="nav-item mb-2">
-    <a class="nav-link d-flex align-items-center disabled" href="#" tabindex="-1" aria-disabled="true">
-        <i class="bi bi-envelope-paper me-2"></i> Messages
-    </a>
-</li>
+
 {% endif %}
             </ul>
             <div class="mt-auto">
