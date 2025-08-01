@@ -8,6 +8,7 @@
                     <strong>Name:</strong> {{ student.user.get_full_name|default:student.user.username }}<br>
                     <strong>Admission No:</strong> {{ student.admission_no }}<br>
                     <strong>Class:</strong> {{ student.class_group.name }}<br>
+<strong>Class Teacher:</strong> {{ student.class_group.class_teacher.user.get_full_name|default:"Not assigned" }}<br>
                 </div>
                 <div class="col-md-6">
                     <strong>Term:</strong> {{ term.name }}<br>
@@ -41,15 +42,15 @@
             </table>
             <div class="mt-4">
                 <strong>Average Score:</strong> {{ average_score|floatformat:2 }}<br>
-                {% if class_rank and class_total %}
-                <strong>Class Rank:</strong> {{ class_rank }} out of {{ class_total }}<br>
-                {% endif %}
-                {% if level_rank and level_total %}
-                <strong>Level Rank:</strong> {{ level_rank }} out of {{ level_total }}<br>
-                {% endif %}
-                {% if overall_level_rank and overall_level_total %}
-                <strong>Overall Level Rank:</strong> {{ overall_level_rank }} out of {{ overall_level_total }}<br>
-                {% endif %}
+{% if stream_rank and stream_total %}
+<strong>Stream Rank:</strong> {{ stream_rank }} out of {{ stream_total }}<br>
+{% endif %}
+{% if class_rank and class_total %}
+<strong>Overall Position (within level):</strong> {{ class_rank }} out of {{ class_total }}<br>
+{% endif %}
+{% if overall_level_rank and overall_level_total %}
+<strong>Level Rank (overall):</strong> {{ overall_level_rank }} out of {{ overall_level_total }}<br>
+{% endif %}
             </div>
         </div>
     </div>

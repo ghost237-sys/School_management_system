@@ -19,10 +19,10 @@
                 <div class="mb-3">
                     <label for="student_id" class="form-label">Student</label>
                     <select class="form-select" id="student_id" name="student_id" required>
-                        {% for student in students %}
-                            <option value="{{ student.id }}">{{ student.full_name }} ({{ student.admission_no }})</option>
-                        {% endfor %}
-                    </select>
+    {% for student in students %}
+        <option value="{{ student.id }}" {% if selected_student_id|stringformat:"s" == student.id|stringformat:"s" %}selected{% endif %}>{{ student.full_name }} ({{ student.admission_no }})</option>
+    {% endfor %}
+</select>
                 </div>
                 <div class="mb-3">
                     <label for="amount_paid" class="form-label">Amount</label>

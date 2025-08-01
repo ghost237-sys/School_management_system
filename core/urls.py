@@ -1,8 +1,13 @@
-from django.urls import path
+from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from . import views, views_admin_messaging, views_finance_messaging
 
+from .views import timetable_view
+from . import timetable_urls
+
 urlpatterns = [
+    path('api/', include('core.timetable_urls')),
+    path('timetable/', timetable_view, name='timetable_view'),
     # ... other patterns ...
     path('finance_messaging/', views_finance_messaging.finance_messaging_page, name='finance_messaging_page'),
 

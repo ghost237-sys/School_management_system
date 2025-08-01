@@ -5,6 +5,7 @@
 {% block content %}
 <div class="container">
     <h2>Class Result Slip: {{ class_obj.name }} (Level {{ class_obj.level }})</h2>
+<p><strong>Class Teacher:</strong> {{ class_teacher_name|default:"Not assigned" }}</p>
     <form method="get" class="row g-3 mb-4">
         <div class="col-md-4">
             <label for="term" class="form-label">Term</label>

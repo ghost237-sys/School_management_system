@@ -183,7 +183,7 @@
 
                     <div class="text-end mt-3">
                         {% if user.role == 'admin' %}
-<a href="{% url 'admin_payment' %}" class="btn btn-success btn-lg"><i class="fa fa-credit-card"></i> Make Payment</a>
+<a href="{% url 'admin_payment' %}?student_id={{ student.id }}" class="btn btn-success btn-lg"><i class="fa fa-credit-card"></i> Make Payment</a>
 {% else %}
 <a href="{% url 'student_fees' %}" class="btn btn-success btn-lg"><i class="fa fa-credit-card"></i> Make Payment</a>
 {% endif %}
@@ -203,7 +203,11 @@
           <strong>Overall Performance by Term</strong>
         </div>
         <div class="card-body">
-          <canvas id="performanceChart" height="100"></canvas>
+          {% if performance_per_term and performance_per_term|length > 0 %}
+            <canvas id="performanceChart" height="100"></canvas>
+          {% else %}
+            <div class="alert alert-info mb-0">No performance data available for this student yet.</div>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -213,9 +217,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
       const perfData = JSON.parse(document.getElementById('perf-data').textContent);
-      const labels = perfData.map(e => `${e.term} (${e.year})`);
-      const scores = perfData.map(e => e.average_score);
-      if (scores.some(s => s !== null)) {
+      const filtered = perfData.filter(e => e.average_score !== null && e.average_score !== undefined);
+      const labels = filtered.map(e => `${e.term} (${e.year})`);
+      const scores = filtered.map(e => e.average_score);
+      if (scores.length > 0) {
         const ctx = document.getElementById('performanceChart').getContext('2d');
         new Chart(ctx, {
           type: 'line',

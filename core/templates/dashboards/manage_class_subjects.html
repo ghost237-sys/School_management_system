@@ -12,6 +12,8 @@
                     <option value="{{ subject.id }}" {% if subject in class_obj.subjects.all %}selected{% endif %}>
                         {{ subject.name }} ({{ subject.code }})
                     </option>
+                {% empty %}
+                    <option disabled>No subjects available. Please add subjects first.</option>
                 {% endfor %}
             </select>
         </div>
