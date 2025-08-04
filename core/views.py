@@ -1944,6 +1944,19 @@ def admin_events(request):
             messages.error(request, 'Event not found.')
         return redirect(request.path + '?' + request.META.get('QUERY_STRING', ''))
 
+    # Handle event deletion
+    if 'delete' in request.GET:
+        delete_id = request.GET['delete']
+        try:
+            event = Event.objects.get(id=delete_id)
+            event.delete()
+            messages.success(request, 'Event deleted successfully.')
+            # Redirect to remove ?delete=... from URL
+            return redirect('admin_events')
+        except Event.DoesNotExist:
+            messages.error(request, 'Event not found.')
+            return redirect('admin_events')
+
     filter_type = request.GET.get('filter', 'all')
     now = timezone.now()
     events = Event.objects.all().order_by('-start')
@@ -2332,7 +2345,7 @@ def event_create(request):
     print('[DEBUG] User:', request.user, 'Role:', getattr(request.user, 'role', None))
     print('[DEBUG] Content-Type:', request.content_type)
     print('[DEBUG] POST:', dict(request.POST))
-    print('[DEBUG] BODY:', request.body)
+    # print('[DEBUG] BODY:', request.body)
     
     # Only allow admins and teachers to create events
     if not hasattr(request.user, 'role') or request.user.role not in ['admin', 'teacher']:

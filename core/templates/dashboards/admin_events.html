@@ -102,7 +102,7 @@
     <div class="modal fade{% if edit_event or form.errors %} show{% endif %}" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel"{% if edit_event or form.errors %} aria-modal="true" style="display:block; background:rgba(0,0,0,0.2);"{% else %} aria-hidden="true"{% endif %}>
         <div class="modal-dialog">
             <div class="modal-content">
-                <form method="post" action="">
+                <form method="post" action="/dashboard/events/create/">
                     {% csrf_token %}
                     <div class="modal-header">
                         <h5 class="modal-title" id="eventModalLabel">{% if edit_event %}Edit Event{% else %}Add Event{% endif %}</h5>
@@ -143,4 +143,5 @@
     </script>
     {% endif %}
 </div>
+<script src="/static/admin_events.js"></script>
 {% endblock %}
