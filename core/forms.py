@@ -57,7 +57,11 @@ class MessagingForm(forms.Form):
 class ExamForm(forms.ModelForm):
     class Meta:
         model = Exam
-        fields = ['name', 'term', 'level', 'date', 'type']
+        fields = ['name', 'term', 'level', 'start_date', 'end_date', 'type']
+        widgets = {
+            'start_date': forms.DateInput(attrs={'type': 'date'}),
+            'end_date': forms.DateInput(attrs={'type': 'date'}),
+        }
 
 
 class EventForm(forms.ModelForm):
