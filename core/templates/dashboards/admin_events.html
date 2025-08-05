@@ -20,6 +20,46 @@
         </div>
     </div>
 
+    <!-- Calendar View for Events -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title mb-3">Events Calendar</h5>
+            <div id="event-calendar" style="min-height: 400px;"></div>
+            <div id="event-calendar-error" style="color: red; font-weight: bold; display: none;"></div>
+        </div>
+    </div>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        try {
+            var calendarEl = document.getElementById('event-calendar');
+            if (!calendarEl) {
+                document.getElementById('event-calendar-error').textContent = 'Calendar element not found!';
+                document.getElementById('event-calendar-error').style.display = 'block';
+                return;
+            }
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                height: 500,
+                events: '/dashboard/events/json/',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                },
+                eventClick: function(info) {
+                    alert('Event: ' + info.event.title + '\nStart: ' + info.event.startStr);
+                }
+            });
+            calendar.render();
+        } catch (e) {
+            document.getElementById('event-calendar-error').textContent = 'Calendar failed to load: ' + e;
+            document.getElementById('event-calendar-error').style.display = 'block';
+            console.error('FullCalendar initialization error:', e);
+        }
+    });
+    </script>
     <div class="card mb-4">
         <div class="card-body">
             <h5 class="card-title mb-3">Events</h5>
@@ -102,7 +142,11 @@
     <div class="modal fade{% if edit_event or form.errors %} show{% endif %}" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel"{% if edit_event or form.errors %} aria-modal="true" style="display:block; background:rgba(0,0,0,0.2);"{% else %} aria-hidden="true"{% endif %}>
         <div class="modal-dialog">
             <div class="modal-content">
-                <form method="post" action="/dashboard/events/create/">
+                <form method="post" action="{% url 'admin_events' %}{% if edit_event %}?edit={{ edit_event.id }}{% endif %}">
+                    {% csrf_token %}
+                    {% if edit_event %}
+                        <input type="hidden" name="edit_event_id" value="{{ edit_event.id }}">
+                    {% endif %}
                     {% csrf_token %}
                     <div class="modal-header">
                         <h5 class="modal-title" id="eventModalLabel">{% if edit_event %}Edit Event{% else %}Add Event{% endif %}</h5>

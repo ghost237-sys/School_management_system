@@ -235,7 +235,7 @@
           </div>
           <div class="fw-bold" style="font-size:0.9rem;">Students</div>
           <div class="fw-bold" style="font-size:1.05rem;color:#222;">{{ total_students }}</div>
-<button class="btn btn-sm btn-success mt-2 w-75" data-bs-toggle="modal" data-bs-target="#addStudentModal"><i class="bi bi-plus-lg"></i> Add</button>
+<a href="{% url 'admin_students' %}" class="btn btn-sm btn-success mt-2 w-75"><i class="bi bi-people-fill me-1"></i>Go to Students</a>
         </div>
       </div>
     </div>
@@ -247,7 +247,7 @@
           </div>
           <div class="fw-bold" style="font-size:0.9rem;">Teachers</div>
           <div class="fw-bold" style="font-size:1.05rem;color:#222;">{{ total_teachers }}</div>
-<button class="btn btn-sm btn-primary mt-2 w-75" data-bs-toggle="modal" data-bs-target="#addTeacherModal"><i class="bi bi-plus-lg"></i> Add</button>
+<a href="{% url 'admin_teachers' %}" class="btn btn-sm btn-primary mt-2 w-75"><i class="bi bi-person-badge-fill me-1"></i>Go to Teachers</a>
         </div>
       </div>
     </div>
@@ -259,7 +259,7 @@
           </div>
           <div class="fw-bold" style="font-size:0.9rem;">Classes</div>
           <div class="fw-bold" style="font-size:1.05rem;color:#222;">{{ total_classes }}</div>
-<button class="btn btn-sm btn-info mt-2 w-75" data-bs-toggle="modal" data-bs-target="#addClassModal"><i class="bi bi-plus-lg"></i> Add</button>
+<a href="{% url 'admin_classes' %}" class="btn btn-sm btn-info mt-2 w-75"><i class="bi bi-building me-1"></i>Go to Classes</a>
         </div>
       </div>
     </div>
@@ -271,7 +271,7 @@
           </div>
           <div class="fw-bold" style="font-size:0.9rem;">Subjects</div>
           <div class="fw-bold" style="font-size:1.05rem;color:#222;">{{ total_subjects }}</div>
-<button class="btn btn-sm btn-warning mt-2 w-75" data-bs-toggle="modal" data-bs-target="#addSubjectModal"><i class="bi bi-plus-lg"></i> Add</button>
+<a href="{% url 'admin_subjects' %}" class="btn btn-sm btn-warning mt-2 w-75"><i class="bi bi-book-fill me-1"></i>Go to Subjects</a>
         </div>
       </div>
     </div>
@@ -327,12 +327,73 @@
           </div>
         </div>
       </div>
+      <!-- Responsibilities Card -->
+      <div class="card flex-fill mt-4" style="min-height:unset;">
+        <div class="card-body p-3" style="min-height:unset;">
+          <h6 class="card-title mb-2"><i class="bi bi-person-check text-success me-1"></i>Assigned Teacher Responsibilities</h6>
+          <ul class="list-group list-group-flush">
+            {% for resp in responsibilities %}
+              <li class="list-group-item">
+                <strong>{{ resp.teacher.user.get_full_name|default:resp.teacher.user.username }}</strong>
+                <span class="badge bg-primary ms-2">{{ resp.responsibility }}</span>
+                {% if resp.start_date or resp.end_date %}<br>
+                  <span class="text-muted small">
+                    {% if resp.start_date %}Start: {{ resp.start_date|date:'Y-m-d' }}{% endif %}
+                    {% if resp.start_date and resp.end_date %} &ndash; {% endif %}
+                    {% if resp.end_date %}End: {{ resp.end_date|date:'Y-m-d' }}{% endif %}
+                  </span>
+                {% endif %}
+                {% if resp.details %}<br><span class="text-muted small">{{ resp.details }}</span>{% endif %}
+                <br><small class="text-muted">Assigned by {{ resp.assigned_by.get_full_name|default:resp.assigned_by.username }} on {{ resp.assigned_at|date:'Y-m-d H:i' }}</small>
+              </li>
+            {% empty %}
+              <li class="list-group-item">No responsibilities assigned yet.</li>
+            {% endfor %}
+          </ul>
+          <div class="mt-2 text-end">
+            <a href="{% url 'admin_assign_responsibility' %}" class="btn btn-link p-0 small">Manage All Responsibilities <i class="bi bi-arrow-right"></i></a>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="col-12 col-md-7">
       <div class="card flex-fill h-100">
         <div class="card-body">
           
-          <div id="calendar"></div>
+          <div id="dashboard-calendar" style="min-height: 400px;"></div>
+          <div id="dashboard-calendar-error" style="color: red; font-weight: bold; display: none;"></div>
+          <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+          <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+          <script>
+          document.addEventListener('DOMContentLoaded', function() {
+              try {
+                  var calendarEl = document.getElementById('dashboard-calendar');
+                  if (!calendarEl) {
+                      document.getElementById('dashboard-calendar-error').textContent = 'Calendar element not found!';
+                      document.getElementById('dashboard-calendar-error').style.display = 'block';
+                      return;
+                  }
+                  var calendar = new FullCalendar.Calendar(calendarEl, {
+                      initialView: 'dayGridMonth',
+                      height: 500,
+                      events: '/dashboard/events/json/',
+                      headerToolbar: {
+                          left: 'prev,next today',
+                          center: 'title',
+                          right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                      },
+                      eventClick: function(info) {
+                          alert('Event: ' + info.event.title + '\nStart: ' + info.event.startStr);
+                      }
+                  });
+                  calendar.render();
+              } catch (e) {
+                  document.getElementById('dashboard-calendar-error').textContent = 'Calendar failed to load: ' + e;
+                  document.getElementById('dashboard-calendar-error').style.display = 'block';
+                  console.error('FullCalendar initialization error:', e);
+              }
+          });
+          </script>
         </div>
       </div>
     </div>
@@ -343,75 +404,6 @@
   <!-- Quick Actions -->
 
 
-  <!-- Add Student Modal -->
-  <div class="modal fade" id="addStudentModal" tabindex="-1" aria-labelledby="addStudentModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="addStudentModalLabel">Add New Student</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div id="addStudentFormContainer">
-            <!-- Student form will be loaded here -->
-            <div class="text-center text-muted">Loading form...</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add Teacher Modal -->
-  <div class="modal fade" id="addTeacherModal" tabindex="-1" aria-labelledby="addTeacherModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="addTeacherModalLabel">Add New Teacher</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div id="addTeacherFormContainer" style="min-width:0;">
-            <!-- Teacher form will be loaded here -->
-            <div class="text-center text-muted">Loading form...</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add Class Modal -->
-  <div class="modal fade" id="addClassModal" tabindex="-1" aria-labelledby="addClassModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="addClassModalLabel">Add New Class</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div id="addClassFormContainer">
-            <!-- Class form will be loaded here -->
-            <div class="text-center text-muted">Loading form...</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add Subject Modal -->
-  <div class="modal fade" id="addSubjectModal" tabindex="-1" aria-labelledby="addSubjectModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="addSubjectModalLabel">Add New Subject</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div id="addSubjectFormContainer">
-            <!-- Subject form will be loaded here -->
-            <div class="text-center text-muted">Loading form...</div>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 

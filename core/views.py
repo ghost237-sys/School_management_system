@@ -32,6 +32,8 @@ from .forms import (
     GradeUploadForm, CustomUserCreationForm #, TimeTableSlotForm
 )
 
+from django.http import JsonResponse
+
 @login_required(login_url='login')
 def manage_class_subjects(request, class_id):
     if not request.user.role == 'admin':
@@ -186,6 +188,10 @@ def student_profile(request, student_id):
     overall_level_rank = None
     overall_level_total = len(overall_level_scores)
 
+    # --- Total Points Calculation ---
+    points_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1}
+    total_points = sum(points_map.get(g.grade_letter, 0) for g in grades if getattr(g, 'grade_letter', None))
+
     context = {
         'student': student,
         'current_term': current_term,
@@ -203,6 +209,7 @@ def student_profile(request, student_id):
         'stream_total': stream_total,
         'fee_assignments': fee_assignments,
         'fee_payments': FeePayment.objects.filter(student=student, fee_assignment__in=fee_assignments),
+        'total_points': total_points,
     }
     return render(request, 'dashboards/student_profile.html', context)
 
@@ -356,8 +363,19 @@ def teacher_dashboard(request, teacher_id):
     # Remove legacy/duplicate class_details/extra_classes logic (all cards come from class_cards now)
 
 
-    # Placeholder for upcoming deadlines
-    upcoming_deadlines = []
+    # Fetch upcoming events (deadlines)
+    from django.utils import timezone
+    now = timezone.now()
+    upcoming_deadlines = Event.objects.filter(is_done=False, start__gte=now).order_by('start')
+
+    # Add days_remaining to each event for countdown
+    for event in upcoming_deadlines:
+        delta = event.start - now
+        event.days_remaining = delta.days + (1 if delta.seconds > 0 else 0)
+
+    # Fetch assigned responsibilities for this teacher
+    from .models import TeacherResponsibility
+    responsibilities = TeacherResponsibility.objects.filter(teacher=teacher).order_by('-assigned_at')
 
     context = {
         'teacher': teacher,
@@ -367,6 +385,7 @@ def teacher_dashboard(request, teacher_id):
         'notifications': notifications,
         'class_cards': class_cards,
         'upcoming_deadlines': upcoming_deadlines,
+        'responsibilities': responsibilities,
     }
     return render(request, 'dashboards/teacher_dashboard.html', context)
 
@@ -620,13 +639,33 @@ from django.http import HttpResponseRedirect
 from django.urls import reverse
 
 @login_required(login_url='login')
+def admin_exams_json(request):
+    from .models import Exam
+    if not hasattr(request.user, 'role') or request.user.role != 'admin':
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+    exams = Exam.objects.select_related('term').all()
+    events = []
+    for exam in exams:
+        events.append({
+            'id': exam.id,
+            'title': exam.name,
+            'start': str(exam.date),
+            'end': str(exam.date),
+            'type': exam.get_type_display(),
+            'term': str(exam.term),
+            'level': exam.level,
+            'category': 'exam',
+        })
+    return JsonResponse(events, safe=False)
+
+@login_required(login_url='login')
 @login_required(login_url='login')
 def admin_overview(request):
     if not request.user.role == 'admin':
         return HttpResponseForbidden("You are not authorized to view this page.")
     
     # Dashboard context with correct variable names for the template
-    from .models import FeeCategory, FeeAssignment, FeePayment, Event, Term
+    from .models import FeeCategory, FeeAssignment, FeePayment, Event, Term, TeacherResponsibility
     from django.utils import timezone
     now = timezone.now()
 
@@ -643,6 +682,9 @@ def admin_overview(request):
     # Upcoming events (next 5, not done, starting today or later)
     upcoming_events = Event.objects.filter(is_done=False, start__gte=now).order_by('start')[:5]
 
+    # Assigned responsibilities (latest 8)
+    responsibilities = TeacherResponsibility.objects.select_related('teacher', 'teacher__user', 'assigned_by').order_by('-assigned_at')[:8]
+
     context = {
         'total_students': total_students,
         'total_teachers': total_teachers,
@@ -651,6 +693,7 @@ def admin_overview(request):
         'total_fees': total_fees,
         'current_term': current_term,
         'upcoming_events': upcoming_events,
+        'responsibilities': responsibilities,
     }
     return render(request, 'dashboards/admin_overview.html', context)
 
@@ -996,7 +1039,7 @@ def edit_class(request, class_id):
             class_obj.save()
             messages.success(request, 'Class updated successfully!')
             return redirect('admin_classes')
-    context = {'class_obj': class_obj}
+    context = {'class_obj': class_obj, 'teachers': Teacher.objects.all()}
     return render(request, 'dashboards/edit_class.html', context)
 
 @login_required(login_url='login')
@@ -1055,11 +1098,17 @@ def admin_class_result_slip(request, class_id):
             # Prefer latest done exam, fallback to latest by date
             selected_exam = exams.order_by('-date').first()
         if selected_exam:
-            # Build grades dict: grades[student.id][subject.id] = Grade instance
+            # Build grades dict: grades[student.id][subject.id] = {'score': ..., 'grade_letter': ...}
             grades = {s.id: {} for s in students}
             grade_qs = Grade.objects.filter(student__in=students, exam=selected_exam)
+            from .models import SubjectGradingScheme
+            grading_schemes = {s.id: getattr(s, 'grading_scheme', None) for s in subjects}
             for g in grade_qs:
-                grades[g.student.id][g.subject.id] = g
+                scheme = grading_schemes.get(g.subject.id)
+                grade_letter = None
+                if scheme:
+                    grade_letter = scheme.get_grade_letter(g.score)
+                grades[g.student.id][g.subject.id] = {'score': g.score, 'grade_letter': grade_letter, 'remarks': g.remarks if hasattr(g, 'remarks') else ''}
             # Compute averages and ranks
             for s in students:
                 subj_scores = [g.score for g in grades[s.id].values() if hasattr(g, 'score') and g.score is not None]
@@ -1115,6 +1164,7 @@ def admin_class_result_slip(request, class_id):
         'grades': grades,
         'averages': averages,
         'ranks': ranks,
+        'points_sums': points_sums if 'points_sums' in locals() else {},
         'comparison_classes': comparison_classes,
         'class_comparison_averages': class_comparison_averages,
         'overall_students_ranked': overall_students_ranked,
@@ -1365,6 +1415,7 @@ def admin_academic_years(request):
             result = subprocess.run([sys.executable, 'manage.py', 'promote_students'], capture_output=True, text=True)
             if result.returncode == 0:
                 messages.success(request, 'Promotion and graduation process completed successfully.')
+                messages.warning(request, 'Promotion completed. Please review and update class names if needed.')
             else:
                 messages.error(request, 'Promotion failed: ' + result.stderr)
             return redirect('admin_academic_years')
@@ -1386,22 +1437,6 @@ def admin_academic_years(request):
     graduation_year = None
     for year in academic_years:
         terms = sorted(year.terms.all(), key=lambda t: t.start_date or datetime.date.min)
-        # --- AUTOMATIC PROMOTION LOGIC ---
-        # If today is after the last term's end_date and promotion not yet run for this year, trigger promotion
-        if terms and terms[-1].end_date and today > terms[-1].end_date:
-            # Use a session or db flag to avoid repeated promotions for same year
-            last_promo_year = request.session.get('last_promo_year')
-            if last_promo_year != year.year:
-                import subprocess
-                import sys
-                result = subprocess.run([sys.executable, 'manage.py', 'promote_students'], capture_output=True, text=True)
-                if result.returncode == 0:
-                    from django.contrib import messages
-                    messages.success(request, f'Promotion and graduation process completed automatically for {year.year}.')
-                    request.session['last_promo_year'] = year.year
-                else:
-                    from django.contrib import messages
-                    messages.error(request, f'Automatic promotion failed for {year.year}: ' + result.stderr)
         for idx, term in enumerate(terms):
             if term.start_date and term.end_date:
                 if term.start_date <= today <= term.end_date:
@@ -1847,6 +1882,27 @@ def admin_teachers(request):
     context = {'teachers': teachers, 'add_teacher_form': add_teacher_form}
     return render(request, 'dashboards/admin_teachers.html', context)
 
+
+@login_required(login_url='login')
+def admin_assign_responsibility(request):
+    from .forms import TeacherResponsibilityForm
+    from .models import TeacherResponsibility
+    responsibilities = TeacherResponsibility.objects.select_related('teacher', 'teacher__user').order_by('-assigned_at')
+    if request.method == 'POST':
+        form = TeacherResponsibilityForm(request.POST)
+        if form.is_valid():
+            resp = form.save(commit=False)
+            resp.assigned_by = request.user
+            resp.save()
+            messages.success(request, 'Responsibility assigned successfully!')
+            return redirect('admin_assign_responsibility')
+    else:
+        form = TeacherResponsibilityForm()
+    return render(request, 'dashboards/admin_assign_responsibility.html', {
+        'form': form,
+        'responsibilities': responsibilities,
+    })
+
 @login_required(login_url='login')
 def delete_teacher(request, teacher_id):
     # Placeholder for teacher deletion logic
@@ -1862,6 +1918,7 @@ def admin_payment(request):
     from .models import Student, Term, FeeAssignment, FeePayment
     from django.utils import timezone
     from django.contrib import messages
+    from .mpesa_utils import initiate_stk_push
     today = timezone.now().date()
     current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
     students = Student.objects.select_related('user', 'class_group').all().order_by('user__last_name', 'user__first_name')
@@ -1875,10 +1932,26 @@ def admin_payment(request):
             reference = request.POST.get('reference')
             phone_number = request.POST.get('phone_number')
             student = Student.objects.get(id=student_id)
-            # Try to find FeeAssignment for student's class and current term, fallback to any available FeeAssignment
             fee_assignment = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term).first()
             if not fee_assignment:
-                fee_assignment = FeeAssignment.objects.first()  # fallback to any fee assignment
+                fee_assignment = FeeAssignment.objects.first()
+            # If payment method is Mpesa Paybill, initiate STK Push
+            if payment_method == 'Mpesa Paybill':
+                # Format phone number to 2547XXXXXXXX
+                if phone_number.startswith('0'):
+                    phone_number = '254' + phone_number[1:]
+                stk_response = initiate_stk_push(
+                    phone_number=phone_number,
+                    amount=amount_paid,
+                    account_ref=reference or student.admission_no,
+                    transaction_desc=f'Fee payment for {student.full_name}'
+                )
+                if stk_response.get('ResponseCode') == '0':
+                    messages.success(request, 'STK Push sent! Complete payment on your phone.')
+                else:
+                    messages.error(request, f"STK Push failed: {stk_response.get('errorMessage', stk_response)}")
+                    # Optionally, do not save payment if STK Push fails
+                    return redirect(request.path + f'?student_id={student.id}')
             payment = FeePayment.objects.create(
                 student=student,
                 fee_assignment=fee_assignment,
@@ -1887,15 +1960,12 @@ def admin_payment(request):
                 reference=reference,
                 phone_number=phone_number
             )
-            # Calculate updated balance
             from django.db.models import Sum
             total_billed = fee_assignment.amount
             total_paid = FeePayment.objects.filter(student=student, fee_assignment=fee_assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
             balance = total_billed - total_paid
-            # Compose confirmation message
             payment_date = payment.payment_date.strftime('%Y-%m-%d %H:%M') if hasattr(payment, 'payment_date') else str(timezone.now())
             confirm_msg = f"Dear {student.full_name}, your payment of Ksh. {amount_paid} has been received on {payment_date}. Outstanding balance: Ksh. {balance:.2f}. Thank you."
-            # Send email if available
             if student.user and student.user.email:
                 from django.core.mail import send_mail
                 send_mail(
@@ -1905,7 +1975,6 @@ def admin_payment(request):
                     recipient_list=[student.user.email],
                     fail_silently=True
                 )
-            # Send SMS if phone available
             if student.phone:
                 from .messaging_utils import send_sms
                 send_sms(student.phone, confirm_msg)
@@ -1974,15 +2043,30 @@ def admin_events(request):
     # Past events that are not marked as done
     past_events = events.filter(start__lt=now, is_done=False)
 
-    # Event form (for modal)
-    form = EventForm()
-    edit_event = None
-    if 'edit' in request.GET:
+    # Handle event editing (POST)
+    if request.method == 'POST' and 'edit_event_id' in request.POST:
+        event_id = request.POST.get('edit_event_id')
         try:
-            edit_event = Event.objects.get(id=request.GET['edit'])
-            form = EventForm(instance=edit_event)
+            event = Event.objects.get(id=event_id)
         except Event.DoesNotExist:
-            edit_event = None
+            messages.error(request, 'Event not found.')
+            return redirect('admin_events')
+        form = EventForm(request.POST, instance=event)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Event updated successfully.')
+            return redirect('admin_events')
+        else:
+            edit_event = event
+    else:
+        form = EventForm()
+        edit_event = None
+        if 'edit' in request.GET:
+            try:
+                edit_event = Event.objects.get(id=request.GET['edit'])
+                form = EventForm(instance=edit_event)
+            except Event.DoesNotExist:
+                edit_event = None
 
     context = {
         'filtered_events': filtered_events,
@@ -2117,13 +2201,57 @@ def admin_fees(request):
     fee_form = FeeCategoryForm()
     assign_form = FeeAssignmentForm()
     
-    # Handle FeeCategoryForm POST
+    # --- Edit/Delete Fee Category Logic ---
+    edit_category = None
+    if request.user.role != 'admin':
+        return HttpResponseForbidden('You are not authorized to access this page.')
+
+    # Handle Delete
+    if 'delete' in request.GET:
+        try:
+            delete_id = int(request.GET['delete'])
+            category = FeeCategory.objects.get(id=delete_id)
+            category.delete()
+            messages.success(request, 'Fee category deleted successfully!')
+            return redirect('admin_fees')
+        except FeeCategory.DoesNotExist:
+            messages.error(request, 'Fee category not found.')
+            return redirect('admin_fees')
+        except Exception as e:
+            messages.error(request, f'Error deleting fee category: {e}')
+            return redirect('admin_fees')
+
+    # Handle Edit (populate form)
+    if 'edit' in request.GET:
+        try:
+            edit_id = int(request.GET['edit'])
+            edit_category = FeeCategory.objects.get(id=edit_id)
+            fee_form = FeeCategoryForm(instance=edit_category)
+        except FeeCategory.DoesNotExist:
+            messages.error(request, 'Fee category not found.')
+            return redirect('admin_fees')
+
+    # Handle FeeCategoryForm POST (add or update)
     if request.method == 'POST' and 'save_fee_category' in request.POST:
-        fee_form = FeeCategoryForm(request.POST)
+        if request.POST.get('category_id'):
+            # Update existing
+            try:
+                edit_category = FeeCategory.objects.get(id=request.POST['category_id'])
+            except FeeCategory.DoesNotExist:
+                messages.error(request, 'Fee category not found.')
+                return redirect('admin_fees')
+            fee_form = FeeCategoryForm(request.POST, instance=edit_category)
+        else:
+            # New category
+            fee_form = FeeCategoryForm(request.POST)
         if fee_form.is_valid():
             try:
                 fee_form.save()
-                messages.success(request, 'Fee category saved successfully!')
+                if request.POST.get('category_id'):
+                    messages.success(request, 'Fee category updated successfully!')
+                else:
+                    messages.success(request, 'Fee category saved successfully!')
+                return redirect('admin_fees')
             except Exception as e:
                 messages.error(request, f'Error saving fee category: {e}')
         else:
@@ -2312,23 +2440,40 @@ def add_subject_ajax(request):
 from django.core.serializers.json import DjangoJSONEncoder
 
 def events_json(request):
-    from .models import Event
+    from .models import Event, Exam
     from django.utils import timezone
+    from django.core.serializers.json import DjangoJSONEncoder
     now = timezone.now()
     if not request.user.is_authenticated or request.user.role not in ['admin', 'teacher']:
         return JsonResponse([], safe=False)
-    events = Event.objects.filter(is_done=False)
+    # Regular events
+    events = Event.objects.filter(is_done=False, start__gte=now)
     event_list = []
     for e in events:
         event_list.append({
-            'id': e.id,
+            'id': f'event-{e.id}',
             'title': e.title,
             'start': e.start.isoformat(),
             'end': e.end.isoformat() if e.end else None,
             'allDay': e.all_day,
             'category': e.category,
         })
+    # Exam events (add as allDay events)
+    exams = Exam.objects.select_related('term').all()
+    for ex in exams:
+        event_list.append({
+            'id': f'exam-{ex.id}',
+            'title': ex.name,
+            'start': ex.date.isoformat() if hasattr(ex, 'date') else str(ex.date),
+            'end': ex.date.isoformat() if hasattr(ex, 'date') else str(ex.date),
+            'allDay': True,
+            'category': 'exam',
+            'term': str(ex.term),
+            'level': ex.level,
+            'type': ex.get_type_display() if hasattr(ex, 'get_type_display') else '',
+        })
     return JsonResponse(event_list, safe=False, encoder=DjangoJSONEncoder)
+
 
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST

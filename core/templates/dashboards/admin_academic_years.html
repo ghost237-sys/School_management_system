@@ -1,5 +1,15 @@
 {% extends 'base.html' %}
 {% block content %}
+{% if messages %}
+  <div class="mt-2">
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
 <h2>Academic Years & Terms</h2>
 
 {% if current_term %}
@@ -27,6 +37,15 @@
         <label for="year">Add Academic Year (e.g. 2024/2025):</label>
         <input type="text" name="year" required>
         <button type="submit" name="add_year">Add Year</button>
+    </form>
+</div>
+<!-- Manual Promotion Button -->
+<div class="mb-3">
+    <form method="post" onsubmit="return confirm('Are you sure you want to graduate and promote all students and classes? This action cannot be undone.');">
+        {% csrf_token %}
+        <button type="submit" name="run_promotion" class="btn btn-danger">
+            <i class="bi bi-arrow-up-circle me-1"></i> Graduate & Promote Students
+        </button>
     </form>
 </div>
 <hr>

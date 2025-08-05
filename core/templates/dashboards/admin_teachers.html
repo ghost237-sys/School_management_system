@@ -13,22 +13,15 @@
     min-width: 160px;
     white-space: nowrap;
 }
-
-
-<h1 class="mb-4">Teachers</h1>
-<button class="btn btn-primary mb-4" type="button" data-bs-toggle="collapse" data-bs-target="#addTeacherFormCollapse" aria-expanded="false" aria-controls="addTeacherFormCollapse">
-  Add New Teacher
-</button>
-
-  /* Ensure all form controls have the same width and alignment */
-  .add-teacher-form input, .add-teacher-form select {
+/* Ensure all form controls have the same width and alignment */
+.add-teacher-form input, .add-teacher-form select {
     width: 100%;
     box-sizing: border-box;
-  }
-  /* Reduce spacing on subjects field */
-  .add-teacher-form .subjects-field {
+}
+/* Reduce spacing on subjects field */
+.add-teacher-form .subjects-field {
     margin-bottom: 0.5rem;
-  }
+}
 </style>
 
 <h1 class="mb-4">Teachers</h1>
@@ -74,11 +67,7 @@
         {{ add_teacher_form.tsc_number }}
         {% if add_teacher_form.tsc_number.errors %}<div class="text-danger small">{{ add_teacher_form.tsc_number.errors }}</div>{% endif %}
       </div>
-      <div class="col-md-6 mb-2">
-        <label for="id_staff_id" class="form-label">Staff ID</label>
-        {{ add_teacher_form.staff_id }}
-        {% if add_teacher_form.staff_id.errors %}<div class="text-danger small">{{ add_teacher_form.staff_id.errors }}</div>{% endif %}
-      </div>
+
       <div class="col-md-6 mb-2">
         <label for="id_phone" class="form-label">Phone</label>
         {{ add_teacher_form.phone }}
@@ -145,7 +134,7 @@
                 <tr>
                     <th>Name</th>
                     <th>TSC Number</th>
-                    <th>Staff ID</th>
+
                     <th>Email</th>
                     <th>Phone</th>
                     <th>Gender</th>
@@ -197,7 +186,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <tr>
                     <td><a href="{% url 'teacher_profile' teacher.id %}">{{ teacher.user.get_full_name|default:teacher.user.username }}</a></td>
                     <td>{{ teacher.tsc_number }}</td>
-                    <td>{{ teacher.staff_id }}</td>
+
                     <td>{{ teacher.user.email }}</td>
                     <td>{{ teacher.phone }}</td>
                     <td>{{ teacher.get_gender_display }}</td>

@@ -41,6 +41,7 @@
                 </tbody>
             </table>
             <div class="mt-4">
+                <strong>Total Points:</strong> {{ total_points }}<br>
                 <strong>Average Score:</strong> {{ average_score|floatformat:2 }}<br>
 {% if stream_rank and stream_total %}
 <strong>Class Rank:</strong> {{ stream_rank }}/{{ stream_total }}<br>
