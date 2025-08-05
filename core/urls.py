@@ -26,6 +26,7 @@ urlpatterns = [
     path('admin_teachers/', views.admin_teachers, name='admin_teachers'),
     path('admin_teachers/edit/<int:teacher_id>/', views.edit_teacher, name='edit_teacher'),
     path('admin_teachers/delete/<int:teacher_id>/', views.delete_teacher, name='delete_teacher'),
+    path('admin_assign_responsibility/', views.admin_assign_responsibility, name='admin_assign_responsibility'),
     path('admin_students/', views.admin_students, name='admin_students'),
     path('admin_classes/', views.admin_classes, name='admin_classes'),
     path('admin_class_result_slip/<int:class_id>/', views.admin_class_result_slip, name='admin_class_result_slip'),
@@ -39,6 +40,7 @@ urlpatterns = [
     path('manage_subject_grading/<int:subject_id>/', views.manage_subject_grading, name='manage_subject_grading'),
     path('admin_academic_years/', views.admin_academic_years, name='admin_academic_years'),
     path('admin_exams/', views.admin_exams, name='admin_exams'),
+<<<<<<< HEAD
     path('admin_exams/delete/<int:exam_id>/', views.delete_exam, name='delete_exam'),
     path('api/exams/', views.exam_calendar_api, name='exam_calendar_api'),
     path('api/classes/', views.api_classes, name='api_classes'),
@@ -49,6 +51,9 @@ urlpatterns = [
     path('api/upload-bulk-grades/', views.api_upload_bulk_grades, name='api_upload_bulk_grades'),
     path('api/download-grade-template/', views.api_download_grade_template, name='api_download_grade_template'),
     path('api/download-class-students/<int:class_id>/', views.api_download_class_students, name='api_download_class_students'),
+=======
+    path('admin_exams/json/', views.admin_exams_json, name='admin_exams_json'),
+>>>>>>> a8e277defa9a3401155733bdf5da12cc595b4289
     path('admin_fees/', views.admin_fees, name='admin_fees'),
     path('admin_payment/', views.admin_payment, name='admin_payment'),
     path('admin_events/', views.admin_events, name='admin_events'),

@@ -30,7 +30,7 @@
       <label for="classTeacher" class="form-label">Class Teacher</label>
       <select class="form-select" id="classTeacher" name="class_teacher">
         <option value="">---------</option>
-        {% for teacher in class_obj._meta.get_field('class_teacher').related_model.objects.all %}
+        {% for teacher in teachers %}
           <option value="{{ teacher.id }}" {% if class_obj.class_teacher and class_obj.class_teacher.id == teacher.id %}selected{% endif %}>{{ teacher.user.get_full_name|default:teacher.user.username }}</option>
         {% endfor %}
       </select>

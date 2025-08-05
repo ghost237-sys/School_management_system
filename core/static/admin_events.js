@@ -18,7 +18,11 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                window.location.reload(); // Reload to show new event
+                // Hide the modal using Bootstrap 5
+                var modalInstance = bootstrap.Modal.getOrCreateInstance(eventModal);
+                modalInstance.hide();
+                // Optionally, refresh the events table or reload part of the page here
+                // window.location.reload();
             } else {
                 let errorMsg = 'Error: ' + (data.error || 'Could not add event.');
                 alert(errorMsg);

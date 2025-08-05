@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Teacher Dashboard{% endblock %}
 
@@ -26,6 +27,46 @@
         {% endif %}
     </div>
 
+    <!-- Responsibilities Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">Assigned Responsibilities</h5>
+        </div>
+        <div class="card-body">
+            {% if responsibilities %}
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Responsibility</th>
+                                <th>Start Date</th>
+                                <th>End Date</th>
+                                <th>Details</th>
+                                <th>Assigned By</th>
+                                <th>Assigned At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for resp in responsibilities %}
+                            <tr>
+                                <td>{{ resp.responsibility }}</td>
+                                <td>{% if resp.start_date %}{{ resp.start_date|date:'Y-m-d' }}{% endif %}</td>
+                                <td>{% if resp.end_date %}{{ resp.end_date|date:'Y-m-d' }}{% endif %}</td>
+                                <td>{% if resp.details %}{{ resp.details }}{% endif %}</td>
+                                <td>{{ resp.assigned_by.get_full_name|default:resp.assigned_by.username }}</td>
+                                <td>{{ resp.assigned_at|date:'Y-m-d H:i' }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="text-center">No responsibilities assigned.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info mb-0">No responsibilities assigned.</div>
+            {% endif %}
+        </div>
+    </div>
     <!-- Grid-like card layout -->
     <div class="container-fluid">
         <div class="row mt-4">
@@ -64,7 +105,35 @@
                     {% if upcoming_deadlines %}
                         <ul class="list-group">
                             {% for deadline in upcoming_deadlines %}
-                                <li class="list-group-item">{{ deadline.title }} - {{ deadline.due_date }} for {{ deadline.class_group.name }} ({{ deadline.subject.name }})</li>
+                                <li class="list-group-item">
+                                    {{ deadline.title }}
+                                    {% if deadline.due_date %}- {{ deadline.due_date }}{% endif %}
+                                    {% if deadline.class_group and deadline.class_group.name %}
+                                        for {{ deadline.class_group.name }}
+                                    {% endif %}
+                                    {% if deadline.subject and deadline.subject.name %}
+                                        ({{ deadline.subject.name }})
+                                    {% endif %}
+                                    <span class="badge ms-2
+    {% if deadline.days_remaining == 0 %}bg-danger
+    {% elif deadline.days_remaining == 1 %}bg-warning text-dark
+    {% elif deadline.days_remaining <= 3 %}bg-orange text-dark
+    {% elif deadline.days_remaining <= 7 %}bg-yellow text-dark
+    {% else %}bg-info text-dark
+    {% endif %}">
+    {% if deadline.days_remaining == 0 %}
+        Today!
+    {% elif deadline.days_remaining == 1 %}
+        1 day remaining
+    {% elif deadline.days_remaining <= 3 %}
+        {{ deadline.days_remaining }} days remaining
+    {% elif deadline.days_remaining <= 7 %}
+        {{ deadline.days_remaining }} days remaining
+    {% else %}
+        {{ deadline.days_remaining }} days remaining
+    {% endif %}
+</span>
+                                </li>
                             {% endfor %}
                         </ul>
                     {% else %}
@@ -72,6 +141,21 @@
                     {% endif %}
                 </div>
 
+                <!-- Events Calendar Card (Admin Style) -->
+                <div class="card mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">Events & Exam Schedule</h5>
+                    </div>
+                    <div class="card-body">
+                        <link rel="stylesheet" href="{% static 'calendar/fullcalendar.min.css' %}">
+                        <div id="teacher-calendar"></div>
+                    </div>
+                </div>
+
+{% endblock %}
+{% block extra_js %}
+    <script src="{% static 'calendar/fullcalendar.min.js' %}"></script>
+<script src="{% static 'teacher_calendar.js' %}"></script>
 {% endblock %}
                     new Chart(ctxBar, {
                         type: 'bar',

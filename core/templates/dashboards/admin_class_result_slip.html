@@ -55,6 +55,7 @@
                                 <th>{% if subject.code == 'TELAG_NLC_A' or subject.code == 'SC_TELAG_NLC_A' %}INT-SCI{% else %}{{ subject.code }}{% endif %}</th>
                             {% endfor %}
                             <th>Average</th>
+                            <th>Total Points</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -65,18 +66,28 @@
                             {% for subject in subjects %}
                                 <td>
                                     {% with grade=grades|dict_get:student.id|dict_get:subject.id %}
-                                        {% if grade %}
-                                            {{ grade.score|floatformat:1 }} ({{ grade.grade_letter }})
-                                        {% else %}
-                                            <span class="text-muted">N/A</span>
-                                        {% endif %}
-                                    {% endwith %}
+    {% if grade %}
+        {{ grade.score|floatformat:1 }}{% if grade.grade_letter %} <span class="badge bg-info text-dark">{{ grade.grade_letter }}</span>{% endif %}
+    {% else %}
+        <span class="text-muted">N/A</span>
+    {% endif %}
+{% endwith %}
                                 </td>
                             {% endfor %}
                             <td>{{ averages|get_item:student.id|floatformat:1 }}</td>
+                            <td>{{ points_sums|get_item:student.id }}</td>
                         </tr>
                         {% empty %}
                             <tr><td colspan="100%">No students found.</td></tr>
+                        {% endfor %}
+                        {% for student in students %}
+                        <tr class="table-info">
+                            <td></td>
+                            <td></td>
+                            {% for subject in subjects %}<td></td>{% endfor %}
+                            <td></td>
+                            <td><strong>Total Points: {{ points_sums|get_item:student.id }}</strong></td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>

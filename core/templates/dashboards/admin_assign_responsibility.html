@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Assign Teacher Responsibilities{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4">Assign Teacher Responsibilities</h2>
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="post" class="row g-3">
+                {% csrf_token %}
+                <div class="row g-3 align-items-end">
+          <div class="col-md-3">
+            {{ form.teacher.label_tag }}
+            {{ form.teacher }}
+          </div>
+          <div class="col-md-3">
+            {{ form.responsibility.label_tag }}
+            {{ form.responsibility }}
+          </div>
+          <div class="col-md-3">
+            {{ form.start_date.label_tag }}
+            {{ form.start_date }}
+          </div>
+          <div class="col-md-3">
+            {{ form.end_date.label_tag }}
+            {{ form.end_date }}
+          </div>
+        </div>
+        <div class="row mt-3">
+          <div class="col-12">
+            {{ form.details.label_tag }}
+            {{ form.details }}
+          </div>
+        </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Assign Responsibility</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <h3 class="mb-3">Current Responsibilities</h3>
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Teacher</th>
+          <th>Responsibility</th>
+          <th>Start Date</th>
+          <th>End Date</th>
+          <th>Details</th>
+          <th>Assigned By</th>
+          <th>Assigned At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for resp in responsibilities %}
+                <tr>
+                    <td>{{ resp.teacher.user.get_full_name|default:resp.teacher.user.username }}</td>
+        <td>{{ resp.responsibility }}</td>
+        <td>{% if resp.start_date %}{{ resp.start_date|date:'Y-m-d' }}{% endif %}</td>
+        <td>{% if resp.end_date %}{{ resp.end_date|date:'Y-m-d' }}{% endif %}</td>
+        <td>{% if resp.details %}{{ resp.details }}{% endif %}</td>
+        <td>{{ resp.assigned_by.get_full_name|default:resp.assigned_by.username }}</td>
+        <td>{{ resp.assigned_at|date:'Y-m-d H:i' }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center">No responsibilities assigned yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

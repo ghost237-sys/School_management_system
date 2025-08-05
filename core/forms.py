@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
-from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term, Grade, DefaultTimetable
+from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term, Grade, DefaultTimetable, TeacherResponsibility
 
 USER_CATEGORY_CHOICES = [
     ('admin', 'Admin'),
@@ -54,13 +54,43 @@ class MessagingForm(forms.Form):
             students_with_balance.append(student.user.id)
         self.fields['recipient'].queryset = User.objects.filter(id__in=students_with_balance).order_by('username')
 
+from django import forms
+
+LEVEL_CHOICES = [
+    ('all', 'All Levels'),
+    ('lower', 'Lower Primary (1-3)'),
+    ('upper', 'Upper Primary (4-6)'),
+    ('junior', 'Junior Secondary (6-9)'),
+    ('1', 'Level 1'),
+    ('2', 'Level 2'),
+    ('3', 'Level 3'),
+    ('4', 'Level 4'),
+    ('5', 'Level 5'),
+    ('6', 'Level 6'),
+    ('7', 'Level 7'),
+    ('8', 'Level 8'),
+    ('9', 'Level 9'),
+]
+
 class ExamForm(forms.ModelForm):
+    level = forms.MultipleChoiceField(
+        choices=LEVEL_CHOICES,
+        widget=forms.SelectMultiple(attrs={'class': 'form-select'}),
+        required=True,
+        label='Level(s)'
+    )
     class Meta:
         model = Exam
+<<<<<<< HEAD
         fields = ['name', 'term', 'level', 'start_date', 'end_date', 'type']
         widgets = {
             'start_date': forms.DateInput(attrs={'type': 'date'}),
             'end_date': forms.DateInput(attrs={'type': 'date'}),
+=======
+        fields = ['name', 'term', 'level', 'date', 'type']
+        widgets = {
+            'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+>>>>>>> a8e277defa9a3401155733bdf5da12cc595b4289
         }
 
 
@@ -433,3 +463,16 @@ class DefaultTimetableForm(forms.ModelForm):
         self.fields['teacher'].queryset = Teacher.objects.select_related('user').order_by('user__first_name', 'user__last_name')
         self.fields['subject'].queryset = Subject.objects.order_by('name')
         self.fields['teacher'].required = False
+
+
+class TeacherResponsibilityForm(forms.ModelForm):
+    class Meta:
+        model = TeacherResponsibility
+        fields = ['teacher', 'responsibility', 'details', 'start_date', 'end_date']
+        widgets = {
+            'teacher': forms.Select(attrs={'class': 'form-select'}),
+            'responsibility': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Teacher on Duty, Games Master, etc.'}),
+            'details': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Optional details about the responsibility'}),
+            'start_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'end_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        }

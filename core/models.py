@@ -51,6 +51,13 @@ class Teacher(models.Model):
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
     subjects = models.ManyToManyField(Subject)
 
+    def __str__(self):
+        if self.user and (self.user.first_name or self.user.last_name):
+            return f"{self.user.first_name} {self.user.last_name}".strip()
+        elif self.user:
+            return self.user.username
+        return f"Teacher {self.pk}"
+
 class Student(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     admission_no = models.CharField(max_length=20, unique=True)
@@ -303,4 +310,24 @@ class Notification(models.Model):
     def __str__(self):
         return f"Notification for {self.user.username}"
 
+
+class PromotionLog(models.Model):
+    last_promoted_year = models.IntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Last promoted: {self.last_promoted_year}"
+
+
+class TeacherResponsibility(models.Model):
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name='responsibilities')
+    responsibility = models.CharField(max_length=100)
+    details = models.TextField(blank=True, null=True)
+    start_date = models.DateField(null=True, blank=True, help_text='Start date of the responsibility assignment')
+    end_date = models.DateField(null=True, blank=True, help_text='End date of the responsibility assignment')
+    assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_responsibilities')
+    assigned_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.teacher.user.get_full_name() if self.teacher.user else self.teacher} - {self.responsibility}"  
 
