@@ -81,9 +81,16 @@ class ExamForm(forms.ModelForm):
     )
     class Meta:
         model = Exam
+<<<<<<< HEAD
+        fields = ['name', 'term', 'level', 'start_date', 'end_date', 'type']
+        widgets = {
+            'start_date': forms.DateInput(attrs={'type': 'date'}),
+            'end_date': forms.DateInput(attrs={'type': 'date'}),
+=======
         fields = ['name', 'term', 'level', 'date', 'type']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+>>>>>>> a8e277defa9a3401155733bdf5da12cc595b4289
         }
 
 

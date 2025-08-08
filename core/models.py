@@ -104,10 +104,11 @@ class Exam(models.Model):
         ('endterm', 'End-Term exams'),
         ('others', 'Others'),
     ]
-    name = models.CharField(max_length=50)
+    name = models.CharField(max_length=50, unique=True)
     term = models.ForeignKey(Term, on_delete=models.CASCADE)
     level = models.CharField(max_length=50, null=True, blank=True)  # E.g., '6' for Grade 6
-    date = models.DateField()
+    start_date = models.DateField()
+    end_date = models.DateField()
     type = models.CharField(max_length=10, choices=EXAM_TYPE_CHOICES, default='others')
 
     def __str__(self):

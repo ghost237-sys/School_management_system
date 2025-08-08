@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, Sum, Avg
 from django.urls import reverse
-from django.http import JsonResponse, HttpResponseRedirect, HttpResponseForbidden, HttpResponse
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse, HttpResponse
 from django.template.loader import render_to_string
 
 from django.utils import timezone
@@ -490,7 +490,7 @@ def manage_grades(request, teacher_id):
     teacher_classes = sorted(list(set(a.class_group for a in assignments if a.class_group)), key=lambda c: c.name)
     teacher_subjects = Subject.objects.filter(teacherclassassignment__teacher=teacher).distinct().order_by('name')
     
-    exams = Exam.objects.all().order_by('-date')
+    exams = Exam.objects.all().order_by('-start_date')
 
     context = {
         'teacher': teacher,
@@ -1664,6 +1664,8 @@ def admin_subjects(request):
     }
     return render(request, 'dashboards/admin_subjects.html', context)
 
+
+
 def custom_logout_view(request):
     # Clear all messages
     list(messages.get_messages(request))
@@ -2602,7 +2604,7 @@ def admin_exams(request):
     from django.db import transaction
 
     exam_form = ExamForm(request.POST or None)
-    exams = Exam.objects.select_related('term').order_by('-date')
+    exams = Exam.objects.select_related('term').order_by('-start_date')
     latest_exam = exams.first() if exams.exists() else None
     table_html = None
     summary = {'added': 0, 'removed': 0, 'errors': []}
@@ -2625,13 +2627,21 @@ def admin_exams(request):
             selected_exam = None
 
     # Handle exam creation POST
-    if request.method == 'POST' and 'add_exam' in request.POST:
-        if exam_form.is_valid():
-            exam_form.save()
-            messages.success(request, 'Exam created successfully!')
-            exam_form = ExamForm()  # Reset form
-        else:
-            messages.error(request, 'Please correct the errors below.')
+    if request.method == 'POST':
+        if 'add_exam' in request.POST:
+            form = ExamForm(request.POST)
+            if form.is_valid():
+                if form.cleaned_data['end_date'] < form.cleaned_data['start_date']:
+                    messages.error(request, 'End date cannot be before the start date.')
+                else:
+                    try:
+                        form.save()
+                        messages.success(request, 'Exam added successfully!')
+                        return redirect('admin_exams')
+                    except IntegrityError:
+                        messages.error(request, 'An exam with this name already exists.')
+            else:
+                messages.error(request, 'Error adding exam. Please check the form.')
 
     # Helper: Build student-subject matrix for the latest exam
     def build_students_subjects_table():
@@ -2828,6 +2838,380 @@ def admin_exams(request):
         'all_subjects': all_subjects,
     }
     return render(request, 'dashboards/admin_exams.html', context)
+
+@login_required(login_url='login')
+@require_POST
+def delete_exam(request, exam_id):
+    if not request.user.role == 'admin':
+        return HttpResponseForbidden("You are not authorized to delete exams.")
+    exam = get_object_or_404(Exam, id=exam_id)
+    exam.delete()
+    messages.success(request, 'Exam deleted successfully!')
+    return redirect('admin_exams')
+
+@login_required(login_url='login')
+def exam_calendar_api(request):
+    """API endpoint to provide exam data for FullCalendar"""
+    try:
+        exams = Exam.objects.select_related('term').all()
+        events = []
+        for exam in exams:
+            # Calculate end date for calendar display (add 1 day if same day)
+            end_date = exam.end_date
+            if exam.start_date == exam.end_date:
+                # For single-day events, FullCalendar needs the end date to be the next day
+                from datetime import timedelta
+                end_date = exam.end_date + timedelta(days=1)
+            
+            events.append({
+                'id': exam.id,
+                'title': exam.name,
+                'start': exam.start_date.isoformat(),
+                'end': end_date.isoformat(),
+                'extendedProps': {
+                    'term': exam.term.name if exam.term else 'No Term',
+                    'type': exam.get_type_display() if hasattr(exam, 'get_type_display') else 'Exam',
+                    'description': f"{exam.name} - {exam.term.name if exam.term else 'No Term'}"
+                },
+                'className': 'fc-event-exam',
+                'color': '#0d47a1'
+            })
+        return JsonResponse(events, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required(login_url='login')
+def api_classes(request):
+    """API endpoint to get all classes"""
+    try:
+        classes = Class.objects.all().order_by('name')
+        classes_data = [{
+            'id': cls.id,
+            'name': cls.name,
+            'level': cls.level,
+            'display_name': f"{cls.name} (Level {cls.level})"
+        } for cls in classes]
+        return JsonResponse({'classes': classes_data})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required(login_url='login')
+def api_subjects(request):
+    """API endpoint to get all subjects"""
+    try:
+        subjects = Subject.objects.all().order_by('name')
+        subjects_data = [{
+            'id': subject.id,
+            'name': subject.name,
+            'code': getattr(subject, 'code', ''),
+        } for subject in subjects]
+        return JsonResponse({'subjects': subjects_data})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required(login_url='login')
+def api_students_by_class(request, class_id):
+    """API endpoint to get students by class ID"""
+    try:
+        class_obj = get_object_or_404(Class, id=class_id)
+        students = Student.objects.filter(class_group=class_obj).select_related('user').order_by('admission_no')
+        
+        students_data = []
+        for student in students:
+            name = student.full_name if hasattr(student, 'full_name') else str(student)
+            students_data.append({
+                'id': student.id,
+                'admission_no': student.admission_no,
+                'name': name,
+                'user_id': student.user.id if student.user else None
+            })
+        
+        return JsonResponse({
+            'students': students_data,
+            'class_name': str(class_obj)
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required(login_url='login')
+def api_exam_subjects(request, exam_id):
+    """API endpoint to get subjects for a specific exam"""
+    try:
+        exam = get_object_or_404(Exam, id=exam_id)
+        # Get subjects that are associated with classes or all subjects
+        subjects = Subject.objects.all().order_by('name')
+        
+        subjects_data = [{
+            'id': subject.id,
+            'name': subject.name,
+            'code': getattr(subject, 'code', ''),
+        } for subject in subjects]
+        
+        return JsonResponse({
+            'subjects': subjects_data,
+            'exam_name': exam.name
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required(login_url='login')
+def api_bulk_grades(request):
+    """API endpoint to save multiple grades at once"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        grades_data = data.get('grades', [])
+        
+        if not grades_data:
+            return JsonResponse({'error': 'No grades data provided'}, status=400)
+        
+        saved_count = 0
+        errors = []
+        
+        for grade_item in grades_data:
+            try:
+                student_id = grade_item.get('student_id')
+                subject_id = grade_item.get('subject_id')
+                exam_id = grade_item.get('exam_id')
+                grade_value = grade_item.get('grade')
+                
+                if not all([student_id, subject_id, exam_id, grade_value is not None]):
+                    errors.append(f"Missing required fields for grade entry")
+                    continue
+                
+                # Get the objects
+                student = get_object_or_404(Student, id=student_id)
+                subject = get_object_or_404(Subject, id=subject_id)
+                exam = get_object_or_404(Exam, id=exam_id)
+                
+                # Create or update grade
+                grade, created = Grade.objects.update_or_create(
+                    student=student,
+                    subject=subject,
+                    exam=exam,
+                    defaults={'grade': grade_value}
+                )
+                saved_count += 1
+                
+            except Exception as e:
+                errors.append(f"Error saving grade for student {student_id}: {str(e)}")
+                continue
+        
+        return JsonResponse({
+            'success': True,
+            'saved_count': saved_count,
+            'errors': errors
+        })
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required(login_url='login')
+def api_upload_bulk_grades(request):
+    """API endpoint to upload grades via Excel file"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+    
+    try:
+        import pandas as pd
+        from io import BytesIO
+        
+        excel_file = request.FILES.get('excel_file')
+        exam_id = request.POST.get('exam_id')
+        
+        if not excel_file:
+            return JsonResponse({'error': 'No Excel file provided'}, status=400)
+        
+        if not exam_id:
+            return JsonResponse({'error': 'No exam ID provided'}, status=400)
+        
+        # Read Excel file
+        try:
+            df = pd.read_excel(BytesIO(excel_file.read()))
+        except Exception as e:
+            return JsonResponse({'error': f'Error reading Excel file: {str(e)}'}, status=400)
+        
+        # Validate required columns
+        required_columns = ['admission_no', 'subject', 'grade']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            return JsonResponse({
+                'error': f'Missing required columns: {missing_columns}. Required: {required_columns}'
+            }, status=400)
+        
+        exam = get_object_or_404(Exam, id=exam_id)
+        processed_count = 0
+        errors = []
+        
+        for index, row in df.iterrows():
+            try:
+                admission_no = str(row['admission_no']).strip()
+                subject_name = str(row['subject']).strip()
+                grade_value = float(row['grade'])
+                
+                # Find student by admission number
+                try:
+                    student = Student.objects.get(admission_no=admission_no)
+                except Student.DoesNotExist:
+                    errors.append(f"Row {index + 2}: Student with admission number {admission_no} not found")
+                    continue
+                
+                # Find subject by name
+                try:
+                    subject = Subject.objects.get(name__iexact=subject_name)
+                except Subject.DoesNotExist:
+                    errors.append(f"Row {index + 2}: Subject '{subject_name}' not found")
+                    continue
+                
+                # Validate grade value
+                if not (0 <= grade_value <= 100):
+                    errors.append(f"Row {index + 2}: Grade {grade_value} is not between 0 and 100")
+                    continue
+                
+                # Create or update grade
+                grade, created = Grade.objects.update_or_create(
+                    student=student,
+                    subject=subject,
+                    exam=exam,
+                    defaults={'grade': grade_value}
+                )
+                processed_count += 1
+                
+            except Exception as e:
+                errors.append(f"Row {index + 2}: {str(e)}")
+                continue
+        
+        return JsonResponse({
+            'success': True,
+            'processed_count': processed_count,
+            'errors': errors[:10]  # Limit errors to first 10
+        })
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required(login_url='login')
+def api_download_grade_template(request):
+    """API endpoint to download grade template Excel file"""
+    try:
+        import pandas as pd
+        from django.http import HttpResponse
+        from io import BytesIO
+        
+        exam_id = request.GET.get('exam_id')
+        class_id = request.GET.get('class_id')
+        subject_id = request.GET.get('subject_id')
+        
+        # Create sample data
+        template_data = []
+        
+        if class_id:
+            # Get students from specific class
+            students = Student.objects.filter(class_group_id=class_id).select_related('user')
+            for student in students:
+                template_data.append({
+                    'admission_no': student.admission_no,
+                    'student_name': student.full_name if hasattr(student, 'full_name') else str(student),
+                    'subject': 'Mathematics',  # Example subject
+                    'grade': ''  # Empty for user to fill
+                })
+        else:
+            # Create sample template
+            template_data = [
+                {'admission_no': 'STU001', 'student_name': 'John Doe', 'subject': 'Mathematics', 'grade': ''},
+                {'admission_no': 'STU002', 'student_name': 'Jane Smith', 'subject': 'Mathematics', 'grade': ''},
+                {'admission_no': 'STU003', 'student_name': 'Bob Johnson', 'subject': 'English', 'grade': ''},
+            ]
+        
+        # Create DataFrame and Excel file
+        df = pd.DataFrame(template_data)
+        
+        # Create Excel file in memory
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Grades', index=False)
+            
+            # Add instructions sheet
+            instructions = pd.DataFrame({
+                'Instructions': [
+                    '1. Fill in the grade column with values between 0 and 100',
+                    '2. Do not modify the admission_no or student_name columns',
+                    '3. Subject names must match exactly with subjects in the system',
+                    '4. Save the file and upload it using the Excel Upload tab',
+                    '5. Empty grade cells will be ignored during upload'
+                ]
+            })
+            instructions.to_excel(writer, sheet_name='Instructions', index=False)
+        
+        output.seek(0)
+        
+        # Create HTTP response
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="grade_template_{exam_id or "general"}.xlsx"'
+        
+        return response
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required(login_url='login')
+def api_download_class_students(request, class_id):
+    """API endpoint to download list of students in a class"""
+    try:
+        import pandas as pd
+        from django.http import HttpResponse
+        from io import BytesIO
+        
+        class_obj = get_object_or_404(Class, id=class_id)
+        students = Student.objects.filter(class_group=class_obj).select_related('user').order_by('admission_no')
+        
+        # Create student data
+        student_data = []
+        for student in students:
+            student_data.append({
+                'admission_no': student.admission_no,
+                'student_name': student.full_name if hasattr(student, 'full_name') else str(student),
+                'class': str(class_obj),
+                'gender': getattr(student, 'gender', ''),
+                'phone': getattr(student, 'phone', ''),
+            })
+        
+        # Create DataFrame and Excel file
+        df = pd.DataFrame(student_data)
+        
+        # Create Excel file in memory
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Students', index=False)
+        
+        output.seek(0)
+        
+        # Create HTTP response
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="students_{class_obj.name}_{class_id}.xlsx"'
+        
+        return response
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
 
 # --- Messaging Module ---
 from .models import Message
