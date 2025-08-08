@@ -82,7 +82,7 @@ def send_bulk_fee_arrears_notice(request):
 from .models import User
 
 class AdminMessageForm(forms.Form):
-    recipient = forms.ModelChoiceField(queryset=User.objects.all().order_by('username'), required=True, label='Recipient User')
+    recipients = forms.ModelMultipleChoiceField(queryset=User.objects.all().order_by('username'), required=True, label='Recipients', widget=forms.SelectMultiple(attrs={'class': 'form-control', 'size': '10'}))
     subject = forms.CharField(max_length=150, required=False)
     message = forms.CharField(widget=forms.Textarea, required=True)
     send_email = forms.BooleanField(required=False, initial=True)
@@ -97,34 +97,48 @@ def is_admin(user):
 def admin_send_message(request):
     form = AdminMessageForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        recipient = form.cleaned_data['recipient']
+        recipients = form.cleaned_data['recipients']
         subject = form.cleaned_data['subject'] or 'School Message'
         message_text = form.cleaned_data['message']
         send_email_opt = form.cleaned_data['send_email']
         send_sms_opt = form.cleaned_data['send_sms']
-        if send_email_opt and recipient.email:
-            from django.core.mail import send_mail
-            from django.conf import settings
-            send_mail(subject, message_text, settings.DEFAULT_FROM_EMAIL, [recipient.email])
-        if send_sms_opt:
-            # Try to get phone from related profile (Teacher/Student), fallback to user.phone if exists
-            phone = None
-            if hasattr(recipient, 'teacher') and recipient.teacher.phone:
-                phone = recipient.teacher.phone
-            elif hasattr(recipient, 'student') and recipient.student.phone:
-                phone = recipient.student.phone
-            elif hasattr(recipient, 'phone') and recipient.phone:
-                phone = recipient.phone
-            if phone:
-                from .messaging_utils import send_sms
-                sms_success, sms_response = send_sms(phone, message_text)
-                if not sms_success:
-                    messages.error(request, f"SMS sending failed: {sms_response}")
-                    return render(request, 'dashboards/admin_send_message.html', {'form': form, 'sms_error': sms_response, 'recipient': recipient})
-            else:
-                messages.error(request, f"Recipient '{recipient}' does not have a phone number assigned. Please update their contact information before sending an SMS.")
-                return render(request, 'dashboards/admin_send_message.html', {'form': form, 'missing_phone': True, 'recipient': recipient})
-        messages.success(request, 'Message sent successfully!')
+        email_failures = []
+        sms_failures = []
+        for recipient in recipients:
+            # Email
+            if send_email_opt and recipient.email:
+                from django.core.mail import send_mail
+                from django.conf import settings
+                try:
+                    send_mail(subject, message_text, settings.DEFAULT_FROM_EMAIL, [recipient.email])
+                except Exception as e:
+                    email_failures.append(f"{recipient}: {e}")
+            # SMS
+            if send_sms_opt:
+                phone = None
+                if hasattr(recipient, 'teacher') and recipient.teacher.phone:
+                    phone = recipient.teacher.phone
+                elif hasattr(recipient, 'student') and recipient.student.phone:
+                    phone = recipient.student.phone
+                elif hasattr(recipient, 'phone') and recipient.phone:
+                    phone = recipient.phone
+                if phone:
+                    from .messaging_utils import send_sms
+                    try:
+                        sms_success, sms_response = send_sms(phone, message_text)
+                        if not sms_success:
+                            sms_failures.append(f"{recipient}: {sms_response}")
+                    except Exception as e:
+                        sms_failures.append(f"{recipient}: {e}")
+                else:
+                    sms_failures.append(f"{recipient}: No phone number assigned.")
+        if email_failures or sms_failures:
+            if email_failures:
+                messages.error(request, f"Some emails failed: {'; '.join(email_failures)}")
+            if sms_failures:
+                messages.error(request, f"Some SMS failed: {'; '.join(sms_failures)}")
+        else:
+            messages.success(request, 'Messages sent successfully!')
         return redirect('admin_send_message')
     return render(request, 'dashboards/admin_send_message.html', {'form': form})
 
@@ -218,3 +232,220 @@ def admin_send_arrears_message(request):
         messages.success(request, f'Arrears notice sent to {len(selected_students)} parent(s)/guardian(s).')
         return redirect('admin_send_arrears_message')
     return render(request, 'dashboards/admin_send_arrears_message.html', {'arrears_students': arrears_students})
+
+from .models import FeePayment, Student, User
+from django.db.models import Q
+
+from django.views.decorators.http import require_GET
+
+@login_required
+@user_passes_test(is_admin)
+@require_GET
+def get_users_by_category(request):
+    from .models import User, Student, Teacher, Class
+    from django.db.models import Q, Sum
+    category = request.GET.get('category')
+    users = []
+    # --- Category logic ---
+    if category == 'all_students':
+        users = User.objects.filter(role='student').order_by('username')
+    elif category == 'students_with_balance':
+        # Students with fee balance > 0
+        students = Student.objects.select_related('user', 'class_group')
+        user_ids = []
+        for s in students:
+            from .models import FeeAssignment, FeePayment, Term
+            fee_assignments = FeeAssignment.objects.filter(class_group=s.class_group)
+            total_billed = fee_assignments.aggregate(total=Sum('amount'))['total'] or 0
+            total_paid = FeePayment.objects.filter(student=s).aggregate(total=Sum('amount_paid'))['total'] or 0
+            if (total_billed - total_paid) > 0.01:
+                user_ids.append(s.user.id)
+        users = User.objects.filter(id__in=user_ids)
+    elif category == 'students_without_balance':
+        students = Student.objects.select_related('user', 'class_group')
+        user_ids = []
+        for s in students:
+            from .models import FeeAssignment, FeePayment, Term
+            fee_assignments = FeeAssignment.objects.filter(class_group=s.class_group)
+            total_billed = fee_assignments.aggregate(total=Sum('amount'))['total'] or 0
+            total_paid = FeePayment.objects.filter(student=s).aggregate(total=Sum('amount_paid'))['total'] or 0
+            if (total_billed - total_paid) <= 0.01:
+                user_ids.append(s.user.id)
+        users = User.objects.filter(id__in=user_ids)
+    elif category == 'all_teachers':
+        users = User.objects.filter(role='teacher').order_by('username')
+    elif category == 'class_teachers':
+        teachers = Teacher.objects.exclude(class_teacher_for=None).select_related('user')
+        users = [t.user for t in teachers]
+    elif category == 'all_users':
+        users = User.objects.all().order_by('username')
+    elif category and category.startswith('level_'):
+        try:
+            level_num = int(category.split('_')[1])
+            classes = Class.objects.filter(level=level_num)
+            students = Student.objects.filter(class_group__in=classes).select_related('user')
+            users = [s.user for s in students]
+        except Exception:
+            users = []
+    else:
+        users = []
+    data = {
+        'success': True,
+        'users': [
+            {'id': user.id, 'name': user.get_full_name() or user.username}
+            for user in users
+        ]
+    }
+    return JsonResponse(data)
+
+
+@login_required
+@user_passes_test(is_admin)
+def admin_messaging(request):
+    from core.models import User, Message
+    category = request.GET.get('recipient_category', '')
+    recipient_id = request.GET.get('recipient')
+    recipients = []
+    selected_user = None
+    chat_history = []
+    from core.models import Message
+    if category == 'student':
+        recipients = User.objects.filter(role='student')
+    elif category == 'teacher':
+        recipients = User.objects.filter(role='teacher')
+    elif category == 'admin':
+        recipients = User.objects.filter(role='admin')
+    # Annotate each recipient with their latest message timestamp (sent or received)
+    recipients = list(recipients)
+    def latest_msg_time(user):
+        msg = Message.objects.filter(
+            (Q(sender=request.user, recipient=user) | Q(sender=user, recipient=request.user))
+        ).order_by('-timestamp').first()
+        return msg.timestamp if msg else None
+    recipients.sort(key=lambda u: latest_msg_time(u) or 0, reverse=True)
+    # Per-user unread badge: store last opened timestamp for each user in session
+    import datetime
+    now = datetime.datetime.now().isoformat()
+    last_opened_map = request.session.get('messaging_last_opened', {})
+    # Compute unread message count since last opened for each user
+    recipients_list = []
+    for u in recipients:
+        last_opened = last_opened_map.get(str(u.id))
+        if last_opened:
+            try:
+                last_opened_dt = datetime.datetime.fromisoformat(last_opened)
+            except Exception:
+                last_opened_dt = datetime.datetime.fromtimestamp(0)
+        else:
+            last_opened_dt = datetime.datetime.fromtimestamp(0)
+        # Find the latest admin reply to this user
+        last_admin_reply = Message.objects.filter(sender=request.user, recipient=u).order_by('-timestamp').first()
+        if last_admin_reply:
+            last_admin_time = last_admin_reply.timestamp
+        else:
+            last_admin_time = datetime.datetime.fromtimestamp(0)
+        # Count all messages from user sent after admin's last message
+        unread_count = Message.objects.filter(sender=u, recipient=request.user, timestamp__gt=last_admin_time).count()
+        recipients_list.append({
+            'id': u.id,
+            'name': u.get_full_name() or u.username,
+            'role': u.role,
+            'unread_count': unread_count,
+        })
+    # If a chat is opened (selected_user), update last_opened for that user
+    if selected_user:
+        last_opened_map[str(selected_user.id)] = datetime.datetime.now().isoformat()
+        request.session['messaging_last_opened'] = last_opened_map
+    if recipient_id:
+        try:
+            selected_user = next((u for u in recipients if str(u.id) == str(recipient_id)), None)
+        except Exception:
+            selected_user = None
+    # Handle sending a message
+    if request.method == 'POST' and selected_user:
+        content = request.POST.get('message', '').strip()
+        if content:
+            Message.objects.create(sender=request.user, recipient=selected_user, content=content)
+            # Send email
+            email_sent = sms_sent = False
+            email_error = sms_error = None
+            if selected_user.email:
+                try:
+                    from django.core.mail import send_mail
+                    from django.conf import settings
+                    send_mail('New Message', content, settings.DEFAULT_FROM_EMAIL, [selected_user.email])
+                    email_sent = True
+                except Exception as e:
+                    email_error = str(e)
+            # Send SMS
+            phone = getattr(selected_user, 'phone', None)
+            if not phone and hasattr(selected_user, 'student') and hasattr(selected_user.student, 'phone'):
+                phone = selected_user.student.phone
+            if not phone and hasattr(selected_user, 'teacher') and hasattr(selected_user.teacher, 'phone'):
+                phone = selected_user.teacher.phone
+            if phone:
+                try:
+                    from .messaging_utils import send_sms
+                    sms_success, sms_response = send_sms(phone, content)
+                    sms_sent = sms_success
+                    if not sms_success:
+                        sms_error = sms_response
+                except Exception as e:
+                    sms_error = str(e)
+            # Feedback messages
+            from django.contrib import messages
+            if email_sent and sms_sent:
+                messages.success(request, 'Message sent, email and SMS delivered!')
+            elif email_sent:
+                messages.warning(request, 'Message sent and delivered via email, but SMS failed.')
+            elif sms_sent:
+                messages.warning(request, 'Message sent and delivered via SMS, but email failed.')
+            else:
+                messages.error(request, f'Message sent, but delivery failed. Email error: {email_error}, SMS error: {sms_error}')
+        # After sending, redirect to GET to avoid resubmission
+        return redirect(f"{request.path}?recipient_category={category}&recipient={recipient_id}")
+    # Load chat history
+    if selected_user:
+        chat_history = Message.objects.filter(
+            (Q(sender=request.user, recipient=selected_user) | Q(sender=selected_user, recipient=request.user))
+        ).order_by('timestamp')
+        chat_history = [
+            {'sender_id': m.sender.id, 'content': m.content, 'timestamp': m.timestamp}
+            for m in chat_history
+        ]
+    context = {
+        'recipients': recipients_list,
+        'selected_category': category,
+        'selected_recipient_id': str(recipient_id) if recipient_id else '',
+        'selected_user': {'id': selected_user.id, 'name': selected_user.get_full_name() or selected_user.username, 'role': selected_user.role} if selected_user else None,
+        'chat_history': chat_history,
+    }
+    return render(request, 'dashboards/admin_messaging.html', context)
+
+@login_required
+@user_passes_test(is_admin)
+def admin_payment_logs(request):
+    import os
+    logs_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'payment_callback_logs.txt')
+    logs = ''
+    if os.path.exists(logs_path):
+        with open(logs_path, 'r', encoding='utf-8') as f:
+            logs = f.read()
+    return render(request, 'dashboards/admin_payment_logs.html', {'logs': logs})
+
+@login_required
+@user_passes_test(is_admin)
+def admin_payment_messages(request):
+    search = request.GET.get('search', '').strip()
+    payments = FeePayment.objects.select_related('student__user', 'fee_assignment__class_group')
+    if search:
+        payments = payments.filter(
+            Q(student__user__first_name__icontains=search) |
+            Q(student__user__last_name__icontains=search) |
+            Q(student__admission_no__icontains=search) |
+            Q(fee_assignment__class_group__name__icontains=search) |
+            Q(reference__icontains=search) |
+            Q(phone_number__icontains=search)
+        )
+    payments = payments.order_by('-payment_date')
+    return render(request, 'dashboards/admin_payment_messages.html', {'payments': payments})

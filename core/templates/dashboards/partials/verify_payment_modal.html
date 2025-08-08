@@ -1,0 +1,24 @@
+<!-- Modal for Payment Verification -->
+<div class="modal fade" id="verifyPaymentModal" tabindex="-1" aria-labelledby="verifyPaymentModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="verifyPaymentModalLabel">Verify Payment</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="verifyPaymentForm" autocomplete="off">
+          <div class="mb-3">
+            <label for="verifyReference" class="form-label">Payment Reference Code</label>
+            <input type="text" class="form-control" id="verifyReference" name="verifyReference" required placeholder="Enter M-PESA reference code">
+          </div>
+          <div id="verifyResult" class="d-none"></div>
+          <button type="submit" class="btn btn-primary" id="verifyBtn">
+            <span id="verifySpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            <span id="verifyBtnText">Verify</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

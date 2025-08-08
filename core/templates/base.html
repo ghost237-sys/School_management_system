@@ -123,6 +123,11 @@
                     </a>
                 </li>
                 {% if user.is_authenticated and user.role == 'admin' and user.id %}
+                <li class="nav-item mb-2">
+                    <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_messaging' %}active{% endif %}" href="{% url 'admin_messaging' %}">
+                        <i class="bi bi-chat-dots me-2"></i> Messaging
+                    </a>
+                </li>
 
 {% else %}
 

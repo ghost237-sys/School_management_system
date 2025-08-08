@@ -160,19 +160,28 @@ class FeeAssignment(models.Model):
         return f"{self.fee_category} - {self.class_group} - {self.term}"
 
 class FeePayment(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending Verification'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='fee_payments')
-    fee_assignment = models.ForeignKey(FeeAssignment, on_delete=models.CASCADE, related_name='payments')
+    fee_assignment = models.ForeignKey(FeeAssignment, on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
     payment_date = models.DateTimeField(auto_now_add=True)
     payment_method = models.CharField(max_length=50, blank=True, null=True)  # e.g., cash, bank, mobile money
     reference = models.CharField(max_length=100, blank=True, null=True)  # e.g., transaction ID
     phone_number = models.CharField(max_length=20, blank=True, null=True)  # For Mpesa Paybill
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')  # Verification status
 
     def __str__(self):
         return f"{self.student} paid {self.amount_paid} for {self.fee_assignment} on {self.payment_date}"
 
     class Meta:
         ordering = ['-payment_date']
+        constraints = [
+            models.UniqueConstraint(fields=['reference'], name='unique_mpesa_reference')
+        ]
 
 class TeacherClassAssignment(models.Model):
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
@@ -289,14 +298,42 @@ class FinanceMessageHistory(models.Model):
 
     def __str__(self):
         return f"To {self.recipient.username} at {self.sent_at:%Y-%m-%d %H:%M}"
+class Group(models.Model):
+    name = models.CharField(max_length=100)
+    members = models.ManyToManyField(User, related_name='user_groups')  # Avoids clash with User.groups
+    is_category = models.BooleanField(default=False, help_text='True if this is a category group (e.g. all students)')
+    category = models.CharField(max_length=20, blank=True, null=True, help_text='student, teacher, parent, etc.')
+
+    def __str__(self):
+        return self.name
+
+class BroadcastMessage(models.Model):
+    sender = models.ForeignKey(User, related_name='broadcasts_sent', on_delete=models.CASCADE)
+    content = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True, related_name='broadcasts')
+    recipients = models.ManyToManyField(User, related_name='broadcasts_received', blank=True)
+    # If group is set, it's a group broadcast; else, use recipients.
+
+    def __str__(self):
+        if self.group:
+            return f"Broadcast to {self.group.name} at {self.timestamp:%Y-%m-%d %H:%M}"
+        return f"Broadcast to {self.recipients.count()} users at {self.timestamp:%Y-%m-%d %H:%M}"
+
 class Message(models.Model):
     sender = models.ForeignKey(User, related_name='sent_messages', on_delete=models.CASCADE)
     recipient = models.ForeignKey(User, related_name='received_messages', on_delete=models.CASCADE, null=True, blank=True)
     content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False)
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True, related_name='messages')
+    broadcast = models.ForeignKey(BroadcastMessage, on_delete=models.SET_NULL, null=True, blank=True, related_name='messages')
 
     def __str__(self):
+        if self.group:
+            return f"Group {self.group.name}: {self.sender.username} at {self.timestamp:%Y-%m-%d %H:%M}"
+        if self.broadcast:
+            return f"Broadcast: {self.sender.username} at {self.timestamp:%Y-%m-%d %H:%M}"
         return f"From {self.sender.username} to {self.recipient.username} at {self.timestamp:%Y-%m-%d %H:%M}"
 
 

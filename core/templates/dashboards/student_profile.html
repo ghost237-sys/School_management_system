@@ -62,8 +62,9 @@
     <div class="row">
         <div class="col-lg-4 mb-4">
             <div class="card">
-                <div class="card-header bg-light">
-                    <strong>User Profile</strong>
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+    <strong>User Profile</strong>
+    <a href="{% url 'student_messaging' %}" class="btn btn-outline-success btn-sm">Message Admin/Class Teacher</a>
                     <button class="btn btn-sm btn-outline-secondary float-end" title="Close" onclick="this.closest('.card').remove();">&times;</button>
                 </div>
                 <div class="card-body text-center">

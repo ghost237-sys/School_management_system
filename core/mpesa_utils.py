@@ -11,7 +11,9 @@ def get_mpesa_access_token():
     return r.json().get('access_token')
 
 def initiate_stk_push(phone_number, amount, account_ref, transaction_desc):
+    print("[M-PESA] Initiating STK Push...")
     access_token = get_mpesa_access_token()
+    print("[M-PESA] Access token:", access_token)
     shortcode = settings.MPESA_SHORTCODE
     passkey = settings.MPESA_PASSKEY
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -28,9 +30,21 @@ def initiate_stk_push(phone_number, amount, account_ref, transaction_desc):
         "PartyA": phone_number,
         "PartyB": shortcode,
         "PhoneNumber": phone_number,
-        "CallBackURL": "https://yourdomain.com/mpesa/callback/",  # TODO: Update to your actual callback URL
+        "CallBackURL": "https://d6c3698eeef9.ngrok-free.app/mpesa/callback/",  # Updated to current ngrok URL
         "AccountReference": account_ref,
         "TransactionDesc": transaction_desc
     }
-    response = requests.post(api_url, json=payload, headers=headers)
-    return response.json()
+    print("[M-PESA] STK Push Request Payload:", payload)
+    print("[M-PESA] STK Push Request Headers:", headers)
+    try:
+        response = requests.post(api_url, json=payload, headers=headers, timeout=20)
+        print("[M-PESA] STK Push Raw Response:", response.text)
+        try:
+            resp_json = response.json()
+        except Exception as e:
+            print("[M-PESA][ERROR] Could not parse JSON response:", e)
+            resp_json = {'error': 'Invalid JSON response', 'raw': response.text}
+        return resp_json
+    except requests.RequestException as e:
+        print("[M-PESA][ERROR] Request to Daraja failed:", e)
+        return {'error': str(e)}

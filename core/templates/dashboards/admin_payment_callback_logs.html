@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}M-PESA Callback Logs{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">M-PESA Payment Callback Logs</h2>
+    <div class="mb-3">
+        <a href="{% url 'admin_payment' %}" class="btn btn-secondary">Back to Payments</a>
+    </div>
+    {% if logs %}
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped">
+            <thead class="table-light">
+                <tr>
+                    <th>#</th>
+                    <th>Timestamp</th>
+                    <th>Status</th>
+                    <th>Details (JSON)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs|slice:'-100:' %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ log.timestamp }}</td>
+                    <td>
+                        {% if log.status == 'success' %}
+                            <span class="badge bg-success">Success</span>
+                        {% else %}
+                            <span class="badge bg-danger">Failed</span>
+                        {% endif %}
+                    </td>
+                    <td><pre style="font-size:0.9em;white-space:pre-wrap;">{{ log.details|safe|json_script:"logdetails" }}</pre></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p class="text-muted">Showing up to the last 100 callback logs.</p>
+    </div>
+    {% else %}
+        <div class="alert alert-info">No callback logs found.</div>
+    {% endif %}
+</div>
+{% endblock %}

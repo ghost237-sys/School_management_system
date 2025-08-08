@@ -6,11 +6,17 @@ from . import views, views_admin_messaging, views_finance_messaging
 from .views import timetable_view
 from . import timetable_urls
 
+from core.views_student_messaging import student_messaging
+from core.views_teacher_messaging import teacher_messaging
 urlpatterns = [
+    path('', include('core.urls_payment_verification')),
+    path('mpesa-callback/', views.mpesa_callback, name='mpesa_callback'),
     path('admin/', admin.site.urls),
     path('api/', include('core.timetable_urls')),
     path('timetable/', timetable_view, name='timetable_view'),
     # ... other patterns ...
+    path('student_messaging/', student_messaging, name='student_messaging'),
+    path('teacher_messaging/', teacher_messaging, name='teacher_messaging'),
     path('finance_messaging/', views_finance_messaging.finance_messaging_page, name='finance_messaging_page'),
 
     # General Login/Logout
@@ -43,12 +49,18 @@ urlpatterns = [
     path('admin_exams/json/', views.admin_exams_json, name='admin_exams_json'),
     path('admin_fees/', views.admin_fees, name='admin_fees'),
     path('admin_payment/', views.admin_payment, name='admin_payment'),
+    path('admin_payment_logs/', views_admin_messaging.admin_payment_logs, name='admin_payment_logs'),
+    path('admin_messaging/', views_admin_messaging.admin_messaging, name='admin_messaging'),
+    path('admin_messaging/get_users_by_category/', views_admin_messaging.get_users_by_category, name='get_users_by_category'),
     path('admin_events/', views.admin_events, name='admin_events'),
     path('admin_send_bulk_arrears_notice/', views_admin_messaging.send_bulk_fee_arrears_notice, name='admin_send_bulk_arrears_notice'),
+    path('admin_payment_messages/', views_admin_messaging.admin_payment_messages, name='admin_payment_messages'),
+    path('admin_payment_messages/logs/', views_admin_messaging.admin_payment_logs, name='admin_payment_logs'),
 
     # Teacher URLs
     path('teacher_class_result_slip/<int:class_id>/', views.teacher_class_result_slip, name='teacher_class_result_slip'),
     path('teacher_dashboard/<int:teacher_id>/', views.teacher_dashboard, name='teacher_dashboard'),
+    path('teacher_messaging/', teacher_messaging, name='teacher_messaging'),
     path('teacher/<int:teacher_id>/profile/', views.teacher_profile, name='teacher_profile'),
     path('teacher/<int:teacher_id>/timetable/', views.teacher_timetable, name='teacher_timetable'),
     path('teacher/<int:teacher_id>/attendance/', views.manage_attendance, name='manage_attendance'),
@@ -61,6 +73,7 @@ urlpatterns = [
 
     # Student URLs
     path('student_profile/<int:student_id>/', views.student_profile, name='student_profile'),
+    path('student_dashboard/', views.student_dashboard, name='student_dashboard'),
     path('student_fees/', views.student_fees, name='student_fees'),
 
     # API and AJAX URLs

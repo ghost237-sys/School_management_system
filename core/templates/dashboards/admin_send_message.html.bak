@@ -1,0 +1,5 @@
+{% extends 'base.html' %}
+{% block content %}
+<!-- BACKUP COPY: See admin_send_message.html for the latest version -->
+{% include 'dashboards/admin_send_message.html' %}
+{% endblock %}

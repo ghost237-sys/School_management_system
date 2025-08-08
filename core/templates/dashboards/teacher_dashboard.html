@@ -67,15 +67,22 @@
             {% endif %}
         </div>
     </div>
-    <!-- Grid-like card layout -->
-    <div class="container-fluid">
-        <div class="row mt-4">
+    <!-- Sidebar Navigation -->
+    <div class="row" style="min-height: 80vh;">
+      
+      <div class="col-md-10 col-lg-10 p-0">
+        {% if request.get_full_path|slice:'-8:' == '#messages' %}
+          {% include 'dashboards/teacher_messages_tab.html' %}
+        {% else %}
+          <div class="container-fluid px-4 pt-3">
+              <div class="row">
+
             {% for card in class_cards %}
             <div class="col-md-6 col-lg-4 mb-4">
                 <div class="card h-100 shadow-sm text-white bg-primary">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="card-title mb-0">{{ card.class_group.name }}</h5>
+                            <h5 class="card-title mb-0">{{ card.class.name }}</h5>
                             <i class="bi bi-easel fs-3"></i>
                         </div>
                         {% if card.subject %}
@@ -85,7 +92,7 @@
                         <p><strong>Students:</strong> {{ card.student_count }}</p>
                         <p><strong>Avg Score:</strong> {% if card.avg_score %}{{ card.avg_score|floatformat:2 }}%{% else %}N/A{% endif %}</p>
                         <a href="{% url 'manage_grades' teacher_id=teacher.id %}" class="btn btn-light btn-sm mt-2">Manage Grades</a>
-                        <a href="{% url 'teacher_class_result_slip' class_id=card.class_group.id %}" class="btn btn-success btn-sm mt-2 ms-2">View Result Slip</a>
+                        <a href="{% url 'teacher_class_result_slip' class_id=card.class.id %}" class="btn btn-success btn-sm mt-2 ms-2">View Result Slip</a>
                     </div>
                 </div>
             </div>
@@ -95,6 +102,17 @@
             </div>
             {% endfor %}
         </div>
+
+      </div>
+          </div>
+          <div class="tab-pane fade" id="messages" role="tabpanel" aria-labelledby="messages-tab">
+            {% include 'dashboards/teacher_messaging.html' %}
+          </div>
+          <!-- Add other tab panes as needed -->
+        </div>
+      </div>
+    </div>
+    <!-- End Sidebar and Main Content Row -->
 
             <!-- Upcoming Deadlines -->
             <div class="card shadow mb-4">
@@ -152,6 +170,7 @@
                     </div>
                 </div>
 
+{% endif %}
 {% endblock %}
 {% block extra_js %}
     <script src="{% static 'calendar/fullcalendar.min.js' %}"></script>

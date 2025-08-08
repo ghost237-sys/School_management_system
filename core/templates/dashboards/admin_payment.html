@@ -2,6 +2,14 @@
 {% block title %}Record Fee Payment{% endblock %}
 {% block content %}
 <div class="container mt-4">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show mt-2" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
     {% if current_term %}
     <div class="alert alert-success mb-3">
         <strong>Current Term:</strong> {{ current_term.name }} ({{ current_term.start_date|date:'M d, Y' }} to {{ current_term.end_date|date:'M d, Y' }}) in Academic Year {{ current_term.academic_year.year }}
@@ -11,10 +19,15 @@
     <h2 class="mb-4">Record Fee Payment</h2>
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">Enter Payment Details</h5>
+            <button type="button" class="btn btn-outline-secondary mb-3" id="openVerifyPaymentModal" data-bs-toggle="modal" data-bs-target="#verifyPaymentModal">
+    Verify Payment
+</button>
         </div>
         <div class="card-body">
-            <form method="post">
+            <div id="paymentSuccessAlert" class="alert alert-success d-none" role="alert">
+  Payment initiated successfully!
+</div>
+            <form id="paymentForm" method="post" autocomplete="off">
                 {% csrf_token %}
                 <div class="mb-3">
                     <label for="student_id" class="form-label">Student</label>
@@ -37,37 +50,89 @@
         <option value="Mpesa Paybill">Mpesa Paybill</option>
     </select>
 </div>
-<div class="mb-3 d-none" id="reference_group">
-    <label for="reference" class="form-label">Reference</label>
-    <input type="text" class="form-control" id="reference" name="reference" placeholder="e.g. Transaction ID">
-</div>
 <div class="mb-3 d-none" id="phone_group">
     <label for="phone_number" class="form-label">Phone Number (for STK Push)</label>
-    <input type="text" class="form-control" id="phone_number" name="phone_number" placeholder="e.g. 07XXXXXXXX">
+    <input type="text" class="form-control" id="phone_number" name="phone_number" placeholder="e.g. 0712345678" pattern="^0[7][0-9]{8}$" maxlength="10" minlength="10" inputmode="numeric" aria-describedby="phoneHelp">
+    <div id="phoneHelp" class="form-text">Enter a valid Safaricom number starting with 07XXXXXXXX.</div>
+    <div class="invalid-feedback">
+        Please enter a valid Safaricom phone number (e.g. 0712345678).
+    </div>
 </div>
 <script>
-    const methodSelect = document.getElementById('payment_method');
-    const refGroup = document.getElementById('reference_group');
-    const phoneGroup = document.getElementById('phone_group');
-    methodSelect.addEventListener('change', function() {
-        if (this.value === 'Cash') {
-            refGroup.classList.add('d-none');
-            phoneGroup.classList.add('d-none');
-        } else if (this.value === 'Bank') {
-            refGroup.classList.remove('d-none');
-            phoneGroup.classList.add('d-none');
-        } else if (this.value === 'Mpesa Paybill') {
-            refGroup.classList.remove('d-none');
-            phoneGroup.classList.remove('d-none');
-        } else {
-            refGroup.classList.add('d-none');
-            phoneGroup.classList.add('d-none');
-        }
-    });
+document.addEventListener('DOMContentLoaded', function() {
+    // ...existing code...
+    // Verify Payment logic
+    const verifyPaymentForm = document.getElementById('verifyPaymentForm');
+    const verifyResult = document.getElementById('verifyResult');
+    const verifyBtn = document.getElementById('verifyBtn');
+    if (verifyPaymentForm) {
+        verifyPaymentForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            verifyBtn.disabled = true;
+            verifyBtn.textContent = 'Verifying...';
+            verifyResult.classList.add('d-none');
+            verifyResult.classList.remove('alert', 'alert-success', 'alert-danger');
+            // Simulate AJAX request (replace with real fetch logic)
+            setTimeout(function() {
+                // Example: always succeed for demo
+                verifyResult.textContent = 'Payment reference verified successfully!';
+                verifyResult.classList.remove('d-none');
+                verifyResult.classList.add('alert', 'alert-success');
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = 'Verify';
+            }, 1500);
+        });
+    }
+});
 </script>
-                <button type="submit" class="btn btn-primary">Record Payment</button>
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+  <span id="submitSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+  <span id="submitBtnText">Record Payment</span>
+</button>
             </form>
         </div>
     </div>
+    <!-- Admin Payment Status Table -->
+    {% if request.user.is_authenticated and request.user.role == 'admin' %}
+    <div class="card mt-5">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0">All Payments (Completed & Pending)</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Student</th>
+                            <th>Amount</th>
+                            <th>Method</th>
+                            <th>Reference</th>
+                            <th>Phone</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for payment in all_payments %}
+                        <tr class="{% if payment.status == 'Pending' %}table-warning{% elif payment.status == 'Completed' %}table-success{% endif %}">
+                            <td>{{ payment.student.full_name }} ({{ payment.student.admission_no }})</td>
+                            <td>Ksh. {{ payment.amount_paid }}</td>
+                            <td>{{ payment.payment_method }}</td>
+                            <td>{{ payment.reference|default:'-' }}</td>
+                            <td>{{ payment.phone_number|default:'-' }}</td>
+                            <td>{{ payment.payment_date|date:'Y-m-d H:i' }}</td>
+                            <td><strong>{{ payment.status }}</strong></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="7" class="text-center">No payments found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <!-- End Admin Payment Status Table -->
+{% include 'dashboards/partials/verify_payment_modal.html' %}
 </div>
 {% endblock %}

@@ -4,14 +4,22 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 SECRET_KEY = 'replace-this-with-a-secure-key'
 DEBUG = True
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '8c31c7ea20f2.ngrok-free.app',
 
-# --- M-Pesa Daraja API Credentials ---
-MPESA_CONSUMER_KEY = 'EbgLks2JrZyEnGAfe0lqC9rKHPXutqG9VdYptaVdNZTUmQ2d'
-MPESA_CONSUMER_SECRET = 'fBm0Nywpvr5wGqQ20rTaTZGrWXcThUR2OoIJXFpUzj8IXt7ZTYzZCcaeGSDHJIRX'
-MPESA_SECURITY_CREDENTIAL = 'OochZUouFckkb3ZOoFMWH2iVESIECTD6fUI46ZVykffMP4CCcFjXLfpGd6StLWpd+u8BsCJ2EYKNPlYQeH5wQxIw3u+ziMPumnRdZfGMSGQnyx76nLqwsJDe8leMaMyGpbcRYrdKU5C3JqWGD5BdoBdhg4ByfI9ds/T5y/mRBUzCLsHUTbZT6DgvaK2Ln8P5mg4Jva9xCGf/hKCp3fN1VzGW9Cn6+5+6GJPVrzdBjx+XbWTvBOhpfTlZ+ko3IqJL81h8Bk9OlXEd0LyjbKVHmlfvphdafFfYsAV6wOACEclJmyH3sTZO2YXKQTCGGsQi6bdkGPvSBnGs5bsfBC+KeA=='
-MPESA_SHORTCODE = '400200'
-MPESA_PASSKEY = '<YOUR_PASSKEY_FROM_DARAJA_PORTAL>'
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://8c31c7ea20f2.ngrok-free.app',
+]
+
+MPESA_CONSUMER_KEY = 'EXGFqWiPKTmwUrCGfKmHbUzj43Ikge7ekz5GVSbdzAk37L0j'
+MPESA_CONSUMER_SECRET = 'lOjIKLlnhiHXxFRDkfkv9m8pm80ZJhNGQpcuuq3ktdyx9GAKk8pP8Aw4VlLRVnU1'
+MPESA_SECURITY_CREDENTIAL = 'MAVwHpewRUL/DCazjHl9tFC50Aa+lBq1wusfpEYL4118SkIxFa9fttEN24kO1wjKlhl3msXzX9jGuK0ra2W9XNVgRgAA4p1DzW8eAtg4OKKoMAzZ25GXBuDJFaniFsokK7oBouxwq9OWuS4M8g2aYb+6RGO3+vEYUvT3a6M8n5KD8wGk7wGlOXlHKfICEGcaWHb9XMEhaix9l97leFQePUS1XXiKVhlXTTb1Qey9xkCzZXOXbtY4cz/qMT4wKXlwzm4aCpUYJVajrZCRYsZv6L8H/s331f9D/PX+DQ1oLjwjVGptx8SwfZrYOe9s3pHpgyTw4dUyou5Rub+OSwQETg=='
+MPESA_SHORTCODE = '174379'
+MPESA_PASSKEY = 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
 MPESA_INITIATOR_NAME = '<YOUR_INITIATOR_NAME>'
 MPESA_ACCOUNT_NUMBER = '710092'
 MPESA_ENVIRONMENT = 'sandbox'  # or 'production' for live
@@ -117,3 +125,32 @@ LOGOUT_REDIRECT_URL = 'login'
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap5'
 CRISPY_TEMPLATE_PACK = 'bootstrap5'
+
+# Ensure all logs are visible in terminal during development
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'formatters': {
+        'simple': {
+            'format': '[{levelname}] {message}',
+            'style': '{',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

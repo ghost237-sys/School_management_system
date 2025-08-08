@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Messages{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4">Messages</h2>
+  {% include 'dashboards/teacher_messaging.html' %}
+</div>
+{% endblock %}

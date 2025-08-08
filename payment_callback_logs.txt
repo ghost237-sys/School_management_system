@@ -1,0 +1,4 @@
+# This file will store logs of all M-PESA payment callback messages received by the system for audit and viewing purposes.
+# Each entry will be a JSON object with timestamp, status, and details.
+
+[]

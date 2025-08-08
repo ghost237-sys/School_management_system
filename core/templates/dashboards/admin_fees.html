@@ -430,7 +430,11 @@ document.addEventListener('DOMContentLoaded', function() {
                       <td>{{ category.description }}</td>
                       <td>
                         <a href="?edit={{ category.id }}" class="btn btn-sm btn-info">Edit</a>
-                        <a href="?delete={{ category.id }}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this category?');">Delete</a>
+                        <form method="post" action="" style="display:inline;">
+    {% csrf_token %}
+    <input type="hidden" name="delete" value="{{ category.id }}">
+    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this category?');">Delete</button>
+</form>
                       </td>
                     </tr>
                     {% empty %}
