@@ -109,7 +109,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>Exams Management</h2>
     </div>
-<<<<<<< HEAD
+
     <div class="row">
         <!-- Calendar View -->
         <div class="col-md-6">
@@ -163,7 +163,7 @@
     <div class="card-body">
         <!-- Exam Creation Form -->
         <form method="post" class="mb-4">
-=======
+
     <!-- Tabs Navigation -->
     <ul class="nav nav-tabs mb-4" id="examTabs" role="tablist">
       <li class="nav-item" role="presentation">
@@ -282,7 +282,7 @@
 
 {% endblock %}
 <form method="post" class="mb-4">
->>>>>>> a8e277defa9a3401155733bdf5da12cc595b4289
+
             {% csrf_token %}
             {{ exam_form.as_p }}
             <button type="submit" name="add_exam" class="btn btn-success">Add Exam</button>
@@ -348,12 +348,10 @@
                 </div>
             {% endif %}
 
-
-        </div>
     </div>
 </div>
 
-{% endblock %}
+
 
 {% block scripts %}
 <!-- FullCalendar JavaScript Library -->
@@ -370,7 +368,7 @@
             }
             return;
         }
-<<<<<<< HEAD
+
         
         try {
             const calendarEl = document.getElementById('exam-calendar');
@@ -733,7 +731,7 @@
                             No students found in the selected class.
                         </div>
                     `;
-=======
+
         var calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
             height: 500,
@@ -762,7 +760,7 @@
                 } catch (err) {
                     alert('Error displaying exam details: ' + err);
                     console.error('Exam modal error:', err);
->>>>>>> a8e277defa9a3401155733bdf5da12cc595b4289
+
                 }
             })
             .catch(error => {

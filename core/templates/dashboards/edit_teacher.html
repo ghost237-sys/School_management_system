@@ -2,79 +2,243 @@
 {% block title %}Edit Teacher{% endblock %}
 {% block content %}
 
-.horizontal-checkbox-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1.5em 2em;
-}
-.horizontal-checkbox-list label {
-    margin-right: 1.5em;
-    min-width: 160px;
-    white-space: nowrap;
-}
 
-<h2>Edit Teacher: {{ teacher.user.get_full_name|default:teacher.user.username }}</h2>
-<form method="post" autocomplete="off" class="mb-4 p-3 border rounded bg-light">
+
+<div class="text-center mb-3">
+  <div style="font-size:2.2rem; font-weight:700; color:#174ea6; letter-spacing:.01em;">Welcome! 🎉</div>
+  <div style="font-size:1.15rem; color:#3b4a64; margin-bottom:0.7rem;">Let's update <span style="color:#174ea6; font-weight:600;">{{ teacher.user.get_full_name|default:teacher.user.username }}</span>'s profile</div>
+</div>
+<h2 class="text-center mb-4" style="font-size:1.45rem; color:#174ea6; font-weight:600;">Edit Teacher: {{ teacher.user.get_full_name|default:teacher.user.username }}</h2>
+<style>
+  body {
+    background: linear-gradient(135deg, #f7fafc 0%, #e3f0ff 100%);
+    min-height: 100vh;
+  }
+  .modern-stepper-card {
+    box-shadow: 0 8px 32px 0 rgba(23,78,166,0.10), 0 1.5px 4px 0 rgba(0,0,0,0.03);
+    border-radius: 2rem;
+    background: #fff;
+    padding: 2.5rem 2.5rem 1.5rem 2.5rem;
+    margin-bottom: 2rem;
+    max-width: 650px;
+    margin-left: auto;
+    margin-right: auto;
+    animation: cardFadeIn 0.8s cubic-bezier(.4,0,.2,1);
+    border: none;
+  }
+  @keyframes cardFadeIn {
+    0% { opacity: 0; transform: translateY(40px) scale(.98); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .modern-stepper-card .card-header {
+    border-radius: 1rem 1rem 0 0;
+    background: linear-gradient(90deg, #f0f4ff 0%, #e6f7ff 100%);
+    color: #174ea6;
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+  }
+  .modern-stepper-nav .nav-link {
+    font-size: 1.1rem;
+    font-weight: 500;
+    border-radius: 2rem;
+    margin: 0 0.5rem;
+    padding: 0.6rem 1.6rem;
+    transition: background 0.2s, color 0.2s;
+    color: #174ea6;
+    background: #f0f4ff;
+    border: none;
+  }
+  .modern-stepper-nav .nav-link.active {
+    background: linear-gradient(90deg, #174ea6 0%, #4fc3f7 100%);
+    color: #fff;
+    box-shadow: 0 2px 8px 0 rgba(23,78,166,0.08);
+  }
+  .modern-stepper-nav .nav-link:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+  .modern-stepper-card .btn {
+    border-radius: 2rem;
+    min-width: 110px;
+    font-weight: 500;
+    font-size: 1rem;
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+  }
+  .modern-stepper-card .btn-primary {
+    background: linear-gradient(90deg, #174ea6 0%, #4fc3f7 100%);
+    border: none;
+  }
+  .modern-stepper-card .btn-secondary {
+    background: #f0f4ff;
+    color: #174ea6;
+    border: none;
+  }
+</style>
+<form method="post" autocomplete="off" class="modern-stepper-card" id="editTeacherStepperForm">
   {% csrf_token %}
   {% if form.errors %}
     <div class="alert alert-danger">Please fix the errors below.</div>
   {% endif %}
-  <div class="row g-3">
-    <div class="col-md-6">
-      {{ form.first_name.label_tag }}
-      {{ form.first_name }}{% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors }}</div>{% endif %}
+  <!-- Stepper Navigation -->
+  <ul class="nav modern-stepper-nav mb-4 justify-content-center" id="stepperNav">
+    <li class="nav-item"><button class="nav-link active" type="button" data-step="0">1. Personal Info</button></li>
+    <li class="nav-item"><button class="nav-link" type="button" data-step="1">2. Account Info</button></li>
+    <li class="nav-item"><button class="nav-link" type="button" data-step="2">3. Subject Allocation</button></li>
+  </ul>
+  <!-- Step 1: Personal Information -->
+  <div class="step-card" data-step="0">
+    <div class="card mb-4">
+      <div class="card-header fw-bold bg-primary bg-opacity-10">Personal Information</div>
+      <div class="card-body row g-3">
+        <div class="col-md-6">
+  {{ form.first_name.label_tag }}
+  <input type="text" name="first_name" value="{{ form.first_name.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if form.first_name.errors %} is-invalid{% endif %}" id="id_first_name" placeholder="Enter first name">
+  {% if form.first_name.errors %}<div class="invalid-feedback d-block">{{ form.first_name.errors.0 }}</div>{% endif %}
+</div>
+        <div class="col-md-6">
+  {{ form.last_name.label_tag }}
+  <input type="text" name="last_name" value="{{ form.last_name.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if form.last_name.errors %} is-invalid{% endif %}" id="id_last_name" placeholder="Enter last name">
+  {% if form.last_name.errors %}<div class="invalid-feedback d-block">{{ form.last_name.errors.0 }}</div>{% endif %}
+</div>
+        <div class="col-md-6">
+  {{ form.tsc_number.label_tag }}
+  <input type="text" name="tsc_number" value="{{ form.tsc_number.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if form.tsc_number.errors %} is-invalid{% endif %}" id="id_tsc_number" placeholder="Enter TSC number">
+  {% if form.tsc_number.errors %}<div class="invalid-feedback d-block">{{ form.tsc_number.errors.0 }}</div>{% endif %}
+</div>
+        <div class="col-md-6">
+  {{ form.staff_id.label_tag }}
+  <input type="text" name="staff_id" value="{{ form.staff_id.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if form.staff_id.errors %} is-invalid{% endif %}" id="id_staff_id" placeholder="Enter staff ID">
+  {% if form.staff_id.errors %}<div class="invalid-feedback d-block">{{ form.staff_id.errors.0 }}</div>{% endif %}
+</div>
+        <div class="col-md-6">
+  {{ form.phone.label_tag }}
+  <input type="text" name="phone" value="{{ form.phone.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if form.phone.errors %} is-invalid{% endif %}" id="id_phone" placeholder="Enter phone number">
+  {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors.0 }}</div>{% endif %}
+</div>
+        <div class="col-md-6">
+  {{ form.gender.label_tag }}
+  <select name="gender" class="form-select form-select-lg rounded-3{% if form.gender.errors %} is-invalid{% endif %}" id="id_gender">
+    <option value="">---------</option>
+    {% for val, label in form.fields.gender.choices %}
+      <option value="{{ val }}"{% if form.gender.value == val %} selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% if form.gender.errors %}<div class="invalid-feedback d-block">{{ form.gender.errors.0 }}</div>{% endif %}
+</div>
+      </div>
     </div>
-    <div class="col-md-6">
-      {{ form.last_name.label_tag }}
-      {{ form.last_name }}{% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ form.username.label_tag }}
-      {{ form.username }}{% if form.username.errors %}<div class="text-danger small">{{ form.username.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ form.email.label_tag }}
-      {{ form.email }}{% if form.email.errors %}<div class="text-danger small">{{ form.email.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ form.password.label_tag }}
-      {{ form.password }}{% if form.password.errors %}<div class="text-danger small">{{ form.password.errors }}</div>{% endif %}
-      <small class="form-text text-muted">Leave blank to keep current password.</small>
-    </div>
-    <div class="col-md-6">
-      {{ form.tsc_number.label_tag }}
-      {{ form.tsc_number }}{% if form.tsc_number.errors %}<div class="text-danger small">{{ form.tsc_number.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ form.staff_id.label_tag }}
-      {{ form.staff_id }}{% if form.staff_id.errors %}<div class="text-danger small">{{ form.staff_id.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ form.phone.label_tag }}
-      {{ form.phone }}{% if form.phone.errors %}<div class="text-danger small">{{ form.phone.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ form.gender.label_tag }}
-      {{ form.gender }}{% if form.gender.errors %}<div class="text-danger small">{{ form.gender.errors }}</div>{% endif %}
-    </div>
-    <div class="col-md-6">
-      {{ form.department.label_tag }}
-      {{ form.department }}{% if form.department.errors %}<div class="text-danger small">{{ form.department.errors }}</div>{% endif %}
-    </div>
-    <div class="col-12">
-      {{ form.subjects.label_tag }}
-      {{ form.subjects }}{% if form.subjects.errors %}<div class="text-danger small">{{ form.subjects.errors }}</div>{% endif %}
-    </div>
-    <div class="col-12">
-      <label for="id_class_teacher_of">Class Teacher Of</label>
-      {{ form.class_teacher_of }}
-      <div class="form-text">Hold Ctrl (Cmd on Mac) to select multiple classes. Only selected classes will have this teacher as class teacher.</div>
-      {% if form.class_teacher_of.errors %}<div class="text-danger small">{{ form.class_teacher_of.errors }}</div>{% endif %}
+    <div class="d-flex justify-content-end">
+      <button type="button" class="btn btn-primary next-step">Next</button>
     </div>
   </div>
-  <div class="mt-3">
-    <button type="submit" class="btn btn-primary">Update Teacher</button>
-    <a href="{% url 'admin_teachers' %}" class="btn btn-secondary ms-2">Cancel</a>
+  <!-- Step 2: Account Information -->
+  <div class="step-card d-none" data-step="1">
+    <div class="card mb-4">
+      <div class="card-header fw-bold bg-success bg-opacity-10">Account Information</div>
+      <div class="card-body row g-3">
+        <div class="col-md-6">
+  {{ form.username.label_tag }}
+  <input type="text" name="username" value="{{ form.username.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if form.username.errors %} is-invalid{% endif %}" id="id_username" placeholder="Enter username">
+  {% if form.username.errors %}<div class="invalid-feedback d-block">{{ form.username.errors.0 }}</div>{% endif %}
+</div>
+        <div class="col-md-6">
+  {{ form.email.label_tag }}
+  <input type="email" name="email" value="{{ form.email.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if form.email.errors %} is-invalid{% endif %}" id="id_email" placeholder="Enter email">
+  {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors.0 }}</div>{% endif %}
+</div>
+        <div class="col-md-6">
+  {{ form.password.label_tag }}
+  <input type="password" name="password" class="form-control form-control-lg rounded-3{% if form.password.errors %} is-invalid{% endif %}" id="id_password" placeholder="Enter new password (optional)">
+  {% if form.password.errors %}<div class="invalid-feedback d-block">{{ form.password.errors.0 }}</div>{% endif %}
+  <small class="form-text text-muted">Leave blank to keep current password.</small>
+</div>
+      </div>
+    </div>
+    <div class="d-flex justify-content-between">
+      <button type="button" class="btn btn-secondary prev-step">Back</button>
+      <button type="button" class="btn btn-primary next-step">Next</button>
+    </div>
   </div>
+  <!-- Step 3: Subject Allocation -->
+  <div class="step-card d-none" data-step="2">
+    <div class="card mb-4">
+      <div class="card-header fw-bold bg-info bg-opacity-10">Subject Allocation</div>
+      <div class="card-body row g-3">
+        <div class="col-md-6">
+  {{ form.department.label_tag }}
+  <select name="department" class="form-select form-select-lg rounded-3{% if form.department.errors %} is-invalid{% endif %}" id="id_department">
+  <option value="">---------</option>
+  {% for department in form.department.field.queryset %}
+    <option value="{{ department.pk }}"{% if form.department.value|stringformat:'s' == department.pk|stringformat:'s' %} selected{% endif %}>{{ department }}</option>
+  {% endfor %}
+</select>
+  {% if form.department.errors %}<div class="invalid-feedback d-block">{{ form.department.errors.0 }}</div>{% endif %}
+</div>
+        <div class="col-12">
+  {{ form.subjects.label_tag }}
+  <div class="row row-cols-2 row-cols-md-3 g-1 horizontal-checkbox-list">
+    {% for checkbox in form.subjects %}
+      <div class="col">
+        <div class="form-check">
+          {{ checkbox.tag }}
+          <label class="form-check-label" for="{{ checkbox.id_for_label }}">{{ checkbox.choice_label }}</label>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% if form.subjects.errors %}<div class="invalid-feedback d-block">{{ form.subjects.errors.0 }}</div>{% endif %}
+</div>
+        <div class="col-12">
+  <label for="id_class_teacher_of">Class Teacher Of</label>
+  <select name="class_teacher_of" id="id_class_teacher_of" class="form-select form-select-lg rounded-3{% if form.class_teacher_of.errors %} is-invalid{% endif %}" multiple>
+  {% for klass in form.class_teacher_of.field.queryset %}
+    <option value="{{ klass.pk }}"{% if klass.pk|stringformat:'s' in form.class_teacher_of.value|stringformat:'s' %} selected{% endif %}>{{ klass }}</option>
+  {% endfor %}
+</select>
+  <div class="form-text">Hold Ctrl (Cmd on Mac) to select multiple classes. Only selected classes will have this teacher as class teacher.</div>
+  {% if form.class_teacher_of.errors %}<div class="invalid-feedback d-block">{{ form.class_teacher_of.errors.0 }}</div>{% endif %}
+</div>
+      </div>
+    </div>
+    <div class="d-flex justify-content-between">
+      <button type="button" class="btn btn-secondary prev-step">Back</button>
+      <button type="submit" class="btn btn-primary">Update Teacher</button>
+    </div>
+  </div>
+  <a href="{% url 'admin_teachers' %}" class="btn btn-secondary ms-2 mt-3">Cancel</a>
 </form>
+<script>
+// Simple stepper logic
+const stepCards = document.querySelectorAll('.step-card');
+const navLinks = document.querySelectorAll('#stepperNav .nav-link');
+let currentStep = 0;
+function showStep(step) {
+  stepCards.forEach((card, i) => {
+    card.classList.toggle('d-none', i !== step);
+  });
+  navLinks.forEach((nav, i) => {
+    nav.classList.toggle('active', i === step);
+    nav.disabled = i > currentStep;
+  });
+  currentStep = step;
+}
+navLinks.forEach((nav, i) => {
+  nav.addEventListener('click', () => {
+    if (i <= currentStep) showStep(i);
+  });
+});
+document.querySelectorAll('.next-step').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (currentStep < stepCards.length - 1) showStep(currentStep + 1);
+  });
+});
+document.querySelectorAll('.prev-step').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (currentStep > 0) showStep(currentStep - 1);
+  });
+});
+showStep(0);
+</script>
 {% endblock %}

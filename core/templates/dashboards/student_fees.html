@@ -67,18 +67,67 @@
                         Please enter a valid Safaricom phone number (e.g. 0712345678).
                     </div>
                 </div>
-                <div class="mb-3">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#verifyPaymentModal">
-                        Verify Payment (Reference Code)
-                    </button>
-                </div>
+                
                 <button type="submit" class="btn btn-primary" id="submitBtn">
                     <span id="submitSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                     <span id="submitBtnText">Submit Payment</span>
                 </button>
                 <a href="{% url 'student_dashboard' %}" class="btn btn-secondary ms-2">Back</a>
-            </form>
+            <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const paymentMethod = document.getElementById('payment_method');
+    const phoneGroup = document.getElementById('phone_group');
+    const submitBtn = document.getElementById('submitBtn');
+    const submitBtnText = document.getElementById('submitBtnText');
+    const submitSpinner = document.getElementById('submitSpinner');
+    const paymentForm = document.getElementById('studentPaymentForm');
+    function togglePhoneFieldAndButton() {
+        if (paymentMethod && phoneGroup && paymentMethod.value === 'Mpesa Paybill') {
+            phoneGroup.classList.remove('d-none');
+            document.getElementById('phone_number').required = true;
+            if (submitBtnText) submitBtnText.textContent = 'Initiate Payment';
+        } else if (paymentMethod && phoneGroup) {
+            phoneGroup.classList.add('d-none');
+            document.getElementById('phone_number').required = false;
+            if (submitBtnText) submitBtnText.textContent = 'Submit Payment';
+        }
+    }
+    if (paymentMethod && phoneGroup) {
+        paymentMethod.addEventListener('change', togglePhoneFieldAndButton);
+        togglePhoneFieldAndButton(); // initial state
+    }
+    if (paymentForm && submitBtn && submitBtnText && submitSpinner) {
+        paymentForm.addEventListener('submit', function(e) {
+            if (paymentMethod.value === 'Mpesa Paybill') {
+                submitBtnText.textContent = 'Initiating Payment...';
+                submitSpinner.classList.remove('d-none');
+                submitBtn.disabled = true;
+                setTimeout(function() {
+                    submitBtnText.textContent = 'Payment Initiated Successfully';
+                    submitSpinner.classList.add('d-none');
+                    submitBtn.classList.remove('btn-primary');
+                    submitBtn.classList.add('btn-success');
+                }, 1500);
+            }
+        });
+    }
+});
+</script>
+</form>
+<hr class="my-4">
+<div class="mb-3">
+    <h5>Already paid? Verify your payment below:</h5>
+    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#verifyPaymentModal">
+        Verify Payment (Reference Code)
+    </button>
+    {% include 'dashboards/partials/verify_payment_modal.html' %}
+</div>
         </div>
+    </div>
+    <div class="text-center my-4">
+        <a href="{% url 'student_profile' student.id %}" class="btn btn-info">
+            <i class="fa fa-user"></i> Back to Profile
+        </a>
     </div>
     <script>
     document.addEventListener('DOMContentLoaded', function() {

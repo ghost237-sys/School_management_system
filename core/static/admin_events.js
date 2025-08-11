@@ -32,4 +32,13 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Network error: Could not add event.');
         });
     });
+
+    // Fix: Make all close buttons work for modal
+    var closeButtons = eventModal.querySelectorAll('[data-bs-dismiss="modal"]');
+    closeButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var modalInstance = bootstrap.Modal.getOrCreateInstance(eventModal);
+            modalInstance.hide();
+        });
+    });
 });

@@ -208,6 +208,18 @@ def student_profile(request, student_id):
     points_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1}
     total_points = sum(points_map.get(g.grade_letter, 0) for g in grades if getattr(g, 'grade_letter', None))
 
+    # Handle contact info update POST
+    if request.method == 'POST' and 'update_contact' in request.POST:
+        contact_form = StudentContactUpdateForm(request.POST, instance=student, user_instance=student.user)
+        if contact_form.is_valid():
+            contact_form.save()
+            messages.success(request, 'Contact information updated successfully.')
+            return redirect('student_profile', student_id=student.id)
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        contact_form = StudentContactUpdateForm(instance=student, user_instance=student.user)
+
     context = {
         'student': student,
         'current_term': current_term,
@@ -226,6 +238,7 @@ def student_profile(request, student_id):
         'fee_assignments': fee_assignments,
         'fee_payments': FeePayment.objects.filter(student=student, fee_assignment__in=fee_assignments),
         'total_points': total_points,
+        'contact_form': contact_form,
     }
     return render(request, 'dashboards/student_profile.html', context)
 
@@ -1113,7 +1126,7 @@ def admin_class_result_slip(request, class_id):
             selected_exam = exams.filter(id=exam_id).first()
         else:
             # Prefer latest done exam, fallback to latest by date
-            selected_exam = exams.order_by('-date').first()
+            selected_exam = exams.order_by('-start_date').first()
         if selected_exam:
             # Build grades dict: grades[student.id][subject.id] = {'score': ..., 'grade_letter': ...}
             grades = {s.id: {} for s in students}
@@ -1898,10 +1911,27 @@ from .forms import AddTeacherForm
 
 @login_required(login_url='login')
 def admin_teachers(request):
+    from .forms import AddTeacherForm
+    from .models import Teacher
+    from django.contrib import messages
     teachers = Teacher.objects.all()
-    add_teacher_form = AddTeacherForm()
+    if request.method == 'POST':
+        form = AddTeacherForm(request.POST)
+        if form.is_valid():
+            user = form.save_user()
+            teacher = form.save(commit=False)
+            teacher.user = user
+            teacher.save()
+            form.save_m2m()
+            messages.success(request, 'Teacher added successfully!')
+            return redirect('admin_teachers')
+        else:
+            add_teacher_form = form
+    else:
+        add_teacher_form = AddTeacherForm()
     context = {'teachers': teachers, 'add_teacher_form': add_teacher_form}
     return render(request, 'dashboards/admin_teachers.html', context)
+
 
 
 @login_required(login_url='login')
@@ -1926,13 +1956,61 @@ def admin_assign_responsibility(request):
 
 @login_required(login_url='login')
 def delete_teacher(request, teacher_id):
-    # Placeholder for teacher deletion logic
-    # Optionally, implement actual deletion if needed
-    return redirect('admin_teachers')
+    from django.shortcuts import get_object_or_404, redirect, render
+    from django.contrib import messages
+    from .models import Teacher
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    if request.method == 'POST':
+        # Delete the user as well (cascades to Teacher)
+        user = teacher.user
+        teacher.delete()
+        user.delete()
+        messages.success(request, 'Teacher deleted successfully!')
+        return redirect('admin_teachers')
+    return render(request, 'dashboards/delete_teacher.html', {'teacher': teacher})
 
 @login_required(login_url='login')
 def edit_teacher(request, teacher_id):
-    return redirect('admin_teachers')
+    from django.shortcuts import get_object_or_404, redirect, render
+    from django.contrib import messages
+    from .models import Teacher
+    from .forms import AddTeacherForm
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    user = teacher.user
+    if request.method == 'POST':
+        form = AddTeacherForm(request.POST, instance=teacher)
+        # Patch user fields for validation
+        form.fields['first_name'].initial = user.first_name
+        form.fields['last_name'].initial = user.last_name
+        form.fields['username'].initial = user.username
+        form.fields['email'].initial = user.email
+        if form.is_valid():
+            # Update user fields
+            user.first_name = form.cleaned_data.get('first_name')
+            user.last_name = form.cleaned_data.get('last_name')
+            user.username = form.cleaned_data.get('username')
+            user.email = form.cleaned_data.get('email')
+            password = form.cleaned_data.get('password', None)
+            if password:
+                user.set_password(password)
+            user.save()
+            # Update teacher fields
+            teacher = form.save(commit=False)
+            teacher.user = user
+            teacher.save()
+            form.save_m2m()
+            messages.success(request, 'Teacher updated successfully!')
+            return redirect('admin_teachers')
+    else:
+        # Pre-populate form with user and teacher data
+        initial = {
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'username': user.username,
+            'email': user.email,
+        }
+        form = AddTeacherForm(instance=teacher, initial=initial)
+    return render(request, 'dashboards/edit_teacher.html', {'form': form, 'teacher': teacher})
 
 @login_required(login_url='login')
 def admin_payment(request):
@@ -2009,11 +2087,24 @@ def admin_payment(request):
             if student.phone:
                 from .messaging_utils import send_sms
                 send_sms(student.phone, confirm_msg)
+            # Notify student of successful payment
+            from core.utils import create_notification
+            if student.user:
+                notif_msg = f"Your payment of Ksh. {amount_paid} has been received on {payment_date}. Outstanding balance: Ksh. {balance:.2f}."
+                create_notification(student.user, notif_msg)
             messages.success(request, f'Payment of Ksh. {amount_paid} recorded for {student.full_name}. Confirmation sent.')
             return redirect(request.path + f'?student_id={student.id}')
         except Student.DoesNotExist:
+            # Notify admin of error
+            from core.utils import create_notification
+            if request.user and hasattr(request.user, 'role') and request.user.role == 'admin':
+                create_notification(request.user, 'Payment error: Selected student does not exist.')
             messages.error(request, 'Selected student does not exist.')
         except Exception as e:
+            # Notify admin of error
+            from core.utils import create_notification
+            if request.user and hasattr(request.user, 'role') and request.user.role == 'admin':
+                create_notification(request.user, f'Payment error: {e}')
             messages.error(request, f'Error recording payment: {e}')
 
     # Query all payments for admin table
@@ -2084,20 +2175,30 @@ def admin_events(request):
     past_events = events.filter(start__lt=now, is_done=False)
 
     # Handle event editing (POST)
-    if request.method == 'POST' and 'edit_event_id' in request.POST:
-        event_id = request.POST.get('edit_event_id')
-        try:
-            event = Event.objects.get(id=event_id)
-        except Event.DoesNotExist:
-            messages.error(request, 'Event not found.')
-            return redirect('admin_events')
-        form = EventForm(request.POST, instance=event)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Event updated successfully.')
-            return redirect('admin_events')
+    if request.method == 'POST':
+        if 'edit_event_id' in request.POST:
+            event_id = request.POST.get('edit_event_id')
+            try:
+                event = Event.objects.get(id=event_id)
+            except Event.DoesNotExist:
+                messages.error(request, 'Event not found.')
+                return redirect('admin_events')
+            form = EventForm(request.POST, instance=event)
+            if form.is_valid():
+                form.save()
+                messages.success(request, 'Event updated successfully.')
+                return redirect('admin_events')
+            else:
+                edit_event = event
         else:
-            edit_event = event
+            # Only create if not editing
+            form = EventForm(request.POST)
+            if form.is_valid():
+                form.save()
+                messages.success(request, 'Event created successfully.')
+                return redirect('admin_events')
+            else:
+                edit_event = None
     else:
         form = EventForm()
         edit_event = None
@@ -2188,6 +2289,8 @@ def student_fees(request):
     if request.GET.get('success') == '1':
         success = True
 
+    from .forms import StudentContactUpdateForm
+    contact_form = StudentContactUpdateForm(instance=student, user_instance=student.user)
     context = {
         'student': student,
         'current_term': current_term,
@@ -2468,11 +2571,14 @@ def events_json(request):
     # Exam events (add as allDay events)
     exams = Exam.objects.select_related('term').all()
     for ex in exams:
+        # Use start_date and end_date for calendar events
+        start = ex.start_date.isoformat() if ex.start_date else None
+        end = ex.end_date.isoformat() if ex.end_date else start
         event_list.append({
             'id': f'exam-{ex.id}',
             'title': ex.name,
-            'start': ex.date.isoformat() if hasattr(ex, 'date') else str(ex.date),
-            'end': ex.date.isoformat() if hasattr(ex, 'date') else str(ex.date),
+            'start': start,
+            'end': end,
             'allDay': True,
             'category': 'exam',
             'term': str(ex.term),

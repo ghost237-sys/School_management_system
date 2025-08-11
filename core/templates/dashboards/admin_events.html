@@ -139,7 +139,7 @@
     </div>
     {% endif %}
     <!-- Event Modal -->
-    <div class="modal fade{% if edit_event or form.errors %} show{% endif %}" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel"{% if edit_event or form.errors %} aria-modal="true" style="display:block; background:rgba(0,0,0,0.2);"{% else %} aria-hidden="true"{% endif %}>
+    <div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <form method="post" action="{% url 'admin_events' %}{% if edit_event %}?edit={{ edit_event.id }}{% endif %}">
@@ -172,20 +172,10 @@
             </div>
         </div>
     </div>
-    {% if edit_event or form.errors %}
-    <script>
-      // Auto-show modal if editing or form has errors
-      document.addEventListener('DOMContentLoaded', function() {
-        var modal = document.getElementById('eventModal');
-        if (modal) {
-          modal.classList.add('show');
-          modal.style.display = 'block';
-          modal.removeAttribute('aria-hidden');
-          modal.setAttribute('aria-modal', 'true');
-        }
-      });
-    </script>
-    {% endif %}
-</div>
+    </div>
+{% if edit_event or form.errors %}
+<script>window.eventModalShouldShow = true;</script>
+{% endif %}
 <script src="/static/admin_events.js"></script>
+<script src="/static/admin_events_modal_trigger.js"></script>
 {% endblock %}

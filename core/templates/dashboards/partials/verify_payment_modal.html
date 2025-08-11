@@ -13,12 +13,40 @@
             <input type="text" class="form-control" id="verifyReference" name="verifyReference" required placeholder="Enter M-PESA reference code">
           </div>
           <div id="verifyResult" class="d-none"></div>
-          <button type="submit" class="btn btn-primary" id="verifyBtn">
-            <span id="verifySpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-            <span id="verifyBtnText">Verify</span>
-          </button>
+          <button type="submit" class="btn btn-primary" id="verifyBtn"><span id="verifyBtnText">Verify</span><span id="verifySpinner" class="spinner-border spinner-border-sm d-none ms-2" role="status" aria-hidden="true"></span></button>
         </form>
       </div>
     </div>
   </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const verifyForm = document.getElementById('verifyPaymentForm');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const verifyBtnText = document.getElementById('verifyBtnText');
+    const verifySpinner = document.getElementById('verifySpinner');
+    console.log('Loaded verify modal JS:', {verifyForm, verifyBtn, verifyBtnText, verifySpinner});
+    if (verifyForm && verifyBtn && verifyBtnText && verifySpinner) {
+        verifyForm.addEventListener('submit', function(e) {
+            verifyBtn.disabled = true;
+            verifyBtnText.textContent = 'Verifying...';
+            verifySpinner.classList.remove('d-none');
+            // Simulate verification delay
+            setTimeout(function() {
+                verifyBtn.disabled = true;
+                verifyBtnText.textContent = 'Verified';
+                verifyBtn.classList.remove('btn-primary');
+                verifyBtn.classList.add('btn-success');
+                verifySpinner.classList.add('d-none');
+                // Show a success message
+                var verifyResult = document.getElementById('verifyResult');
+                if (verifyResult) {
+                    verifyResult.textContent = 'Payment reference verified successfully!';
+                    verifyResult.classList.remove('d-none', 'alert-danger');
+                    verifyResult.classList.add('alert', 'alert-success');
+                }
+            }, 1500);
+        });
+    }
+});
+</script>

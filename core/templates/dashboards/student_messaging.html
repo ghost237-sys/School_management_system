@@ -21,6 +21,9 @@
     .chat-input-area textarea { flex: 1; resize: none; border-radius: 18px; border: 1px solid #ccc; padding: 10px 16px; margin-right: 10px; }
     .chat-input-area button { border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
 </style>
+<a href="{% url 'student_profile' request.user.student.id %}" class="btn btn-outline-secondary mb-3">
+    <i class="bi bi-arrow-left"></i> Back to Profile
+</a>
 <div class="chat-container">
     <!-- Sidebar: User List -->
     <div class="chat-sidebar">

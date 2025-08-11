@@ -58,33 +58,7 @@
         Please enter a valid Safaricom phone number (e.g. 0712345678).
     </div>
 </div>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // ...existing code...
-    // Verify Payment logic
-    const verifyPaymentForm = document.getElementById('verifyPaymentForm');
-    const verifyResult = document.getElementById('verifyResult');
-    const verifyBtn = document.getElementById('verifyBtn');
-    if (verifyPaymentForm) {
-        verifyPaymentForm.addEventListener('submit', function(event) {
-            event.preventDefault();
-            verifyBtn.disabled = true;
-            verifyBtn.textContent = 'Verifying...';
-            verifyResult.classList.add('d-none');
-            verifyResult.classList.remove('alert', 'alert-success', 'alert-danger');
-            // Simulate AJAX request (replace with real fetch logic)
-            setTimeout(function() {
-                // Example: always succeed for demo
-                verifyResult.textContent = 'Payment reference verified successfully!';
-                verifyResult.classList.remove('d-none');
-                verifyResult.classList.add('alert', 'alert-success');
-                verifyBtn.disabled = false;
-                verifyBtn.textContent = 'Verify';
-            }, 1500);
-        });
-    }
-});
-</script>
+
                 <button type="submit" class="btn btn-primary" id="submitBtn">
   <span id="submitSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
   <span id="submitBtnText">Record Payment</span>
@@ -135,4 +109,50 @@ document.addEventListener('DOMContentLoaded', function() {
     <!-- End Admin Payment Status Table -->
 {% include 'dashboards/partials/verify_payment_modal.html' %}
 </div>
+<script>
+window.addEventListener('DOMContentLoaded', function() {
+    const paymentMethod = document.getElementById('payment_method');
+    const phoneGroup = document.getElementById('phone_group');
+    const submitBtnText = document.getElementById('submitBtnText');
+    const submitBtn = document.getElementById('submitBtn');
+    const submitSpinner = document.getElementById('submitSpinner');
+    console.log('JS loaded: paymentMethod:', paymentMethod, 'phoneGroup:', phoneGroup, 'submitBtnText:', submitBtnText);
+    function togglePhoneFieldAndButton() {
+        if (!submitBtnText) {
+            console.warn('submitBtnText element not found!');
+        }
+        if (paymentMethod && phoneGroup && paymentMethod.value === 'Mpesa Paybill') {
+            phoneGroup.classList.remove('d-none');
+            document.getElementById('phone_number').required = true;
+            if (submitBtnText) submitBtnText.textContent = 'Initiate Payment';
+            console.log('Set button text to Initiate Payment');
+        } else if (paymentMethod && phoneGroup) {
+            phoneGroup.classList.add('d-none');
+            document.getElementById('phone_number').required = false;
+            if (submitBtnText) submitBtnText.textContent = 'Record Payment';
+            console.log('Set button text to Record Payment');
+        }
+    }
+    if (paymentMethod && phoneGroup) {
+        paymentMethod.addEventListener('change', togglePhoneFieldAndButton);
+        togglePhoneFieldAndButton(); // initial state
+    }
+    const form = document.getElementById('paymentForm');
+    form.addEventListener('submit', function(e) {
+        if (submitBtnText.textContent === 'Initiate Payment') {
+            submitBtnText.textContent = 'Initiating Payment...';
+            submitSpinner.classList.remove('d-none');
+            submitBtn.disabled = true;
+            // Simulate payment initiation success after 1.5s (for demo)
+            setTimeout(function() {
+                submitBtnText.textContent = 'Payment Initiated Successfully';
+                submitSpinner.classList.add('d-none');
+                submitBtn.classList.remove('btn-primary');
+                submitBtn.classList.add('btn-success');
+                // Keep button disabled
+            }, 1500);
+        }
+    });
+});
+</script>
 {% endblock %}

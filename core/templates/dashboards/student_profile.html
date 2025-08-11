@@ -1,7 +1,12 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="container py-4">
-    <!-- Tab Navigation -->
+    <div class="d-flex justify-content-end mb-3">
+    <a href="{% url 'logout' %}" class="btn btn-outline-danger">
+        <i class="bi bi-power"></i> Log Out
+    </a>
+</div>
+<!-- Tab Navigation -->
     <ul class="nav nav-tabs mb-4" id="studentProfileTabs" role="tablist">
       <li class="nav-item" role="presentation">
         <button class="nav-link active" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button" role="tab" aria-controls="dashboard" aria-selected="true">Dashboard</button>
@@ -86,7 +91,7 @@
                             <div id="stageCollapse" class="accordion-collapse collapse" aria-labelledby="stageHeading" data-bs-parent="#profileAccordion">
                                 <div class="accordion-body">
                                     <!-- Stage info placeholder -->
-                                    {{ student.stage|default:'N/A' }}
+                                    {{ student.class_group.level|default:'N/A' }}
                                 </div>
                             </div>
                         </div>
@@ -98,7 +103,7 @@
             <div class="card">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <strong>Personal Information</strong>
-                    <a href="{% url 'student_profile' student.id %}" class="btn btn-danger btn-sm">Update Profile</a>
+                    <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#editContactModal">Update Profile</button>
 <div>
     <button class="btn btn-primary btn-sm me-2" onclick="printSection('result-slip-section', 'Result Slip')"><i class="fa fa-print"></i> Print Result Slip</button>
 <button class="btn btn-success btn-sm me-2" onclick="printSection('fees-statement-section', 'Fees Statement')"><i class="fa fa-money-bill"></i> Print Fees Statement</button>
@@ -140,53 +145,61 @@
                     </div>
 
                     {% if can_update_contact %}
-                    <div class="text-end mb-2">
-                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editContactModal">
-                            Edit Contact Info
-                        </button>
-                    </div>
-                    <!-- Modal -->
-                    <div class="modal fade" id="editContactModal" tabindex="-1" aria-labelledby="editContactModalLabel" aria-hidden="true">
-                      <div class="modal-dialog">
-                        <div class="modal-content">
-                          <div class="modal-header">
-                            <h5 class="modal-title" id="editContactModalLabel">Update Contact Information</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                          </div>
-                          <form method="post">
-                            <div class="modal-body">
-                                {% csrf_token %}
-                                <div class="mb-3">
-                                    <label class="form-label">Phone Number</label>
-                                    {{ contact_form.phone }}
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Email Address</label>
-                                    {{ contact_form.email }}
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Postal Address</label>
-                                    {{ contact_form.postal_address }}
-                                </div>
-                                {% if contact_form.errors %}
-                                    <div class="alert alert-danger mt-2">{{ contact_form.errors }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="modal-footer">
-                              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                              <button type="submit" name="update_contact" class="btn btn-primary">Save Changes</button>
-                            </div>
-                          </form>
-                        </div>
-                      </div>
-                    </div>
-                    {% endif %}
+<div class="text-end mb-2">
+    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editContactModal" title="Edit Contact Info">
+        <i class="bi bi-pencil"></i>
+    </button>
+</div>
+{% endif %}
+
+<!-- Modal: Always rendered for all users -->
+<div class="modal fade" id="editContactModal" tabindex="-1" aria-labelledby="editContactModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editContactModalLabel">Update Contact Information</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post">
+        <div class="modal-body">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label">Phone Number</label>
+                {{ contact_form.phone }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Email Address</label>
+                {{ contact_form.email }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Postal Address</label>
+                {{ contact_form.postal_address }}
+            </div>
+            {% if contact_form.errors %}
+                <div class="alert alert-danger mt-2">{{ contact_form.errors }}</div>
+            {% endif %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" name="update_contact" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 
                     <div class="text-end mt-3">
                         {% if user.role == 'admin' %}
 <a href="{% url 'admin_payment' %}?student_id={{ student.id }}" class="btn btn-success btn-lg"><i class="fa fa-credit-card"></i> Make Payment</a>
+<button type="button" class="btn btn-outline-primary btn-lg ms-2" data-bs-toggle="modal" data-bs-target="#editContactModal" title="Edit Profile">
+    <i class="bi bi-pencil"></i>
+</button>
 {% else %}
 <a href="{% url 'student_fees' %}" class="btn btn-success btn-lg"><i class="fa fa-credit-card"></i> Make Payment</a>
+<button type="button" class="btn btn-outline-primary btn-lg ms-2" data-bs-toggle="modal" data-bs-target="#editContactModal" title="Edit Profile">
+    <i class="bi bi-pencil"></i>
+</button>
 {% endif %}
                     </div>
                 </div>

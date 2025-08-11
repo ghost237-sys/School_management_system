@@ -1,5 +1,5 @@
 {% load crispy_forms_tags %}
-<form method="post" action="/dashboard/teachers/add/" id="addTeacherForm">
+<form method="post" action="{% url 'admin_teachers' %}" id="addTeacherForm">
   {% csrf_token %}
   {{ form.non_field_errors }}
   {{ form.first_name|as_crispy_field }}

@@ -8,6 +8,7 @@ class User(AbstractUser):
         ('teacher', 'Teacher'),
         ('student', 'Student'),
     ]
+    email = models.EmailField()
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
 
     class Meta:

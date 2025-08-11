@@ -8,11 +8,12 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '8c31c7ea20f2.ngrok-free.app',
-
+    '08d4e7a36369.ngrok-free.app',  # <-- Added new ngrok domain
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     'https://8c31c7ea20f2.ngrok-free.app',
+    'https://08d4e7a36369.ngrok-free.app',  # <-- Added new ngrok domain
 ]
 
 MPESA_CONSUMER_KEY = 'EXGFqWiPKTmwUrCGfKmHbUzj43Ikge7ekz5GVSbdzAk37L0j'
