@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
 
 # Optional: Extend User model
 class User(AbstractUser):
@@ -248,9 +249,11 @@ class Attendance(models.Model):
     class_group = models.ForeignKey(Class, on_delete=models.CASCADE)
     date = models.DateField()
     status = models.CharField(max_length=10, choices=STATUS_CHOICES)
+    timestamp = models.DateTimeField(default=timezone.now)
+    period = models.ForeignKey(PeriodSlot, on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
-        unique_together = ('student', 'subject', 'date')
+        unique_together = ('student', 'date', 'period')
 
     def __str__(self):
         return f"{self.student} - {self.subject.name} - {self.date} - {self.status}"

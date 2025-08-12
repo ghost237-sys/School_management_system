@@ -399,6 +399,31 @@ class AddTeacherForm(forms.ModelForm):
 
     def clean_email(self):
         email = self.cleaned_data['email']
+
+class TeacherProfileUpdateForm(forms.ModelForm):
+    email = forms.EmailField(required=True, widget=forms.EmailInput(attrs={'class': 'form-control'}))
+    phone = forms.CharField(max_length=20, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+
+    class Meta:
+        model = Teacher
+        fields = ['phone']
+
+    def __init__(self, *args, **kwargs):
+        user_instance = kwargs.pop('user_instance', None)
+        super().__init__(*args, **kwargs)
+        self.user_instance = user_instance
+        if self.instance and self.instance.user:
+            self.fields['email'].initial = self.instance.user.email
+
+    def save(self, commit=True):
+        teacher = super().save(commit=False)
+        if self.user_instance:
+            self.user_instance.email = self.cleaned_data['email']
+            if commit:
+                self.user_instance.save()
+        if commit:
+            teacher.save()
+        return teacher
         qs = User.objects.filter(email=email)
         # Exclude current user when editing
         if self.instance and getattr(self.instance, 'user_id', None):

@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Q
 from django.contrib.auth import login, authenticate, logout, get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -23,10 +24,11 @@ from .models import (
     User, Student, Teacher, Class, Subject, Exam, Term, Grade, 
     FeeCategory, FeeAssignment, FeePayment, Event, Deadline, 
     TeacherClassAssignment, Department, AcademicYear, Notification,
-    PeriodSlot, DefaultTimetable
+    PeriodSlot, DefaultTimetable, Attendance
 )
 from .forms import (
     AddStudentForm, StudentContactUpdateForm, EditStudentClassForm, FeeCategoryForm,
+    GradeUploadForm, TeacherProfileUpdateForm,
 )
 from django.contrib.auth.decorators import user_passes_test
 
@@ -124,6 +126,35 @@ def dashboard(request):
     else:
         messages.error(request, "Invalid user role.")
         return redirect('login')
+
+
+@login_required(login_url='login')
+@user_passes_test(lambda u: u.role == 'admin', login_url='login')
+def view_attendance(request):
+    status_filter = request.GET.get('status', '')
+    class_filter = request.GET.get('class_id', '')
+
+    attendances = Attendance.objects.all().select_related(
+        'student__user', 'subject', 'teacher__user', 'class_group'
+    ).order_by('-date')
+
+    if status_filter:
+        attendances = attendances.filter(status=status_filter)
+    
+    if class_filter:
+        attendances = attendances.filter(class_group__id=class_filter)
+
+    classes = Class.objects.all()
+    status_choices = Attendance.STATUS_CHOICES
+
+    context = {
+        'attendances': attendances,
+        'classes': classes,
+        'status_choices': status_choices,
+        'current_status': status_filter,
+        'current_class': int(class_filter) if class_filter else None
+    }
+    return render(request, 'attendance/view_attendance.html', context)
 
 
 @login_required(login_url='login')
@@ -347,7 +378,19 @@ def upload_grades(request, teacher_id):
 @login_required(login_url='login')
 def teacher_profile(request, teacher_id):
     teacher = get_object_or_404(Teacher, id=teacher_id)
-    # Only allow admin or the teacher themselves
+    if request.user.role == 'teacher' and request.user.teacher != teacher:
+        return HttpResponseForbidden("You are not allowed to view this profile.")
+
+    if request.method == 'POST':
+        form = TeacherProfileUpdateForm(request.POST, instance=teacher, user_instance=teacher.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Your profile has been updated successfully.')
+            return redirect('teacher_profile', teacher_id=teacher.id)
+    else:
+        form = TeacherProfileUpdateForm(instance=teacher, user_instance=teacher.user)
+
+    return render(request, 'dashboards/teacher_profile.html', {'teacher': teacher, 'form': form})
     if not (request.user.role == 'admin' or request.user.id == teacher.user.id):
         return HttpResponseForbidden('You do not have permission to view this profile.')
 
@@ -2693,9 +2736,30 @@ def admin_fees(request):
 
 @login_required(login_url='login')
 def admin_users(request):
-    # Placeholder for admin user management
+    search_query = request.GET.get('search', '')
+    role_filter = request.GET.get('role', '')
+
     users = User.objects.all()
-    return render(request, 'dashboards/admin_users.html', {'users': users})
+
+    if search_query:
+        users = users.filter(
+            Q(username__icontains=search_query) |
+            Q(email__icontains=search_query) |
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query)
+        )
+
+    if role_filter:
+        users = users.filter(role=role_filter)
+
+    role_choices = User._meta.get_field('role').choices
+
+    return render(request, 'dashboards/admin_users.html', {
+        'users': users,
+        'search_query': search_query,
+        'role_filter': role_filter,
+        'role_choices': role_choices
+    })
 
 # API and AJAX placeholders
 def exam_events_api(request):

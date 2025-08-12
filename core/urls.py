@@ -23,7 +23,9 @@ urlpatterns = [
     # General Login/Logout
     path('login/', views.custom_login_view, name='login'),
     path('logout/', views.custom_logout_view, name='logout'),
-    path('', views.dashboard, name='dashboard'),
+    path('dashboard/', views.dashboard, name='dashboard'),
+    path('', include('landing.urls')),
+
 
     # Admin URLs
     path('admin_overview/', views.admin_overview, name='admin_overview'),
@@ -43,6 +45,7 @@ urlpatterns = [
     path('manage_class_subjects/<int:class_id>/', views.manage_class_subjects, name='manage_class_subjects'),
     path('delete_class/<int:class_id>/', views.delete_class, name='delete_class'),
     path('admin_analytics/', views.admin_analytics, name='admin_analytics'),
+    path('attendance/view/', views.view_attendance, name='view_attendance'),
     path('admin_subjects/', views.admin_subjects, name='admin_subjects'),
     path('manage_subject_grading/<int:subject_id>/', views.manage_subject_grading, name='manage_subject_grading'),
     path('admin_academic_years/', views.admin_academic_years, name='admin_academic_years'),

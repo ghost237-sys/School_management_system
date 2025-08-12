@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block title %}View Attendance Records{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">Attendance Records</h1>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">All Recorded Attendance</h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <label for="statusFilter" class="form-label">Filter by Status</label>
+                    <select id="statusFilter" name="status" class="form-select">
+                        <option value="">All</option>
+                        {% for value, display in status_choices %}
+                            <option value="{{ value }}" {% if value == current_status %}selected{% endif %}>{{ display }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="classFilter" class="form-label">Filter by Class</label>
+                    <select id="classFilter" name="class_id" class="form-select">
+                        <option value="">All</option>
+                        {% for class in classes %}
+                            <option value="{{ class.id }}" {% if class.id == current_class %}selected{% endif %}>{{ class.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary">Apply Filters</button>
+                </div>
+            </form>
+            <div class="table-responsive">
+                <table class="table table-bordered" id="attendanceTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Class</th>
+                            <th>Subject</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Recorded by</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for attendance in attendances %}
+                        <tr>
+                            <td>{{ attendance.student.full_name }}</td>
+                            <td>{{ attendance.class_group.name }}</td>
+                            <td>{{ attendance.subject.name }}</td>
+                            <td>{{ attendance.date|date:"Y-m-d" }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if attendance.status == 'present' %}bg-success
+                                    {% elif attendance.status == 'absent' %}bg-danger
+                                    {% elif attendance.status == 'late' %}bg-warning
+                                    {% else %}bg-secondary{% endif %} text-white">
+                                    {{ attendance.get_status_display }}
+                                </span>
+                            </td>
+                            <td>{{ attendance.teacher.user.get_full_name }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#attendanceTable').DataTable({
+        "order": [[ 3, "desc" ]]
+    });
+});
+</script>
+{% endblock %}
