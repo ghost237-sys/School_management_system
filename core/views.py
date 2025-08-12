@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, authenticate, logout, get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Q, Sum, Avg
+from django.db.models import Q, Sum, Avg, Count
 from django.urls import reverse
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse, HttpResponse
 from django.template.loader import render_to_string
@@ -150,18 +150,47 @@ def student_profile(request, student_id):
     grades = Grade.objects.filter(student=student).select_related('subject', 'exam')
     average_score = grades.aggregate(avg=Avg('score'))['avg'] if hasattr(grades, 'exists') and grades.exists() else None
 
-    # --- Performance per Term for Graph ---
-    all_terms = Term.objects.filter(academic_year__in=AcademicYear.objects.all()).order_by('academic_year__year', 'start_date')
-    performance_per_term = []
-    for term in all_terms:
-        exams = Exam.objects.filter(term=term, level=student.class_group.level)
-        term_grades = Grade.objects.filter(student=student, exam__in=exams)
-        avg_score = term_grades.aggregate(avg=Avg('score'))['avg'] if term_grades.exists() else None
-        performance_per_term.append({
-            'term': str(term.name),
-            'year': str(term.academic_year.year),
-            'average_score': float(avg_score) if avg_score is not None else None,
+    # --- Performance over time (all exams ever done, oldest first) ---
+    exam_performance = []
+    # 1) Preferred: aggregate directly from the student's grades queryset above
+    exam_rows = (
+        grades
+        .values('exam_id', 'exam__name', 'exam__start_date', 'exam__term__start_date')
+        .annotate(average=Avg('score'))
+        .order_by('exam__start_date', 'exam_id')
+    )
+    for row in exam_rows:
+        ex_date = row.get('exam__start_date') or row.get('exam__term__start_date')
+        exam_performance.append({
+            'exam_id': row['exam_id'],
+            'exam_name': row['exam__name'],
+            'date': ex_date.strftime('%Y-%m-%d') if ex_date else '',
+            'average_score': float(row['average']) if row['average'] is not None else None,
         })
+    # 2) Fallback: if still empty, rebuild via Exam -> Grade join
+    if not exam_performance:
+        student_exam_ids = (
+            Grade.objects
+            .filter(student=student)
+            .values_list('exam_id', flat=True)
+            .distinct()
+        )
+        student_exams = Exam.objects.filter(id__in=student_exam_ids).order_by('start_date', 'id')
+        for ex in student_exams:
+            ex_grades = Grade.objects.filter(student=student, exam=ex)
+            avg_val = ex_grades.aggregate(avg=Avg('score'))['avg'] if ex_grades.exists() else None
+            ex_date = ex.start_date or (getattr(ex, 'term', None).start_date if getattr(ex, 'term', None) else None)
+            exam_performance.append({
+                'exam_id': ex.id,
+                'exam_name': ex.name,
+                'date': ex_date.strftime('%Y-%m-%d') if ex_date else '',
+                'average_score': float(avg_val) if avg_val is not None else None,
+            })
+    # Debug trace (safe prints)
+    try:
+        print(f"[DEBUG] student_profile exam rows count={len(exam_performance)} student_id={student.id}")
+    except Exception:
+        pass
 
     # --- Ranking Logic ---
     # Class (stream) ranking
@@ -199,10 +228,8 @@ def student_profile(request, student_id):
             break
     overall_level_total = len(overall_level_scores)
 
-    # Prepare level scores table for display
-    level_scores_table = []
-    overall_level_rank = None
-    overall_level_total = len(overall_level_scores)
+    # Prepare overall level totals (already computed above)
+    # overall_level_rank and overall_level_total are now correctly set
 
     # --- Total Points Calculation ---
     points_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1}
@@ -223,12 +250,13 @@ def student_profile(request, student_id):
     context = {
         'student': student,
         'current_term': current_term,
+        'term': current_term,
         'total_billed': total_billed,
         'total_paid': total_paid,
         'balance': balance,
         'grades': grades,
         'average_score': average_score,
-        'performance_per_term': performance_per_term,
+        'exam_performance': exam_performance,
         'class_rank': class_rank,
         'class_total': class_total,
         'overall_level_rank': overall_level_rank,
@@ -514,6 +542,22 @@ def manage_grades(request, teacher_id):
     return render(request, 'dashboards/manage_grades.html', context)
 
 
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def admin_manage_grades_entry(request):
+    """
+    Admin entry point to manage grades: pick a teacher, then redirect to existing
+    teacher-specific manage_grades flow.
+    """
+    teachers = Teacher.objects.select_related('user').order_by('user__username')
+    if request.method == 'POST':
+        teacher_id = request.POST.get('teacher_id')
+        if not teacher_id:
+            messages.error(request, 'Please select a teacher.')
+        else:
+            return redirect('manage_grades', teacher_id=teacher_id)
+    return render(request, 'dashboards/admin_manage_grades_entry.html', {'teachers': teachers})
+
 
 @login_required(login_url='login')
 def input_grades(request, teacher_id, class_id, subject_id, exam_id):
@@ -700,7 +744,11 @@ def admin_overview(request):
     now = timezone.now()
 
     total_students = Student.objects.filter(graduated=False).count()
+    students_boys = Student.objects.filter(graduated=False, gender__iexact='male').count()
+    students_girls = Student.objects.filter(graduated=False, gender__iexact='female').count()
     total_teachers = Teacher.objects.count()
+    teachers_male = Teacher.objects.filter(gender__iexact='male').count()
+    teachers_female = Teacher.objects.filter(gender__iexact='female').count()
     total_classes = Class.objects.count()
     total_subjects = Subject.objects.count()
     total_fees = FeeCategory.objects.count()
@@ -717,7 +765,11 @@ def admin_overview(request):
 
     context = {
         'total_students': total_students,
+        'students_boys': students_boys,
+        'students_girls': students_girls,
         'total_teachers': total_teachers,
+        'teachers_male': teachers_male,
+        'teachers_female': teachers_female,
         'total_classes': total_classes,
         'total_subjects': total_subjects,
         'total_fees': total_fees,
@@ -802,7 +854,8 @@ def admin_users(request):
 def admin_students(request):
     if request.user.role != 'admin':
         return redirect('dashboard')
-    from .models import Student, User
+    from .models import Student, User, Class
+    from datetime import date
     students = Student.objects.select_related('user', 'class_group').all()
     search_query = request.GET.get('search', '').strip()
     if search_query:
@@ -812,39 +865,86 @@ def admin_students(request):
             Q(user__email__icontains=search_query) |
             Q(admission_no__icontains=search_query)
         )
+    # Extra filters
+    gender = request.GET.get('gender', '').strip()
+    class_id = request.GET.get('class_id', '').strip()
+    age_min = request.GET.get('age_min', '').strip()
+    age_max = request.GET.get('age_max', '').strip()
+
+    if gender:
+        students = students.filter(gender=gender)
+
+    if class_id:
+        students = students.filter(class_group_id=class_id)
+
+    # Age filters (approximate):
+    # age >= N  => birthdate <= today - N years
+    # age <= M  => birthdate >= today - M years
+    if age_min or age_max:
+        today = date.today()
+
+        def years_ago(n):
+            if n is None:
+                return None
+            try:
+                return today.replace(year=today.year - n)
+            except ValueError:
+                # handle Feb 29 -> Feb 28 on non-leap years
+                return today.replace(month=2, day=28, year=today.year - n)
+
+        if age_min.isdigit():
+            students = students.filter(birthdate__lte=years_ago(int(age_min)))
+        if age_max.isdigit():
+            students = students.filter(birthdate__gte=years_ago(int(age_max)))
+
     add_student_form = AddStudentForm()
     if request.method == 'POST' and 'add_student' in request.POST:
         add_student_form = AddStudentForm(request.POST)
         if add_student_form.is_valid():
-            from django.db import IntegrityError
+            from django.db import IntegrityError, transaction
             try:
-                # Create user first
-                user = User.objects.create_user(
-                    username=add_student_form.cleaned_data['username'],
-                    email=add_student_form.cleaned_data['email'],
-                    first_name=add_student_form.cleaned_data['first_name'],
-                    last_name=add_student_form.cleaned_data['last_name'],
-                    role='student',
-                    password=add_student_form.cleaned_data['password']
-                )
-                student = add_student_form.save(commit=False)
-                student.user = user
-                student.save()
-                add_student_form = AddStudentForm()  # Reset form
-                from django.contrib import messages
-                messages.success(request, 'Student added successfully!')
-                return redirect('admin_students')
+                with transaction.atomic():
+                    # Create user first
+                    user = User.objects.create_user(
+                        username=add_student_form.cleaned_data['username'],
+                        email=add_student_form.cleaned_data['email'],
+                        first_name=add_student_form.cleaned_data['first_name'],
+                        last_name=add_student_form.cleaned_data['last_name'],
+                        role='student',
+                        password=add_student_form.cleaned_data['password']
+                    )
+                    
+                    # Create student profile
+                    student = Student(
+                        user=user,
+                        admission_no=add_student_form.cleaned_data['admission_no'],
+                        gender=add_student_form.cleaned_data['gender'],
+                        birthdate=add_student_form.cleaned_data['birthdate'],
+                        class_group=add_student_form.cleaned_data['class_group']
+                    )
+                    student.save()
+                    
+                    messages.success(request, 'Student added successfully!')
+                    return redirect('admin_students')
+                    
             except IntegrityError as e:
-                from django.contrib import messages
                 if 'username' in str(e):
                     messages.error(request, 'A user with that username already exists. Please choose a different username.')
                 elif 'email' in str(e):
                     messages.error(request, 'A user with that email already exists. Please choose a different email.')
                 else:
-                    messages.error(request, 'An error occurred while adding the student. Please check the data and try again.')
+                    messages.error(request, f'An error occurred while adding the student: {str(e)}')
+            except Exception as e:
+                messages.error(request, f'An unexpected error occurred: {str(e)}')
+        else:
+            # Form is not valid, show form errors
+            for field, errors in add_student_form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
     context = {
         'students': students,
         'add_student_form': add_student_form,
+        'classes': Class.objects.all().order_by('name'),
     }
     return render(request, 'dashboards/admin_students.html', context)
 
@@ -925,6 +1025,9 @@ def admin_classes(request):
         subjects_and_teachers = teachers_and_subjects
 
         class_students = Student.objects.filter(class_group=c, graduated=False).select_related('user')
+        total_students = class_students.count()
+        boys_count = class_students.filter(gender__iexact='male').count()
+        girls_count = class_students.filter(gender__iexact='female').count()
         # Compute subject performance for this class
         from django.db.models import Avg
         subject_performance = []
@@ -939,6 +1042,9 @@ def admin_classes(request):
             'class_teacher_username': c.class_teacher.user.username if c.class_teacher else None,
             'subject_performance': subject_performance,
             'subjects_and_teachers': subjects_and_teachers,
+            'total_students': total_students,
+            'boys_count': boys_count,
+            'girls_count': girls_count,
         })
     # Optionally, provide all graduated students for display
     graduated_students = Student.objects.filter(graduated=True).select_related('user')
@@ -1206,20 +1312,6 @@ def admin_class_result_slip(request, class_id):
 def teacher_class_result_slip(request, class_id):
     if request.user.role != 'teacher':
         return redirect('dashboard')
-    from .models import Class, Student, Subject, Exam, Grade, Term
-    class_obj = get_object_or_404(Class, id=class_id)
-    students = Student.objects.filter(class_group=class_obj).select_related('user')
-    subjects = Subject.objects.all()
-    terms = Term.objects.order_by('-start_date')
-    exams = Exam.objects.none()
-    selected_term = None
-    selected_exam = None
-    grades = {}
-    averages = {}
-    ranks = {}
-    if terms:
-        # Get selected term from GET or default to latest
-        term_id = request.GET.get('term')
     from .models import Class, Student, Subject, Exam, Grade, Term
     class_obj = get_object_or_404(Class, id=class_id)
     students = Student.objects.filter(class_group=class_obj).select_related('user')
@@ -1912,9 +2004,39 @@ from .forms import AddTeacherForm
 @login_required(login_url='login')
 def admin_teachers(request):
     from .forms import AddTeacherForm
-    from .models import Teacher
+    from .models import Teacher, Department, Subject
     from django.contrib import messages
+    from django.db.models import Q
+
+    # Filtering logic
     teachers = Teacher.objects.all()
+    search = request.GET.get('search', '').strip()
+    department_id = request.GET.get('department', '')
+    subject_id = request.GET.get('subject', '')
+    gender = request.GET.get('gender', '')
+
+    if search:
+        teachers = teachers.filter(
+            Q(user__first_name__icontains=search) |
+            Q(user__last_name__icontains=search) |
+            Q(user__username__icontains=search) |
+            Q(user__email__icontains=search) |
+            Q(phone__icontains=search) |
+            Q(tsc_number__icontains=search) |
+            Q(staff_id__icontains=search)
+        )
+    if department_id:
+        teachers = teachers.filter(department_id=department_id)
+    if subject_id:
+        teachers = teachers.filter(subjects__id=subject_id)
+    if gender:
+        teachers = teachers.filter(gender=gender)
+    teachers = teachers.distinct()
+
+    # For filter dropdowns
+    departments = Department.objects.all()
+    subjects = Subject.objects.all()
+
     if request.method == 'POST':
         form = AddTeacherForm(request.POST)
         if form.is_valid():
@@ -1929,8 +2051,18 @@ def admin_teachers(request):
             add_teacher_form = form
     else:
         add_teacher_form = AddTeacherForm()
-    context = {'teachers': teachers, 'add_teacher_form': add_teacher_form}
+    context = {
+        'teachers': teachers,
+        'add_teacher_form': add_teacher_form,
+        'departments': departments,
+        'subjects': subjects,
+        'search': search,
+        'selected_department': department_id,
+        'selected_subject': subject_id,
+        'selected_gender': gender,
+    }
     return render(request, 'dashboards/admin_teachers.html', context)
+
 
 
 
@@ -2556,10 +2688,29 @@ def events_json(request):
     now = timezone.now()
     if not request.user.is_authenticated or request.user.role not in ['admin', 'teacher']:
         return JsonResponse([], safe=False)
-    # Regular events
-    events = Event.objects.filter(is_done=False, start__gte=now)
+    # Optional window from FullCalendar (ISO strings)
+    start_param = request.GET.get('start')
+    end_param = request.GET.get('end')
+    try:
+        window_start = parse_datetime(start_param) if start_param else None
+        window_end = parse_datetime(end_param) if end_param else None
+    except Exception:
+        window_start = window_end = None
+
+    # Build base queryset
+    events_qs = Event.objects.filter(is_done=False)
+    if window_start:
+        events_qs = events_qs.filter(end__gte=window_start)  # overlapping window
+    if window_end:
+        events_qs = events_qs.filter(start__lte=window_end)
+    # Fallback window ±1 year to avoid empty feed if params missing
+    if not window_start and not window_end:
+        one_year = datetime.timedelta(days=365)
+        events_qs = events_qs.filter(start__gte=now - one_year, start__lte=now + one_year)
+    # Ensure start exists
+    events_qs = events_qs.exclude(start__isnull=True).order_by('start')
     event_list = []
-    for e in events:
+    for e in events_qs:
         event_list.append({
             'id': f'event-{e.id}',
             'title': e.title,
@@ -2569,10 +2720,17 @@ def events_json(request):
             'category': e.category,
         })
     # Exam events (add as allDay events)
-    exams = Exam.objects.select_related('term').all()
+    exams_qs = Exam.objects.select_related('term').all()
+    # Filter exams into the same window if provided
+    if window_start:
+        exams_qs = exams_qs.filter(end_date__gte=window_start)  # overlapping
+    if window_end:
+        exams_qs = exams_qs.filter(start_date__lte=window_end)
     for ex in exams:
         # Use start_date and end_date for calendar events
-        start = ex.start_date.isoformat() if ex.start_date else None
+        if not ex.start_date:
+            continue  # skip exams without a start date (FullCalendar requires start)
+        start = ex.start_date.isoformat()
         end = ex.end_date.isoformat() if ex.end_date else start
         event_list.append({
             'id': f'exam-{ex.id}',
@@ -2585,6 +2743,10 @@ def events_json(request):
             'level': ex.level,
             'type': ex.get_type_display() if hasattr(ex, 'get_type_display') else '',
         })
+    try:
+        print(f"[events_json] user={request.user.id} role={getattr(request.user,'role',None)} events={len(event_list)} window=({window_start},{window_end})")
+    except Exception:
+        pass
     return JsonResponse(event_list, safe=False, encoder=DjangoJSONEncoder)
 
 
@@ -3412,6 +3574,53 @@ def timetable_view(request):
         'teachers': teachers,
     }
     return render(request, 'timetable/timetable.html', context)
+
+
+@login_required(login_url='login')
+def school_timetable_day(request):
+    """Render a comprehensive timetable for the entire school for one selected day.
+    Grid: rows = PeriodSlot, columns = Class.
+    """
+    # Use same day choices as the class timetable
+    valid_days = [d[0] for d in DefaultTimetable.DAY_CHOICES]
+    selected_day = request.GET.get('day') or (valid_days[0] if valid_days else 'Monday')
+    if selected_day not in valid_days and valid_days:
+        selected_day = valid_days[0]
+
+    classes = Class.objects.all().order_by('level', 'name')
+    periods = PeriodSlot.objects.filter(is_class_slot=True).order_by('start_time')
+
+    # Fetch entries for all days across all classes (for printing the entire week)
+    entries_all = (
+        DefaultTimetable.objects
+        .filter(day__in=valid_days)
+        .select_related('class_group', 'subject', 'teacher__user', 'period')
+    )
+
+    # Build grid for the selected day: grid[period_id][class_id] = entry or None
+    grid = {p.id: {c.id: None for c in classes} for p in periods}
+
+    # Build grids for all days for printing
+    grids_by_day = {day: {p.id: {c.id: None for c in classes} for p in periods} for day in valid_days}
+
+    for e in entries_all:
+        # Fill the per-day grids
+        if e.period_id in grids_by_day.get(e.day, {}):
+            if e.class_group_id in grids_by_day[e.day][e.period_id]:
+                grids_by_day[e.day][e.period_id][e.class_group_id] = e
+        # Also populate the selected-day grid
+        if e.day == selected_day and e.period_id in grid and e.class_group_id in grid[e.period_id]:
+            grid[e.period_id][e.class_group_id] = e
+
+    context = {
+        'selected_day': selected_day,
+        'valid_days': valid_days,
+        'classes': classes,
+        'periods': periods,
+        'grid': grid,
+        'grids_by_day': grids_by_day,
+    }
+    return render(request, 'timetable/school_timetable_day.html', context)
 
 
 @login_required

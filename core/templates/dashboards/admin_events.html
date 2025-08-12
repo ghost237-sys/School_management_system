@@ -2,32 +2,53 @@
 {% block title %}Events | EduTrack School Manager{% endblock %}
 {% block content %}
 <div class="container py-4">
-    <h2 class="mb-4"><i class="bi bi-calendar-event me-2"></i>Events Management</h2>
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div></div>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#eventModal">
-            <i class="bi bi-plus-circle me-1"></i> Add Event
-        </button>
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <h2 class="mb-0 d-flex align-items-center"><i class="bi bi-calendar-event me-2"></i>Events</h2>
+        <div class="d-flex gap-2">
+            <form class="d-none d-md-flex" method="get" action="{% url 'admin_events' %}">
+                <div class="input-group">
+                    <input type="text" class="form-control" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Search events...">
+                    <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+                </div>
+            </form>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#eventModal">
+                <i class="bi bi-plus-circle me-1"></i> Add Event
+            </button>
+        </div>
     </div>
     <!-- Events Table -->
     <!-- Filter Buttons -->
-    <div class="mb-3">
-        <div class="btn-group" role="group" aria-label="Event Filters">
-            <a href="?filter=all" class="btn btn-outline-primary{% if filter_type == 'all' %} active{% endif %}">All Events</a>
-            <a href="?filter=upcoming" class="btn btn-outline-success{% if filter_type == 'upcoming' %} active{% endif %}">Upcoming Events</a>
-            <a href="?filter=done" class="btn btn-outline-info{% if filter_type == 'done' %} active{% endif %}">Done Events</a>
-            <a href="?filter=undone" class="btn btn-outline-warning{% if filter_type == 'undone' %} active{% endif %}">Undone Events</a>
-        </div>
-    </div>
+    <ul class="nav nav-pills mb-3 small" role="tablist">
+        <li class="nav-item" role="presentation">
+            <a class="nav-link{% if request.GET.view != 'calendar' and filter_type == 'all' %} active{% endif %}" href="?filter=all"><i class="bi bi-ui-checks-grid me-1"></i>All</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link{% if request.GET.view != 'calendar' and filter_type == 'upcoming' %} active{% endif %}" href="?filter=upcoming"><i class="bi bi-hourglass-split me-1"></i>Upcoming</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link{% if request.GET.view != 'calendar' and filter_type == 'done' %} active{% endif %}" href="?filter=done"><i class="bi bi-check2-circle me-1"></i>Done</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link{% if request.GET.view != 'calendar' and filter_type == 'undone' %} active{% endif %}" href="?filter=undone"><i class="bi bi-x-circle me-1"></i>Undone</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link{% if request.GET.view == 'calendar' %} active{% endif %}" href="?view=calendar#calendar"><i class="bi bi-calendar3-week me-1"></i>Calendar</a>
+        </li>
+    </ul>
 
     <!-- Calendar View for Events -->
-    <div class="card mb-4">
+    {% if request.GET.view == 'calendar' %}
+    <div class="card mb-4" id="calendar">
         <div class="card-body">
-            <h5 class="card-title mb-3">Events Calendar</h5>
-            <div id="event-calendar" style="min-height: 400px;"></div>
-            <div id="event-calendar-error" style="color: red; font-weight: bold; display: none;"></div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="card-title mb-0">Events Calendar</h5>
+                <div class="text-muted small">Click a date to focus, click an event for details</div>
+            </div>
+            <div id="event-calendar" style="min-height: 520px;"></div>
+            <div id="event-calendar-error" class="text-danger fw-semibold mt-2" style="display:none;"></div>
         </div>
     </div>
+    {% endif %}
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
     <script>
@@ -39,17 +60,93 @@
                 document.getElementById('event-calendar-error').style.display = 'block';
                 return;
             }
+            // Compute today's date string (YYYY-MM-DD)
+            var now = new Date();
+            var todayStr = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0,10);
+
+            // Set min attribute on start field (prevents manual past selection in modal)
+            (function setStartMin() {
+                var startInput = document.querySelector('#id_start, input[name="start"]');
+                if (!startInput) return;
+                if (startInput.type === 'datetime-local') {
+                    // Set min to current datetime rounded to minutes
+                    var pad = n => String(n).padStart(2, '0');
+                    var minVal = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+                    startInput.min = minVal;
+                } else {
+                    startInput.min = todayStr;
+                }
+            })();
+            // Helper to open the Add/Edit Event modal and prefill fields
+            function openEventModalWithDate(dateISO) {
+                var modalEl = document.getElementById('eventModal');
+                if (!modalEl) return;
+                // Find form inputs by common Django naming conventions
+                var titleInput = document.querySelector('#id_title, input[name="title"]');
+                var startInput = document.querySelector('#id_start, input[name="start"]');
+                var endInput = document.querySelector('#id_end, input[name="end"]');
+                var allDayInput = document.querySelector('#id_all_day, input[name="all_day"]');
+
+                // Prefill sensible defaults
+                if (startInput) {
+                    // If the input expects datetime-local, provide a default time
+                    if (startInput.type === 'datetime-local') {
+                        startInput.value = dateISO + 'T09:00';
+                    } else {
+                        startInput.value = dateISO;
+                    }
+                }
+                if (endInput) {
+                    endInput.value = '';
+                }
+                if (allDayInput) {
+                    try { allDayInput.checked = true; } catch (e) {}
+                }
+                if (titleInput && !titleInput.value) {
+                    titleInput.value = '';
+                }
+
+                // Show modal
+                var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                modal.show();
+            }
+            // If ?new_date=YYYY-MM-DD is in the URL, open the modal prefilled (only if not past)
+            (function maybeOpenFromQuery(){
+                try {
+                    var params = new URLSearchParams(window.location.search);
+                    var nd = params.get('new_date');
+                    if (nd && nd >= todayStr) {
+                        openEventModalWithDate(nd);
+                    }
+                } catch (e) { /* ignore */ }
+            })();
             var calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
-                height: 500,
+                height: 560,
                 events: '/dashboard/events/json/',
                 headerToolbar: {
                     left: 'prev,next today',
                     center: 'title',
-                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+                },
+                // Allow viewing past dates; creation still blocked in dateClick and via input min
+                nowIndicator: true,
+                selectable: false,
+                eventDisplay: 'block',
+                eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+                dateClick: function(info) {
+                    // Block creating events in the past
+                    var clicked = info.dateStr; // YYYY-MM-DD
+                    if (clicked < todayStr) {
+                        alert('You cannot create an event in the past.');
+                        return;
+                    }
+                    openEventModalWithDate(clicked);
                 },
                 eventClick: function(info) {
-                    alert('Event: ' + info.event.title + '\nStart: ' + info.event.startStr);
+                    var details = 'Event: ' + info.event.title + '\nStart: ' + info.event.startStr;
+                    if (info.event.end) details += '\nEnd: ' + info.event.endStr;
+                    alert(details);
                 }
             });
             calendar.render();
@@ -64,7 +161,7 @@
         <div class="card-body">
             <h5 class="card-title mb-3">Events</h5>
 
-            {% if past_events %}
+            {% if request.GET.view != 'calendar' and past_events %}
             <div class="alert alert-warning">
                 <strong>Action Required:</strong> The following event(s) have passed. Please mark as done and add comments if needed.
             </div>
@@ -92,6 +189,7 @@
             </div>
             {% endif %}
 
+            {% if request.GET.view != 'calendar' %}
             <div class="table-responsive">
                 <table class="table table-bordered table-hover align-middle">
                     <thead class="table-light">
@@ -125,6 +223,7 @@
                     </tbody>
                 </table>
             </div>
+            {% endif %}
         </div>
     </div>
     <!-- Django messages -->

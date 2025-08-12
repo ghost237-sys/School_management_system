@@ -210,15 +210,35 @@
   </div>
   <div class="tab-pane fade" id="performance" role="tabpanel" aria-labelledby="performance-tab">
     {# Render performance_per_term as JSON for JS #}
-    {{ performance_per_term|json_script:"perf-data" }}
+    {{ exam_performance|json_script:"perf-data" }}
     <div class="mb-4">
       <div class="card">
         <div class="card-header bg-info text-white">
-          <strong>Overall Performance by Term</strong>
+          <strong>Performance Over Time (All Exams)</strong>
         </div>
         <div class="card-body">
-          {% if performance_per_term and performance_per_term|length > 0 %}
+          {% if exam_performance and exam_performance|length > 0 %}
             <canvas id="performanceChart" height="100"></canvas>
+            <div class="table-responsive mt-3">
+              <table class="table table-sm table-striped mb-0">
+                <thead>
+                  <tr>
+                    <th style="width:140px;">Date</th>
+                    <th>Exam</th>
+                    <th class="text-end" style="width:140px;">Average</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for ex in exam_performance %}
+                    <tr>
+                      <td>{{ ex.date|default:'-' }}</td>
+                      <td>{{ ex.exam_name }}</td>
+                      <td class="text-end">{{ ex.average_score|floatformat:2 }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           {% else %}
             <div class="alert alert-info mb-0">No performance data available for this student yet.</div>
           {% endif %}
@@ -232,7 +252,7 @@
     <script>
       const perfData = JSON.parse(document.getElementById('perf-data').textContent);
       const filtered = perfData.filter(e => e.average_score !== null && e.average_score !== undefined);
-      const labels = filtered.map(e => `${e.term} (${e.year})`);
+      const labels = filtered.map(e => `${e.date} - ${e.exam_name}`);
       const scores = filtered.map(e => e.average_score);
       if (scores.length > 0) {
         const ctx = document.getElementById('performanceChart').getContext('2d');

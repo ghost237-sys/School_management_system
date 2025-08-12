@@ -235,6 +235,10 @@
           </div>
           <div class="fw-bold" style="font-size:0.9rem;">Students</div>
           <div class="fw-bold" style="font-size:1.05rem;color:#222;">{{ total_students }}</div>
+          <div class="text-muted small">
+            <span class="badge bg-primary bg-opacity-10 text-primary me-1">Boys: {{ students_boys }}</span>
+            <span class="badge bg-danger bg-opacity-10 text-danger">Girls: {{ students_girls }}</span>
+          </div>
 <a href="{% url 'admin_students' %}" class="btn btn-sm btn-success mt-2 w-75"><i class="bi bi-people-fill me-1"></i>Go to Students</a>
         </div>
       </div>
@@ -247,6 +251,10 @@
           </div>
           <div class="fw-bold" style="font-size:0.9rem;">Teachers</div>
           <div class="fw-bold" style="font-size:1.05rem;color:#222;">{{ total_teachers }}</div>
+          <div class="text-muted small">
+            <span class="badge bg-primary bg-opacity-10 text-primary me-1">Male: {{ teachers_male }}</span>
+            <span class="badge bg-danger bg-opacity-10 text-danger">Female: {{ teachers_female }}</span>
+          </div>
 <a href="{% url 'admin_teachers' %}" class="btn btn-sm btn-primary mt-2 w-75"><i class="bi bi-person-badge-fill me-1"></i>Go to Teachers</a>
         </div>
       </div>
@@ -376,6 +384,9 @@
                       document.getElementById('dashboard-calendar-error').style.display = 'block';
                       return;
                   }
+                  // Compute today's date string (YYYY-MM-DD)
+                  var now = new Date();
+                  var todayStr = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0,10);
                   var calendar = new FullCalendar.Calendar(calendarEl, {
                       initialView: 'dayGridMonth',
                       height: 500,
@@ -384,6 +395,14 @@
                           left: 'prev,next today',
                           center: 'title',
                           right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                      },
+                      // Allow viewing past dates; creation still blocked in dateClick
+                      dateClick: function(info) {
+                          var clicked = info.dateStr; // YYYY-MM-DD
+                          if (clicked < todayStr) { return; }
+                          // Redirect to events page calendar view and prefill date
+                          var url = "{% url 'admin_events' %}?view=calendar&new_date=" + encodeURIComponent(clicked) + "#calendar";
+                          window.location.href = url;
                       },
                       eventClick: function(info) {
                           alert('Event: ' + info.event.title + '\nStart: ' + info.event.startStr);

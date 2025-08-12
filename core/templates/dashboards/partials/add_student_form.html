@@ -1,0 +1,99 @@
+<!-- Modern Stepper Add Student Form (matches Add Teacher style) -->
+<form method="post" action="{% url 'admin_students' %}" autocomplete="off" class="modern-stepper-card" id="addStudentStepperForm">
+    {% csrf_token %}
+    <input type="hidden" name="add_student" value="1">
+    <div class="modal-header border-0 pb-0" style="background: linear-gradient(90deg, #f0f4ff 0%, #e6f7ff 100%); border-radius: 2rem 2rem 0 0;">
+      <h4 class="modal-title fw-bold" style="color:#174ea6;">Add New Student</h4>
+    </div>
+    <div class="text-center mt-2 mb-3">
+      <div style="font-size:1.25rem; color:#3b4a64;">Let's add a new <span style="color:#174ea6; font-weight:600;">Student</span> to your school</div>
+    </div>
+    {% if form.errors %}
+      <div class="alert alert-danger">Please fix the errors below.</div>
+    {% endif %}
+    <!-- Stepper Navigation -->
+    <div class="stepper-nav mb-4 d-flex justify-content-center gap-3">
+      <button type="button" class="stepper-step btn btn-outline-primary rounded-pill px-4 active" data-step="0">Personal Info</button>
+      <button type="button" class="stepper-step btn btn-outline-primary rounded-pill px-4" data-step="1">Account</button>
+      <button type="button" class="stepper-step btn btn-outline-primary rounded-pill px-4" data-step="2">Enrollment</button>
+    </div>
+    <!-- Step 1: Personal Info -->
+    <div class="step-card" data-step="0">
+      <div class="card mb-4 border-0 shadow-sm bg-primary bg-opacity-10">
+        <div class="card-header fw-bold bg-primary bg-opacity-10">Personal Information</div>
+        <div class="card-body row g-3">
+          <div class="col-md-6">
+            <input type="text" name="first_name" class="form-control" placeholder="First name*" value="{{ form.first_name.value|default_if_none:'' }}">
+{% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <input type="text" name="last_name" class="form-control" placeholder="Last name*" value="{{ form.last_name.value|default_if_none:'' }}">
+{% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            {{ form.gender }}
+{% if form.gender.errors %}<div class="text-danger small">{{ form.gender.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <input type="date" name="birthdate" class="form-control" placeholder="Date of Birth" value="{{ form.birthdate.value|default_if_none:'' }}">
+{% if form.birthdate.errors %}<div class="text-danger small">{{ form.birthdate.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="text-end">
+        <button type="button" class="btn btn-primary stepper-next">Next</button>
+      </div>
+    </div>
+    <!-- Step 2: Account Info -->
+    <div class="step-card d-none" data-step="1">
+      <div class="card mb-4 border-0 shadow-sm bg-primary bg-opacity-10">
+        <div class="card-header fw-bold bg-primary bg-opacity-10">Account Information</div>
+        <div class="card-body row g-3">
+          <div class="col-md-6">
+            <input type="text" name="username" class="form-control" placeholder="Username*" value="{{ form.username.value|default_if_none:'' }}">
+{% if form.username.errors %}<div class="text-danger small">{{ form.username.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <input type="password" name="password" class="form-control" placeholder="Password*">
+{% if form.password.errors %}<div class="text-danger small">{{ form.password.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <input type="email" name="email" class="form-control" placeholder="Email*" value="{{ form.email.value|default_if_none:'' }}">
+{% if form.email.errors %}<div class="text-danger small">{{ form.email.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-secondary stepper-prev">Back</button>
+        <button type="button" class="btn btn-primary stepper-next">Next</button>
+      </div>
+    </div>
+    <!-- Step 3: Enrollment Info -->
+    <div class="step-card d-none" data-step="2">
+      <div class="card mb-4 border-0 shadow-sm bg-primary bg-opacity-10">
+        <div class="card-header fw-bold bg-primary bg-opacity-10">Enrollment Information</div>
+        <div class="card-body row g-3">
+          <div class="col-md-6">
+            <input type="text" name="admission_no" class="form-control" placeholder="Admission no*" value="{{ form.admission_no.value|default_if_none:'' }}">
+{% if form.admission_no.errors %}<div class="text-danger small">{{ form.admission_no.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            {{ form.class_group }}
+{% if form.class_group.errors %}<div class="text-danger small">{{ form.class_group.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            {{ form.stream }}
+{% if form.stream.errors %}<div class="text-danger small">{{ form.stream.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            {{ form.parent }}
+{% if form.parent.errors %}<div class="text-danger small">{{ form.parent.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-secondary stepper-prev">Back</button>
+        <button type="submit" class="btn btn-success">Add Student</button>
+      </div>
+    </div>
+</form>

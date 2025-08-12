@@ -51,19 +51,51 @@
     </div>
   </div>
 </div>
+<!-- Quick Filter Buttons -->
+<div class="mb-3">
+  <div class="small text-muted mb-2">Quick Filters</div>
+  <div class="d-flex flex-wrap gap-3 align-items-center">
+    <div>
+      <span class="me-2">Level:</span>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Level">
+        <button type="button" class="btn btn-outline-primary" data-level-filter="">All</button>
+        {% for i in "123456789" %}
+          <button type="button" class="btn btn-outline-primary" data-level-filter="{{ i }}">{{ i }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <span class="me-2">Stream:</span>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Stream">
+        <button type="button" class="btn btn-outline-success" data-stream-filter="">All</button>
+        <button type="button" class="btn btn-outline-success" data-stream-filter="east">East</button>
+        <button type="button" class="btn btn-outline-success" data-stream-filter="west">West</button>
+        <button type="button" class="btn btn-outline-success" data-stream-filter="north">North</button>
+        <button type="button" class="btn btn-outline-success" data-stream-filter="south">South</button>
+      </div>
+    </div>
+  </div>
+  <div class="form-text">Filters apply instantly on the cards below.</div>
+  <hr class="mt-2 mb-0"/>
+</div>
 <div class="card mb-4">
     <div class="card-header bg-secondary text-white">
         <h5 class="mb-0">All Classes</h5>
     </div>
     <div class="card-body">
-        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mt-2">
+        <div id="classesGrid" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mt-2">
             {% for class in class_list %}
-            <div class="col">
+            <div class="col class-card" data-level="{{ class.level }}" data-stream="{{ class.name|lower }}">
                 <div class="card h-100 shadow-sm">
                     <div class="card-header bg-primary text-white">
                         <h5 class="mb-0">{{ class.name }} (Level {{ class.level }})</h5>
                     </div>
                     <div class="card-body">
+                        <div class="mb-2">
+                            <span class="badge bg-secondary me-1">Total: {{ class.total_students }}</span>
+                            <span class="badge bg-primary me-1">Boys: {{ class.boys_count }}</span>
+                            <span class="badge bg-danger">Girls: {{ class.girls_count }}</span>
+                        </div>
                         <div class="mb-2 d-flex gap-2">
                             <a href="{% url 'class_profile' class.id %}" class="btn btn-sm btn-info">View</a>
                             <a href="{% url 'admin_class_result_slip' class.id %}" class="btn btn-sm btn-success">Result Slip</a>
@@ -299,6 +331,44 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+});
+// Client-side class filters
+document.addEventListener('DOMContentLoaded', function() {
+  let currentLevel = '';
+  let currentStream = '';
+  const cards = () => Array.from(document.querySelectorAll('.class-card'));
+  function applyFilters() {
+    cards().forEach(card => {
+      const level = (card.getAttribute('data-level') || '').toString();
+      const stream = (card.getAttribute('data-stream') || '').toLowerCase();
+      const levelMatch = !currentLevel || level === currentLevel;
+      const streamMatch = !currentStream || stream.includes(currentStream);
+      card.style.display = (levelMatch && streamMatch) ? '' : 'none';
+    });
+  }
+  // Level buttons
+  document.querySelectorAll('[data-level-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentLevel = btn.getAttribute('data-level-filter');
+      // update active styles
+      document.querySelectorAll('[data-level-filter]').forEach(b => b.classList.remove('btn-primary'));
+      document.querySelectorAll('[data-level-filter]').forEach(b => b.classList.add('btn-outline-primary'));
+      btn.classList.remove('btn-outline-primary');
+      btn.classList.add('btn-primary');
+      applyFilters();
+    });
+  });
+  // Stream buttons
+  document.querySelectorAll('[data-stream-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentStream = btn.getAttribute('data-stream-filter');
+      document.querySelectorAll('[data-stream-filter]').forEach(b => b.classList.remove('btn-success'));
+      document.querySelectorAll('[data-stream-filter]').forEach(b => b.classList.add('btn-outline-success'));
+      btn.classList.remove('btn-outline-success');
+      btn.classList.add('btn-success');
+      applyFilters();
+    });
+  });
 });
 </script>
 

@@ -49,7 +49,12 @@
 }
 </style>
 <div class="container-fluid">
-    <h1 class="mt-4">School Timetable</h1>
+    <div class="d-flex align-items-center justify-content-between mt-4 mb-2">
+        <h1 class="mb-0">School Timetable</h1>
+        <a class="btn btn-outline-primary d-print-none" href="{% url 'school_timetable_day' %}">
+            <i class="bi bi-grid"></i> Whole-School Day View
+        </a>
+    </div>
 
     <!-- Class Selector -->
     <div class="row mb-3">
@@ -106,8 +111,8 @@
                                             data-teacher-id="{{ entry.teacher.id|default:'' }}">
                                             <div class="slot-content">
                                                 {% if entry %}
-                                                    <strong>{{ entry.subject.name }}</strong><br>
-                                                    <small class="text-muted">{{ entry.teacher.user.get_full_name|default:'No teacher' }}</small>
+                                                    <strong>{{ entry.subject.code }}</strong><br>
+                                                    <small class="text-muted">{{ entry.teacher.user.username|default:'No teacher' }}</small>
                                                 {% else %}
                                                     <span class="text-muted">--</span>
                                                 {% endif %}
@@ -163,7 +168,7 @@
                             <select id="modal-subject" name="subject" class="form-select">
                                 <option value="">-- Select Subject --</option>
                                 {% for subject in subjects %}
-                                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                    <option value="{{ subject.id }}" data-code="{{ subject.code }}">{{ subject.name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -172,7 +177,7 @@
                             <select id="modal-teacher" name="teacher" class="form-select">
                                 <option value="">-- Select Teacher --</option>
                                 {% for teacher in teachers %}
-                                    <option value="{{ teacher.id }}">{{ teacher.user.get_full_name }}</option>
+                                    <option value="{{ teacher.id }}" data-username="{{ teacher.user.username }}">{{ teacher.user.get_full_name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -257,12 +262,19 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(result => {
             if (result.success) {
                 const slotContent = currentCell.querySelector('.slot-content');
-                
-                // Update the cell content based on the response
-                if (result.entry && result.entry.subject_name) {
-                    const subjectName = result.entry.subject_name;
-                    const teacherName = result.entry.teacher_name || 'No teacher';
-                    slotContent.innerHTML = `<strong>${subjectName}</strong><br><small class="text-muted">${teacherName}</small>`;
+
+                // Determine display values from selected options so we can show subject code and teacher username
+                const subjSelect = document.getElementById('modal-subject');
+                const teachSelect = document.getElementById('modal-teacher');
+                const subjOpt = subjSelect ? subjSelect.options[subjSelect.selectedIndex] : null;
+                const teachOpt = teachSelect ? teachSelect.options[teachSelect.selectedIndex] : null;
+                const subjectCode = subjOpt ? (subjOpt.dataset.code || subjOpt.textContent) : '';
+                const teacherUsername = teachOpt ? (teachOpt.dataset.username || teachOpt.textContent) : '';
+
+                // Update the cell content based on the response and current selections
+                if (data.subject) {
+                    const teacherText = data.teacher ? teacherUsername : 'No teacher';
+                    slotContent.innerHTML = `<strong>${subjectCode}</strong><br><small class="text-muted">${teacherText}</small>`;
                     // Update data attributes for future edits
                     currentCell.dataset.subjectId = data.subject;
                     currentCell.dataset.teacherId = data.teacher;

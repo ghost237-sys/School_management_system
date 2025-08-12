@@ -3,13 +3,13 @@
     <h4 class="mb-4" style="font-size:1.3rem;">Teacher Panel</h4>
     <ul class="nav nav-pills flex-column mb-auto">
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'teacher_dashboard' and not request.get_full_path|slice:'-8:' == '#messages' %}active{% endif %}" href="{% url 'teacher_dashboard' teacher_id=teacher.id %}">
+            <a class="nav-link text-white {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}" href="{% url 'teacher_dashboard' teacher_id=teacher.id %}">
                 <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
                 Dashboard
             </a>
         </li>
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'teacher_dashboard' and request.get_full_path|slice:'-8:' == '#messages' %}active{% endif %}" href="{% url 'teacher_dashboard' teacher_id=teacher.id %}#messages">
+            <a class="nav-link text-white {% if request.resolver_match.url_name == 'teacher_messaging' %}active{% endif %}" href="{% url 'teacher_messaging' %}">
                 <div class="sb-nav-link-icon"><i class="bi bi-chat-dots"></i></div>
                 Messaging
             </a>

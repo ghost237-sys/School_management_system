@@ -10,8 +10,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         with transaction.atomic():
-            # Step 1: Find all unique class directions (names)
-            directions = set(Class.objects.values_list('name', flat=True))
+            # Step 1: Prepare target streams for lowest level (Grade 1)
+            target_streams = ['East', 'West', 'North', 'South']
 
             # Step 2: Promote classes (except the highest level)
             for c in Class.objects.all():
@@ -52,10 +52,11 @@ class Command(BaseCommand):
                             self.stdout.write(self.style.WARNING(
                                 f'No class found for level {new_level} and name {promoted_name}'))
 
-            # Step 4: Create new lowest level classes for each direction
-            for direction in directions:
-                if not Class.objects.filter(level=LOWEST_LEVEL, name=direction).exists():
-                    Class.objects.create(level=LOWEST_LEVEL, name=direction)
-                    self.stdout.write(self.style.SUCCESS(f'Created new class: {LOWEST_LEVEL} {direction}'))
+            # Step 4: Create only the four Grade 1 streams (East/West/North/South)
+            for stream in target_streams:
+                name = f"Grade {LOWEST_LEVEL} {stream}"
+                if not Class.objects.filter(level=LOWEST_LEVEL, name=name).exists():
+                    Class.objects.create(level=LOWEST_LEVEL, name=name)
+                    self.stdout.write(self.style.SUCCESS(f'Created new class: {name}'))
 
         self.stdout.write(self.style.SUCCESS('Promotion and graduation process completed.'))

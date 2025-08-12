@@ -1,0 +1,297 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load dict_get %}
+
+{% block content %}
+<style>
+  .sticky-top-header { position: sticky; top: 0; z-index: 10; background: #fff; }
+  .sticky-left { position: sticky; left: 0; background: #fff; z-index: 5; }
+  .print-week { display: none; }
+  .print-day { page-break-after: always; }
+  html, body { height: 100%; overflow-x: hidden; overflow-y: auto; }
+  .container-fluid { overflow: visible; min-height: 0; }
+  .print-toolbar { position: sticky; top: 8px; z-index: 50; background: #fff; padding: 6px 0; }
+  /* Theme tweaks */
+  :root { --tt-primary: #0ea5e9; --tt-muted: #6b7280; }
+  .page-title { font-weight: 700; letter-spacing: .2px; }
+  .page-subtitle { color: var(--tt-muted); margin-top: .25rem; }
+  .info-chips { gap: .5rem; flex-wrap: wrap; }
+  .info-chip { background: #f1f5f9; border: 1px solid #e5e7eb; border-radius: 999px; padding: .25rem .6rem; font-size: .85rem; color: #111827; }
+  .info-chip .label { color: var(--tt-muted); margin-right: .35rem; }
+  .card-modern { border: 1px solid #e5e7eb; border-radius: .75rem; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+  .card-modern > .card-header { border-radius: .75rem .75rem 0 0; }
+  .card-modern > .card-body { background: #fff; }
+  .table-modern.table { --bs-table-striped-bg: #f8fafc; }
+  /* Screen: compact table and scrollable grid area */
+  /* Keep page static; only the grid scrolls */
+  .timetable-page { height: calc(100vh - 120px); overflow: hidden; width: 100%; max-width: 100vw; }
+  .daily-view { height: 100%; display: flex; flex-direction: column; margin-bottom: 0 !important; }
+  .daily-view .card-body { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; padding-bottom: .5rem; }
+  .timetable-scroll { flex: 1 1 auto; height: 100%; width: 100%; max-width: 100vw; overflow-x: auto; overflow-y: auto; position: relative; border: 1px solid #e5e7eb; border-radius: .5rem; scrollbar-gutter: stable both-edges; }
+  .timetable-table { font-size: 9px; width: max-content; min-width: 100%; }
+  .timetable-table th, .timetable-table td { padding: .2rem .35rem; }
+  .timetable-table .period-col { min-width: 115px; }
+  .timetable-table .class-col { min-width: 110px; }
+  @media print {
+    /* Allow long tables to continue on the next page cleanly */
+    .sticky-top-header, .sticky-left { position: static !important; left: auto !important; top: auto !important; }
+    .timetable-scroll { overflow: visible !important; height: auto !important; border: 0 !important; }
+    .print-week .split-container { page-break-inside: avoid; }
+    .print-week table { page-break-inside: auto; width: 100% !important; }
+    .print-week thead { display: table-header-group; }
+    .print-week tfoot { display: table-footer-group; }
+    .print-week tr, .print-week th, .print-week td { page-break-inside: avoid; }
+    .print-week .full-week-table { display: none !important; }
+    .print-week .split-table { display: table !important; margin-bottom: 8mm; }
+    html, body { overflow: visible !important; }
+    .sidebar-custom, .navbar, .d-print-none, .daily-view { display: none !important; }
+    .print-week { display: block !important; }
+    .container-fluid, .card, .card-body, .card-header { box-shadow: none !important; border: 0 !important; }
+    .table { font-size: 12px; }
+    @page { size: A4 landscape; margin: 1cm; }
+    .print-day:last-child { page-break-after: auto; }
+  }
+</style>
+<div class="container-fluid">
+  <div class="mb-1">
+    <h1 class="mt-2 mb-0 page-title">Whole-School Timetable</h1>
+    <div class="page-subtitle">View and print lessons across all classes. Use the day selector and print controls below.</div>
+  </div>
+  <div class="print-toolbar d-print-none mb-2">
+    <div class="btn-group" role="group">
+      <button class="btn btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Print Selected Day</button>
+      <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-journal"></i> Print Whole Week</button>
+    </div>
+  </div>
+
+  <form method="get" class="d-print-none mb-1">
+    <div class="row g-2 align-items-center">
+      <div class="col-auto">
+        <label for="day" class="col-form-label">Day:</label>
+      </div>
+      <div class="col-auto">
+        <select id="day" name="day" class="form-select" onchange="this.form.submit()">
+          {% for d in valid_days %}
+            <option value="{{ d }}" {% if d == selected_day %}selected{% endif %}>{{ d }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </form>
+
+  <!-- Info chips: quick context -->
+  <div class="d-flex info-chips mb-2">
+    <div class="info-chip"><span class="label">Day:</span> {{ selected_day }}</div>
+    <div class="info-chip"><span class="label">Classes:</span> {{ classes|length }}</div>
+    <div class="info-chip"><span class="label">Periods:</span> {{ periods|length }}</div>
+  </div>
+
+  <div id="timetablePage" class="timetable-page">
+  <div class="card card-modern daily-view mb-0">
+    <div class="card-header bg-info text-white">
+      <strong>{{ selected_day }} — All Classes</strong>
+    </div>
+    <div class="card-body">
+      <div id="timetableScroll" class="timetable-scroll">
+        <table class="table table-modern table-striped table-hover table-bordered table-sm align-middle text-center timetable-table">
+          <thead class="table-light sticky-top-header">
+            <tr>
+              <th class="sticky-left period-col">Period</th>
+              {% for c in classes %}
+                <th class="class-col">{{ c.name }}<br><small class="text-muted">Level {{ c.level }}</small></th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in periods %}
+              <tr>
+                <td class="text-start sticky-left">
+                  <strong>{{ p.label|default:p }}</strong><br>
+                  <small class="text-muted">{{ p.start_time|time:"g:i A" }} - {{ p.end_time|time:"g:i A" }}</small>
+                </td>
+                {% for c in classes %}
+                  {% with entry=grid|dict_get:p.id|dict_get:c.id %}
+                  <td>
+                    {% if entry %}
+                      <strong>{{ entry.subject.code }}</strong><br>
+                      <small class="text-muted">{{ entry.teacher.user.username|default:'No teacher' }}</small>
+                    {% else %}
+                      <span class="text-muted">--</span>
+                    {% endif %}
+                  </td>
+                  {% endwith %}
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  </div>
+  
+  <!-- Events Calendar Card -->
+  <div class="card card-modern mb-3 d-print-none">
+    <div class="card-header bg-warning text-dark">
+      <strong>Events & Exam Schedule</strong>
+    </div>
+    <div class="card-body">
+      <link rel="stylesheet" href="{% static 'calendar/fullcalendar.min.css' %}">
+      <div id="teacher-calendar"></div>
+    </div>
+  </div>
+  
+  <script>
+    (function() {
+      function resizeTimetable() {
+        var page = document.getElementById('timetablePage');
+        if (!page) return;
+        // Calculate remaining viewport height from the top of the timetable container
+        var rect = page.getBoundingClientRect();
+        var bottomPad = 12; // small breathing room
+        var h = window.innerHeight - rect.top - bottomPad;
+        if (h > 50) { // guard against very small heights
+          page.style.height = h + 'px';
+        }
+      }
+      window.addEventListener('load', resizeTimetable);
+      window.addEventListener('resize', resizeTimetable);
+      // Route wheel/touch scrolling to timetableScroll so user can scroll even if body is locked
+      function bindScrollRouting() {
+        var sc = document.getElementById('timetableScroll');
+        if (!sc) return;
+        document.addEventListener('wheel', function(e){
+          // If the event target is within the timetable area, let it scroll naturally
+          if (e.target && (e.target.closest && e.target.closest('#timetableScroll'))) return;
+          // Otherwise, route to timetable scroll container
+          e.preventDefault();
+          if (e.shiftKey) { sc.scrollLeft += e.deltaY; } else { sc.scrollTop += e.deltaY; }
+        }, { passive: false });
+        // Touch support
+        var startY = 0, startX = 0, touching = false;
+        document.addEventListener('touchstart', function(ev){
+          if (!ev.touches || !ev.touches[0]) return;
+          touching = true; startY = ev.touches[0].clientY; startX = ev.touches[0].clientX;
+        }, { passive: true });
+        document.addEventListener('touchmove', function(ev){
+          if (!touching || !ev.touches || !ev.touches[0]) return;
+          var dy = startY - ev.touches[0].clientY; var dx = startX - ev.touches[0].clientX;
+          sc.scrollTop += dy; sc.scrollLeft += dx; startY = ev.touches[0].clientY; startX = ev.touches[0].clientX;
+          ev.preventDefault();
+        }, { passive: false });
+        document.addEventListener('touchend', function(){ touching = false; }, { passive: true });
+      }
+      // bindScrollRouting(); // disabled to avoid interfering with native scrolling
+    })();
+  </script>
+  <!-- Calendar scripts -->
+  <script src="{% static 'calendar/fullcalendar.min.js' %}"></script>
+  <script src="{% static 'teacher_calendar.js' %}?v=2"></script>
+
+  <!-- Print-only: Whole week, each day on its own page -->
+  <div class="print-week">
+    {% for day in valid_days %}
+      <div class="print-day">
+        <div class="mb-2"><h4 class="mb-0">{{ day }} — All Classes</h4></div>
+        <div class="table-responsive">
+          <div class="split-container">
+          <table class="table table-bordered table-sm align-middle text-center full-week-table">
+            <thead class="table-light">
+              <tr>
+                <th class="sticky-left" style="min-width:180px;">Period</th>
+                {% for c in classes %}
+                  <th style="min-width:180px;">{{ c.name }}<br><small class="text-muted">Level {{ c.level }}</small></th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in periods %}
+                <tr>
+                  <td class="text-start sticky-left">
+                    <strong>{{ p.label|default:p }}</strong><br>
+                    <small class="text-muted">{{ p.start_time|time:"g:i A" }} - {{ p.end_time|time:"g:i A" }}</small>
+                  </td>
+                  {% for c in classes %}
+                    {% with entry=grids_by_day|dict_get:day|dict_get:p.id|dict_get:c.id %}
+                    <td>
+                      {% if entry %}
+                        <strong>{{ entry.subject.code }}</strong><br>
+                        <small class="text-muted">{{ entry.teacher.user.username|default:'No teacher' }}</small>
+                      {% else %}
+                        <span class="text-muted">--</span>
+                      {% endif %}
+                    </td>
+                    {% endwith %}
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+<script>
+  // Build print-friendly split tables so all classes fit on paper width
+  (function(){
+    // Number of class columns per printed table (excluding the Period column)
+    var COLUMNS_PER_PAGE = 6;
+    function splitDayTables(){
+      var days = document.querySelectorAll('.print-week .print-day .split-container');
+      days.forEach(function(container){
+        if (!container) return;
+        // Avoid duplicating if already split
+        if (container.dataset.splitted === '1') return;
+        var base = container.querySelector('table.full-week-table');
+        if (!base) return;
+        var theadRow = base.tHead && base.tHead.rows[0];
+        var bodyRows = Array.from(base.tBodies[0].rows);
+        if (!theadRow || !bodyRows.length) return;
+        // Collect header cells (index 0 is Period column)
+        var headerCells = Array.from(theadRow.cells);
+        var periodHeader = headerCells[0].cloneNode(true);
+        var classHeaders = headerCells.slice(1);
+        for (var start = 0; start < classHeaders.length; start += COLUMNS_PER_PAGE){
+          var end = Math.min(start + COLUMNS_PER_PAGE, classHeaders.length);
+          var sliceHeaders = classHeaders.slice(start, end);
+          var tbl = document.createElement('table');
+          tbl.className = 'table table-bordered table-sm align-middle text-center split-table';
+          var thead = document.createElement('thead');
+          thead.className = 'table-light';
+          var trh = document.createElement('tr');
+          trh.appendChild(periodHeader.cloneNode(true));
+          sliceHeaders.forEach(function(h){ trh.appendChild(h.cloneNode(true)); });
+          thead.appendChild(trh);
+          tbl.appendChild(thead);
+          var tbody = document.createElement('tbody');
+          bodyRows.forEach(function(r){
+            var tr = document.createElement('tr');
+            // first cell is Period column
+            tr.appendChild(r.cells[0].cloneNode(true));
+            for (var i = start+1; i <= end; i++){
+              var cell = r.cells[i];
+              if (cell) tr.appendChild(cell.cloneNode(true));
+            }
+            tbody.appendChild(tr);
+          });
+          tbl.appendChild(tbody);
+          container.appendChild(tbl);
+        }
+        container.dataset.splitted = '1';
+      });
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive'){
+      splitDayTables();
+    } else {
+      window.addEventListener('DOMContentLoaded', splitDayTables);
+    }
+    if (window.matchMedia){
+      var mq = window.matchMedia('print');
+      mq.addEventListener ? mq.addEventListener('change', function(e){ if (e.matches) splitDayTables(); }) : mq.addListener(function(e){ if (e.matches) splitDayTables(); });
+    }
+    window.addEventListener('beforeprint', splitDayTables);
+  })();
+</script>
+{% endblock %}

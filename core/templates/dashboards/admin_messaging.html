@@ -149,6 +149,9 @@
         display: flex;
         align-items: center;
         flex-shrink: 0;
+        position: sticky;
+        top: 0;
+        z-index: 5;
     }
     .chat-header .chat-user-avatar { margin-right: 12px; }
     .chat-messages {
@@ -160,6 +163,7 @@
         flex-direction: column;
         min-height: 0;
         max-height: 100%;
+        position: relative;
     }
     .chat-bubble { max-width: 65%; padding: 12px 18px; border-radius: 18px; margin-bottom: 10px; font-size: 15px; line-height: 1.5; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
     .chat-bubble.sent { background: #dcf8c6; align-self: flex-end; border-bottom-right-radius: 4px; color: #222; margin-left: 20%; }
@@ -177,15 +181,38 @@
     }
     .chat-input-area textarea { flex: 1; resize: none; border-radius: 18px; border: 1px solid #ccc; padding: 10px 16px; margin-right: 10px; }
     .chat-input-area button { border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
+    .input-hint { font-size: 11px; color: #6c757d; margin-left: 8px; }
+    .typing-indicator { font-size: 12px; color: #6c757d; margin-left: 12px; display: none; }
+
+    .presence-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-left: 8px; }
+    .presence-online { background: #28a745; }
+    .presence-offline { background: #adb5bd; }
+
+    .date-separator { text-align: center; margin: 10px 0 16px; position: relative; color: #6c757d; font-size: 12px; }
+    .date-separator:before, .date-separator:after { content: ""; position: absolute; top: 50%; width: 40%; height: 1px; background: #dee2e6; }
+    .date-separator:before { left: 0; }
+    .date-separator:after { right: 0; }
+
+    .scroll-to-bottom { position: absolute; right: 8px; bottom: 8px; z-index: 4; display: none; }
+
+    .sidebar-search { padding: 12px; border-bottom: 1px solid #eee; }
+    .sidebar-search input { width: 100%; border: 1px solid #ddd; border-radius: 8px; padding: 8px 10px; }
+
+    .thread-search { margin-left: auto; max-width: 260px; width: 100%; }
+    .thread-search input { width: 100%; border: 1px solid #ddd; border-radius: 8px; padding: 6px 10px; }
     @media (max-width: 900px) {
         .chat-container { flex-direction: column; height: 100vh; }
         .chat-sidebar { width: 100vw; max-height: 180px; border-right: none; border-bottom: 1px solid #eee; }
         .chat-main { height: calc(100vh - 180px); }
     }
+
 </style>
 <div class="chat-container">
     <!-- Sidebar: User List -->
     <div class="chat-sidebar">
+        <div class="sidebar-search" aria-label="Search recipients">
+            <input type="text" id="recipient-search" placeholder="Search recipients..." aria-label="Search recipients" />
+        </div>
         <form method="get" id="admin-message-form" style="margin-bottom:0;">
             <div class="p-3">
                 <select class="form-select mb-3" id="recipient_category" name="recipient_category" onchange="this.form.submit()">
@@ -200,7 +227,7 @@
                 <li data-user-id="{{ user.id }}" {% if user.id|stringformat:'s' == selected_recipient_id %}class="active"{% endif %}>
                     <div class="chat-user-avatar">{{ user.name|slice:":1"|upper }}</div>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <span>{{ user.name }}</span>
+                        <span class="recipient-name">{{ user.name }}</span>
                         {% if user.unread_count > 0 %}
                         <span class="unread-badge green-badge">{{ user.unread_count }}</span>
                         {% endif %}
@@ -214,38 +241,72 @@
     </div>
     <!-- Main Chat Area -->
     <div class="chat-main">
-        <div class="chat-header">
+        <div class="chat-header" role="banner">
             {% if selected_user %}
                 <div class="chat-user-avatar">{{ selected_user.name|slice:":1"|upper }}</div>
                 <div>
                     <strong>{{ selected_user.name }}</strong><br>
                     <small>{{ selected_user.role|capfirst }}</small>
                 </div>
+                <span class="presence-dot presence-offline" id="presence-dot" title="Offline"></span>
+                <div class="thread-search ms-3 d-none d-md-block">
+                    <input type="text" id="thread-search-input" placeholder="Search in conversation" aria-label="Search in conversation" />
+                </div>
+                <div class="dropdown ms-auto">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Actions</button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><button class="dropdown-item" type="button" id="action-mark-read">Mark as read</button></li>
+                        <li><button class="dropdown-item" type="button" id="action-pin">Pin conversation</button></li>
+                        <li><button class="dropdown-item" type="button" id="action-mute">Mute notifications</button></li>
+                        <li><button class="dropdown-item text-danger" type="button" id="action-archive">Archive</button></li>
+                    </ul>
+                </div>
             {% else %}
                 <span class="text-muted">Select a user to start chatting</span>
             {% endif %}
         </div>
-        <div class="chat-messages" id="chat-messages">
+        <div class="chat-messages" id="chat-messages" role="log" aria-live="polite" aria-relevant="additions text">
+            {% if selected_user %}
+            <div class="text-center mb-2"><button class="btn btn-light btn-sm" id="load-previous-btn">Load previous</button></div>
+            {% endif %}
             {% if chat_history %}
                 {% for msg in chat_history %}
-    <div class="chat-bubble {% if msg.sender_id == request.user.id %}sent{% else %}received{% endif %}">
-        {% if msg.sender_id != request.user.id %}
-            <span class="chat-avatar">{{ selected_user.name|slice:':1'|upper }}</span>
-        {% endif %}
-        {{ msg.content }}
-        <span class="chat-time">{{ msg.timestamp|date:"H:i" }}</span>
-    </div>
-{% endfor %}
+                    {% ifchanged msg.timestamp|date:"Y-m-d" %}
+                        <div class="date-separator"><span>{{ msg.timestamp|date:"D, M j, Y" }}</span></div>
+                    {% endifchanged %}
+                    <div class="chat-bubble {% if msg.sender_id == request.user.id %}sent{% else %}received{% endif %}" data-timestamp="{{ msg.timestamp|date:'c' }}" data-msg-id="{{ msg.id }}">
+                        {% if msg.sender_id != request.user.id %}
+                            <span class="chat-avatar">{{ selected_user.name|slice:':1'|upper }}</span>
+                        {% endif %}
+                        <span class="message-text">{{ msg.content }}</span>
+                        <span class="chat-time">
+                            {{ msg.timestamp|date:"H:i" }}
+                            {% if msg.sender_id == request.user.id %}
+                                {% if msg.is_read %}
+                                    <i class="bi bi-check2-all text-primary" title="Read"></i>
+                                {% elif msg.is_delivered %}
+                                    <i class="bi bi-check2-all" title="Delivered"></i>
+                                {% else %}
+                                    <i class="bi bi-check2" title="Sent"></i>
+                                {% endif %}
+                            {% endif %}
+                        </span>
+                    </div>
+                {% endfor %}
             {% else %}
                 <div class="text-center text-muted">No messages yet. Start the conversation!</div>
             {% endif %}
+            <button type="button" id="scroll-to-bottom" class="btn btn-outline-secondary btn-sm scroll-to-bottom" aria-label="Scroll to latest">↓ New</button>
         </div>
         {% if selected_user %}
-        <form method="post" class="chat-input-area" autocomplete="off">
+        <form method="post" class="chat-input-area" autocomplete="off" id="chat-send-form" enctype="application/x-www-form-urlencoded">
             {% csrf_token %}
-            <textarea name="message" rows="1" placeholder="Type a message..." required></textarea>
+            <button class="btn btn-light me-2" type="button" id="emoji-btn" title="Emoji">😊</button>
+            <textarea name="message" rows="1" placeholder="Type a message..." required id="message-textarea" aria-label="Message input"></textarea>
             <input type="hidden" name="recipient" value="{{ selected_user.id }}">
             <button type="submit" class="btn btn-success"><i class="bi bi-send"></i></button>
+            <span class="input-hint d-none d-md-inline">Enter to send • Shift+Enter for newline</span>
+            <span class="typing-indicator" id="typing-indicator">Typing…</span>
         </form>
         {% endif %}
     </div>
@@ -271,6 +332,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 params.set('recipient', userId);
                 window.location.search = params.toString();
             }
+        });
+    }
+    // Sidebar recipient search
+    const rSearch = document.getElementById('recipient-search');
+    if (rSearch) {
+        rSearch.addEventListener('input', function() {
+            const term = this.value.toLowerCase();
+            document.querySelectorAll('.chat-user-list li').forEach(li => {
+                const nameEl = li.querySelector('.recipient-name');
+                const name = nameEl ? nameEl.textContent.toLowerCase() : '';
+                li.style.display = name.includes(term) ? '' : 'none';
+            });
         });
     }
 });
@@ -321,6 +394,196 @@ document.addEventListener('DOMContentLoaded', function() {
                 userSelect.innerHTML = '<option>Error loading users.</option>';
             });
     });
+});
+
+// --- Messaging UX enhancements ---
+document.addEventListener('DOMContentLoaded', function() {
+    const chatMessages = document.getElementById('chat-messages');
+    const loadPrevBtn = document.getElementById('load-previous-btn');
+    const scrollBtn = document.getElementById('scroll-to-bottom');
+    const form = document.getElementById('chat-send-form');
+    const textarea = document.getElementById('message-textarea');
+    const typingEl = document.getElementById('typing-indicator');
+    const threadSearch = document.getElementById('thread-search-input');
+    const presenceDot = document.getElementById('presence-dot');
+    const actionMarkRead = document.getElementById('action-mark-read');
+    const actionPin = document.getElementById('action-pin');
+    const actionMute = document.getElementById('action-mute');
+    const actionArchive = document.getElementById('action-archive');
+
+    function getCsrfToken() {
+        const m = document.cookie.match(/csrftoken=([^;]+)/);
+        return m ? decodeURIComponent(m[1]) : '';
+    }
+
+    // Auto-grow textarea
+    function autoGrow() {
+        if (!textarea) return;
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 180) + 'px';
+    }
+    if (textarea) {
+        autoGrow();
+        textarea.addEventListener('input', function() {
+            autoGrow();
+            // Draft save
+            const rid = (form && form.querySelector('input[name="recipient"]').value) || '';
+            if (rid) localStorage.setItem('draft_'+rid, textarea.value);
+            // Typing indicator (local only)
+            if (typingEl) {
+                typingEl.style.display = textarea.value.trim() ? 'inline' : 'none';
+                clearTimeout(window.__typingTimer);
+                window.__typingTimer = setTimeout(()=>{ typingEl.style.display='none'; }, 1200);
+            }
+        });
+        // Load draft
+        const rid = (form && form.querySelector('input[name="recipient"]').value) || '';
+        const saved = rid ? localStorage.getItem('draft_'+rid) : '';
+        if (saved) { textarea.value = saved; autoGrow(); }
+        // Enter-to-send, Shift+Enter newline
+        textarea.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (form) form.requestSubmit();
+            }
+        });
+    }
+
+    // Scroll-to-bottom logic
+    function atBottom() {
+        if (!chatMessages) return true;
+        const tolerance = 8;
+        return chatMessages.scrollTop + chatMessages.clientHeight >= chatMessages.scrollHeight - tolerance;
+    }
+    function updateScrollBtn() {
+        if (!scrollBtn || !chatMessages) return;
+        scrollBtn.style.display = atBottom() ? 'none' : 'inline-block';
+    }
+    if (chatMessages) {
+        chatMessages.addEventListener('scroll', updateScrollBtn);
+        updateScrollBtn();
+    }
+    if (scrollBtn) {
+        scrollBtn.addEventListener('click', function(){
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+    }
+
+    // Utilities for rendering message content (attachments removed)
+    function escapeHtml(str){
+        return str.replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    }
+    function buildBubble(msg, currentUserId, otherInitial){
+        const isSent = String(msg.sender_id) === String(currentUserId);
+        const wrap = document.createElement('div');
+        wrap.className = 'chat-bubble ' + (isSent ? 'sent' : 'received');
+        wrap.setAttribute('data-timestamp', msg.timestamp_iso || msg.timestamp);
+        wrap.setAttribute('data-msg-id', msg.id || '');
+        if (!isSent) {
+            const av = document.createElement('span');
+            av.className = 'chat-avatar';
+            av.textContent = (otherInitial || '?');
+            wrap.appendChild(av);
+        }
+        const textSpan = document.createElement('span');
+        textSpan.className = 'message-text';
+        textSpan.textContent = msg.content || '';
+        wrap.appendChild(textSpan);
+        const time = document.createElement('span');
+        time.className = 'chat-time';
+        time.textContent = (msg.time_hm || '');
+        wrap.appendChild(time);
+        return wrap;
+    }
+
+    // Load previous messages pagination
+    if (loadPrevBtn && chatMessages) {
+        loadPrevBtn.addEventListener('click', function(){
+            // find first bubble timestamp
+            const firstBubble = chatMessages.querySelector('.chat-bubble');
+            const before = firstBubble ? firstBubble.getAttribute('data-timestamp') : null;
+            const ridInput = document.querySelector('#chat-send-form input[name="recipient"]');
+            const rid = ridInput ? ridInput.value : '';
+            if (!rid) return;
+            const url = new URL('{% url "admin_load_messages" %}', window.location.origin);
+            url.searchParams.set('recipient', rid);
+            if (before) url.searchParams.set('before', before);
+            url.searchParams.set('page_size', '20');
+            fetch(url.toString())
+                .then(r => r.json())
+                .then(data => {
+                    if (!data || !data.messages || data.messages.length === 0) {
+                        loadPrevBtn.disabled = true;
+                        loadPrevBtn.textContent = 'No older messages';
+                        return;
+                    }
+                    const curId = data.current_user_id;
+                    const otherInitial = data.other_initial;
+                    const scrollOld = chatMessages.scrollHeight;
+                    const anchor = chatMessages.firstElementChild; // maintain scroll position
+                    for (const m of data.messages) {
+                        const bubble = buildBubble(m, curId, otherInitial);
+                        chatMessages.insertBefore(bubble, chatMessages.firstChild.nextSibling); // after load button container
+                    }
+                    // Adjust scroll to keep view
+                    const diff = chatMessages.scrollHeight - scrollOld;
+                    chatMessages.scrollTop += diff;
+                })
+                .catch(()=>{});
+        });
+    }
+
+    // In-thread search (client-side filter)
+    if (threadSearch && chatMessages) {
+        threadSearch.addEventListener('input', function() {
+            const term = this.value.toLowerCase();
+            chatMessages.querySelectorAll('.chat-bubble').forEach(b => {
+                const txt = (b.querySelector('.message-text')?.textContent || '').toLowerCase();
+                b.style.display = txt.includes(term) ? '' : 'none';
+            });
+        });
+    }
+
+    
+
+    // Presence placeholder (offline by default)
+    if (presenceDot) {
+        presenceDot.classList.remove('presence-online');
+        presenceDot.classList.add('presence-offline');
+    }
+
+    // Clear draft on successful submit
+    if (form) {
+        form.addEventListener('submit', function(){
+            const rid = (form && form.querySelector('input[name="recipient"]').value) || '';
+            if (rid) localStorage.removeItem('draft_'+rid);
+        });
+        // Mark read on open via POST
+        const rid = (form && form.querySelector('input[name="recipient"]').value) || '';
+        if (rid) {
+            fetch('{% url "admin_mark_read" %}', { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } , body: new URLSearchParams({recipient: rid}) });
+        }
+    }
+
+    // Actions menu handlers
+    function postAction(action) {
+        if (!form) return;
+        const rid = form.querySelector('input[name="recipient"]').value;
+        fetch('{% url "admin_conversation_action" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ recipient: rid, action })
+        }).then(()=>{}).catch(()=>{});
+    }
+    if (actionMarkRead && form) actionMarkRead.addEventListener('click', ()=>{
+        const rid = form.querySelector('input[name="recipient"]').value;
+        fetch('{% url "admin_mark_read" %}', { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ recipient: rid }) });
+    });
+    if (actionPin && form) actionPin.addEventListener('click', ()=> postAction('pin'));
+    if (actionMute && form) actionMute.addEventListener('click', ()=> postAction('mute'));
+    if (actionArchive && form) actionArchive.addEventListener('click', ()=> postAction('archive'));
+
+    // Attachment features removed
 });
 </script>
 {% endblock %}

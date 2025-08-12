@@ -352,15 +352,19 @@ def admin_messaging(request):
             'role': u.role,
             'unread_count': unread_count,
         })
-    # If a chat is opened (selected_user), update last_opened for that user
-    if selected_user:
-        last_opened_map[str(selected_user.id)] = datetime.datetime.now().isoformat()
-        request.session['messaging_last_opened'] = last_opened_map
+    # Resolve selected_user if provided
     if recipient_id:
         try:
             selected_user = next((u for u in recipients if str(u.id) == str(recipient_id)), None)
         except Exception:
             selected_user = None
+    # If a chat is opened (selected_user), update last_opened and mark messages as read
+    if selected_user:
+        # Mark messages from selected_user to admin as read
+        from core.models import Message
+        Message.objects.filter(sender=selected_user, recipient=request.user, is_read=False).update(is_read=True)
+        last_opened_map[str(selected_user.id)] = datetime.datetime.now().isoformat()
+        request.session['messaging_last_opened'] = last_opened_map
     # Handle sending a message
     if request.method == 'POST' and selected_user:
         content = request.POST.get('message', '').strip()
@@ -410,7 +414,7 @@ def admin_messaging(request):
             (Q(sender=request.user, recipient=selected_user) | Q(sender=selected_user, recipient=request.user))
         ).order_by('timestamp')
         chat_history = [
-            {'sender_id': m.sender.id, 'content': m.content, 'timestamp': m.timestamp}
+            {'id': m.id, 'sender_id': m.sender.id, 'content': m.content, 'timestamp': m.timestamp, 'is_read': m.is_read}
             for m in chat_history
         ]
     context = {
@@ -421,6 +425,93 @@ def admin_messaging(request):
         'chat_history': chat_history,
     }
     return render(request, 'dashboards/admin_messaging.html', context)
+
+# --- AJAX/JSON Endpoints for enhanced messaging UX ---
+from django.views.decorators.http import require_GET, require_POST
+from django.utils.dateparse import parse_datetime
+from django.utils import timezone
+
+@login_required
+@user_passes_test(is_admin)
+@require_GET
+def load_messages(request):
+    """Return older messages before a given timestamp for pagination."""
+    from core.models import Message, User
+    recipient_id = request.GET.get('recipient')
+    before = request.GET.get('before')
+    page_size = int(request.GET.get('page_size', '20'))
+    try:
+        other = User.objects.get(id=int(recipient_id))
+    except Exception:
+        return JsonResponse({'messages': []})
+    qs = Message.objects.filter(Q(sender=request.user, recipient=other) | Q(sender=other, recipient=request.user))
+    if before:
+        try:
+            dt = parse_datetime(before)
+            if dt and timezone.is_naive(dt):
+                dt = timezone.make_aware(dt)
+            if dt:
+                qs = qs.filter(timestamp__lt=dt)
+        except Exception:
+            pass
+    qs = qs.order_by('-timestamp')[:page_size]
+    messages_list = []
+    for m in reversed(list(qs)):
+        messages_list.append({
+            'id': m.id,
+            'sender_id': m.sender_id,
+            'content': m.content,
+            'timestamp_iso': m.timestamp.isoformat(),
+            'time_hm': m.timestamp.strftime('%H:%M'),
+        })
+    data = {
+        'current_user_id': request.user.id,
+        'other_initial': (other.get_full_name() or other.username or '?')[:1].upper(),
+        'messages': messages_list,
+    }
+    return JsonResponse(data)
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def mark_read(request):
+    """Mark all messages from recipient to current user as read."""
+    from core.models import Message, User
+    rid = request.POST.get('recipient')
+    try:
+        other = User.objects.get(id=int(rid))
+    except Exception:
+        return JsonResponse({'success': False})
+    updated = Message.objects.filter(sender=other, recipient=request.user, is_read=False).update(is_read=True)
+    return JsonResponse({'success': True, 'updated': updated})
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def conversation_action(request):
+    """Pin/mute/archive conversation using session storage (no DB migration)."""
+    rid = request.POST.get('recipient')
+    action = request.POST.get('action')  # pin|unpin|mute|unmute|archive|unarchive
+    store = request.session.get('messaging_flags', {'pinned': [], 'muted': [], 'archived': []})
+    lists = {'pin': 'pinned', 'unpin': 'pinned', 'mute': 'muted', 'unmute': 'muted', 'archive': 'archived', 'unarchive': 'archived'}
+    if action not in lists:
+        return JsonResponse({'success': False, 'error': 'invalid action'}, status=400)
+    key = lists[action]
+    arr = set(map(str, store.get(key, [])))
+    if action in ('pin', 'mute', 'archive'):
+        arr.add(str(rid))
+    else:
+        arr.discard(str(rid))
+    store[key] = list(arr)
+    request.session['messaging_flags'] = store
+    return JsonResponse({'success': True, 'flags': store})
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def upload_attachment(request):
+    # Removed: attachment uploads are no longer supported.
+    return JsonResponse({'success': False, 'error': 'Attachments disabled'}, status=410)
 
 @login_required
 @user_passes_test(is_admin)

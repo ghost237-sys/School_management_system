@@ -1,213 +1,260 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}Admin Teachers{% endblock %}
 {% block content %}
 
-<div class="container-fluid py-4">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-<style>
-    .teacher-avatar {
-        width: 38px;
-        height: 38px;
-        background: #e9ecef;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 600;
-        color: #495057;
-        font-size: 1.1rem;
-        margin-right: 12px;
+<!-- Scripts -->
+{% block extra_js %}
+<script src="{% static 'print_section.js' %}"></script>
+<script src="{% static 'add_teacher_stepper.js' %}"></script>
+<script>
+  function applyFilter(param, value) {
+    const url = new URL(window.location);
+    if (value === '' || value === null) {
+      url.searchParams.delete(param);
+    } else {
+      url.searchParams.set(param, value);
     }
-    .table-hover tbody tr:hover {
-        background: #f8f9fa;
-    }
-    .teacher-actions .btn {
-        padding: 0.25rem 0.5rem;
-        font-size: 1.1rem;
-    }
-    .sticky-search-bar {
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        background: #fff;
-        padding: 1rem 0 0.5rem 0;
-        border-bottom: 1px solid #eee;
-        margin-bottom: 1rem;
-    }
-</style>
+    // Reset pagination if present
+    url.searchParams.delete('page');
+    window.location = url.toString();
+  }
+</script>
+{% endblock %}
 
 <div class="d-flex align-items-center justify-content-between mb-4">
     <h1 class="mb-0">Teachers</h1>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTeacherModal">
-        <i class="bi bi-plus-lg me-1"></i> Add New Teacher
-    </button>
+    <div>
+        <button class="btn btn-outline-secondary me-2" onclick="printSection('teachersPrintable', 'Teachers List')">
+            <i class="bi bi-printer"></i> Print List
+        </button>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTeacherModal">
+            <i class="bi bi-plus-lg me-1"></i> Add New Teacher
+        </button>
+    </div>
 </div>
 
-<div class="sticky-search-bar mb-3">
-    <form class="row g-2 align-items-center" method="get">
-        <div class="col-md-3">
-            <input type="text" name="search" class="form-control" placeholder="Search by name, email, phone, TSC/Staff ID..." value="{{ request.GET.search }}">
-        </div>
-        <div class="col-md-2">
-            <select name="department" class="form-select">
-                <option value="">All Departments</option>
-                {% for dept in departments %}
-                    <option value="{{ dept.id }}" {% if request.GET.department == dept.id|stringformat:'s' %}selected{% endif %}>{{ dept.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md-2">
-            <select name="subject" class="form-select">
-                <option value="">All Subjects</option>
-                {% for subj in subjects %}
-                    <option value="{{ subj.id }}" {% if request.GET.subject == subj.id|stringformat:'s' %}selected{% endif %}>{{ subj.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md-2">
-            <select name="gender" class="form-select">
-                <option value="">All Genders</option>
-                <option value="male" {% if request.GET.gender == 'male' %}selected{% endif %}>Male</option>
-                <option value="female" {% if request.GET.gender == 'female' %}selected{% endif %}>Female</option>
-                <option value="other" {% if request.GET.gender == 'other' %}selected{% endif %}>Other</option>
-            </select>
-        </div>
-        <div class="col-md-2">
-            <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-search"></i> Search/Filter</button>
-        </div>
-    </form>
+<!-- Simple Filters (match Students page style) -->
+<div class="mb-3 d-flex flex-wrap gap-2">
+  <form class="d-flex flex-wrap gap-2 align-items-end" method="get">
+    <div>
+      <label class="form-label mb-1">Search</label>
+      <input type="text" name="search" class="form-control" placeholder="Name, email, phone, TSC/Staff ID" value="{{ request.GET.search }}" style="max-width: 250px;">
+    </div>
+    <div>
+      <label class="form-label mb-1">Department</label>
+      <select name="department" class="form-select" style="min-width: 180px;">
+        <option value="">All Departments</option>
+        {% for dept in departments %}
+          <option value="{{ dept.id }}" {% if request.GET.department == dept.id|stringformat:'s' %}selected{% endif %}>{{ dept.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label mb-1">Subject</label>
+      <select name="subject" class="form-select" style="min-width: 180px;">
+        <option value="">All Subjects</option>
+        {% for subj in subjects %}
+          <option value="{{ subj.id }}" {% if request.GET.subject == subj.id|stringformat:'s' %}selected{% endif %}>{{ subj.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label mb-1">Gender</label>
+      <select name="gender" class="form-select" style="min-width: 140px;">
+        <option value="">All</option>
+        <option value="male" {% if request.GET.gender == 'male' %}selected{% endif %}>Male</option>
+        <option value="female" {% if request.GET.gender == 'female' %}selected{% endif %}>Female</option>
+        <option value="other" {% if request.GET.gender == 'other' %}selected{% endif %}>Other</option>
+      </select>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary" type="submit">Apply</button>
+      <a class="btn btn-outline-secondary" href="{% url 'admin_teachers' %}">Reset</a>
+      <button class="btn btn-outline-primary" type="button" onclick="printSection('teachersPrintable','Teachers List')">
+        <i class="bi bi-printer"></i> Print
+      </button>
+    </div>
+  </form>
 </div>
 
-<div class="table-responsive">
-    <table class="table table-hover align-middle shadow-sm bg-white rounded">
-        <thead class="table-light">
-            <tr>
-                <th>Name</th>
-                <th>TSC Number</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Gender</th>
-                <th>Department</th>
-                <th>Subjects Taught</th>
-                <th>Class Teacher Of</th>
-                <th>Current Class/Stream</th>
-                <th class="text-center">Actions</th>
-            </tr>
+<!-- Quick Filter Buttons -->
+<div class="mb-3">
+  <div class="small text-muted mb-2">Quick Filters</div>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <!-- Gender buttons -->
+    <div class="btn-group btn-group-sm me-2" role="group" aria-label="Gender">
+      <button type="button" class="btn {% if not request.GET.gender %}btn-primary{% else %}btn-outline-primary{% endif %}"
+        onclick="applyFilter('gender','')">All Genders</button>
+      <button type="button" class="btn {% if request.GET.gender == 'male' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+        onclick="applyFilter('gender','male')">Male</button>
+      <button type="button" class="btn {% if request.GET.gender == 'female' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+        onclick="applyFilter('gender','female')">Female</button>
+      <button type="button" class="btn {% if request.GET.gender == 'other' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+        onclick="applyFilter('gender','other')">Other</button>
+    </div>
+
+    <!-- Department buttons (first 8 for compactness) -->
+    <div class="d-flex flex-wrap gap-2">
+      {% for dept in departments|slice:":8" %}
+        <button type="button" class="btn btn-sm {% if request.GET.department == dept.id|stringformat:'s' %}btn-success{% else %}btn-outline-success{% endif %}"
+          onclick="applyFilter('department','{{ dept.id }}')">{{ dept.name }}</button>
+      {% endfor %}
+      {% if departments|length > 8 %}
+        <a href="#filters" class="btn btn-sm btn-outline-secondary" title="Use the dropdowns to access all departments">More…</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="form-text">Use the dropdowns above for full lists and combined filters.</div>
+  <hr class="mt-2 mb-0"/>
+  <a id="filters"></a>
+</div>
+
+<!-- Printable container and simple table -->
+<div id="teachersPrintable">
+  <div class="card mb-4">
+    <div class="card-header bg-success text-white">
+      <h5 class="mb-0">All Teachers</h5>
+    </div>
+    <div class="card-body">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Department</th>
+            <th style="width: 160px;">Actions</th>
+          </tr>
         </thead>
         <tbody>
-            {% for teacher in teachers %}
-            <tr>
-                <td class="d-flex align-items-center">
-                    <span class="teacher-avatar">
-                        {% if teacher.user.first_name %}{{ teacher.user.first_name|slice:":1" }}{% endif %}{% if teacher.user.last_name %}{{ teacher.user.last_name|slice:":1" }}{% endif %}
-                        {% if not teacher.user.first_name and not teacher.user.last_name %}{{ teacher.user.username|slice:":2"|upper }}{% endif %}
-                    </span>
-                    <a href="{% url 'edit_teacher' teacher.id %}" class="fw-semibold text-decoration-none">{{ teacher.user.get_full_name|default:teacher.user.username }}</a>
-                </td>
-                <td>{{ teacher.tsc_number }}</td>
-                <td>{{ teacher.user.email }}</td>
-                <td>{{ teacher.phone }}</td>
-                <td>{{ teacher.gender|title }}</td>
-                <td>{% if teacher.department %}{{ teacher.department.name }}{% else %}-{% endif %}</td>
-                <td>
-                    {% for subj in teacher.subjects.all %}
-                        <span class="badge bg-secondary mb-1">{{ subj.name }}</span>
-                    {% empty %}-{% endfor %}
-                </td>
-                <td>
-                    {% if teacher.class_set.all %}
-                        {% for c in teacher.class_set.all %}
-                            <span class="badge bg-success mb-1">{{ c.name }}</span>
-                        {% endfor %}
-                    {% else %}-{% endif %}
-                </td>
-                <td>
-                    {% if teacher.class_set.all %}
-                        {% for c in teacher.class_set.all %}
-                            <span class="badge bg-info mb-1">{{ c.name }}</span>
-                        {% endfor %}
-                    {% else %}-{% endif %}
-                </td>
-                <td class="text-center teacher-actions">
-                    <a href="{% url 'edit_teacher' teacher.id %}" class="btn btn-outline-primary me-1" title="Edit"><i class="bi bi-pencil"></i></a>
-                    <a href="{% url 'delete_teacher' teacher.id %}" class="btn btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="10" class="text-center text-muted">No teachers found.</td></tr>
-            {% endfor %}
+          {% for teacher in teachers %}
+          <tr>
+            <td><a href="{% url 'edit_teacher' teacher.id %}">{{ teacher.user.get_full_name|default:teacher.user.username }}</a></td>
+            <td>{{ teacher.user.email }}</td>
+            <td>{% if teacher.department %}{{ teacher.department.name }}{% else %}-{% endif %}</td>
+            <td>
+              <div class="btn-group btn-group-sm" role="group">
+                <a href="{% url 'edit_teacher' teacher.id %}" class="btn btn-outline-primary"><i class="bi bi-pencil-square"></i> Edit</a>
+                <a href="{% url 'delete_teacher' teacher.id %}" class="btn btn-outline-danger"><i class="bi bi-trash"></i> Delete</a>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4">No teachers found.</td></tr>
+          {% endfor %}
         </tbody>
-    </table>
+      </table>
+    </div>
+  </div>
+  <div class="small text-muted mb-3">
+    {% if request.GET.search %}<span><strong>Search:</strong> {{ request.GET.search }}</span>{% endif %}
+    {% if request.GET.department %}
+      {% for dept in departments %}{% if request.GET.department == dept.id|stringformat:'s' %}<span class="ms-3"><strong>Department:</strong> {{ dept.name }}</span>{% endif %}{% endfor %}
+    {% endif %}
+    {% if request.GET.subject %}
+      {% for subj in subjects %}{% if request.GET.subject == subj.id|stringformat:'s' %}<span class="ms-3"><strong>Subject:</strong> {{ subj.name }}</span>{% endif %}{% endfor %}
+    {% endif %}
+    {% if request.GET.gender %}<span class="ms-3"><strong>Gender:</strong> {{ request.GET.gender|title }}</span>{% endif %}
+    {% if request.GET.search or request.GET.department or request.GET.subject or request.GET.gender %}
+      <span class="ms-3">(Filtered)</span>
+    {% endif %}
+  </div>
 </div>
 
 <!-- Add Teacher Modal -->
 <div class="modal fade" id="addTeacherModal" tabindex="-1" aria-labelledby="addTeacherModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
-      <form method="post" action="{% url 'admin_teachers' %}" autocomplete="off" class="add-teacher-form">
+      <form method="post" action="{% url 'admin_teachers' %}" autocomplete="off" class="modern-stepper-card" id="addTeacherStepperForm">
         {% csrf_token %}
-        <div class="modal-header">
-          <h5 class="modal-title" id="addTeacherModalLabel">Add New Teacher</h5>
+        <div class="modal-header border-0 pb-0" style="background: linear-gradient(90deg, #f0f4ff 0%, #e6f7ff 100%); border-radius: 2rem 2rem 0 0;">
+          <h4 class="modal-title fw-bold" id="addTeacherModalLabel" style="color:#174ea6;">Add New Teacher</h4>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <div class="modal-body">
-          {% if add_teacher_form.errors %}
-            <div class="alert alert-danger mb-3">Please fix the errors below.</div>
-          {% endif %}
-          <div class="row g-3">
-            <div class="col-md-6 mb-2">
-              <label for="id_first_name" class="form-label">First Name</label>
-              {{ add_teacher_form.first_name }}
-              {% if add_teacher_form.first_name.errors %}<div class="text-danger small">{{ add_teacher_form.first_name.errors }}</div>{% endif %}
+        <div class="text-center mt-2 mb-3">
+          <div style="font-size:1.25rem; color:#3b4a64;">Let's add a new <span style="color:#174ea6; font-weight:600;">Teacher</span> to your school</div>
+        </div>
+        {% if add_teacher_form.errors %}
+          <div class="alert alert-danger">Please fix the errors below.</div>
+        {% endif %}
+        <!-- Stepper Navigation -->
+        <ul class="nav modern-stepper-nav mb-4 justify-content-center" id="addTeacherStepperNav">
+          <li class="nav-item"><button class="nav-link active" type="button" data-step="0">1. Personal Info</button></li>
+          <li class="nav-item"><button class="nav-link" type="button" data-step="1">2. Account Info</button></li>
+          <li class="nav-item"><button class="nav-link" type="button" data-step="2">3. Subject Allocation</button></li>
+        </ul>
+        <!-- Step 1: Personal Info -->
+        <div class="step-card" data-step="0">
+          <div class="card mb-4 border-0 shadow-sm bg-primary bg-opacity-10">
+            <div class="card-header fw-bold bg-primary bg-opacity-10">Personal Information</div>
+            <div class="card-body row g-3">
+              <div class="col-md-6">
+                {{ add_teacher_form.first_name.label_tag }}
+                <input type="text" name="first_name" value="{{ add_teacher_form.first_name.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if add_teacher_form.first_name.errors %} is-invalid{% endif %}" id="id_first_name" placeholder="Enter first name">
+                {% if add_teacher_form.first_name.errors %}<div class="invalid-feedback d-block">{{ add_teacher_form.first_name.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                {{ add_teacher_form.last_name.label_tag }}
+                <input type="text" name="last_name" value="{{ add_teacher_form.last_name.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if add_teacher_form.last_name.errors %} is-invalid{% endif %}" id="id_last_name" placeholder="Enter last name">
+                {% if add_teacher_form.last_name.errors %}<div class="invalid-feedback d-block">{{ add_teacher_form.last_name.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                {{ add_teacher_form.tsc_number.label_tag }}
+                <input type="text" name="tsc_number" value="{{ add_teacher_form.tsc_number.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if add_teacher_form.tsc_number.errors %} is-invalid{% endif %}" id="id_tsc_number" placeholder="Enter TSC number">
+                {% if add_teacher_form.tsc_number.errors %}<div class="invalid-feedback d-block">{{ add_teacher_form.tsc_number.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                {{ add_teacher_form.staff_id.label_tag }}
+                <input type="text" name="staff_id" value="{{ add_teacher_form.staff_id.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if add_teacher_form.staff_id.errors %} is-invalid{% endif %}" id="id_staff_id" placeholder="Enter staff ID">
+                {% if add_teacher_form.staff_id.errors %}<div class="invalid-feedback d-block">{{ add_teacher_form.staff_id.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                {{ add_teacher_form.phone.label_tag }}
+                <input type="text" name="phone" value="{{ add_teacher_form.phone.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if add_teacher_form.phone.errors %} is-invalid{% endif %}" id="id_phone" placeholder="Enter phone">
+                {% if add_teacher_form.phone.errors %}<div class="invalid-feedback d-block">{{ add_teacher_form.phone.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                {{ add_teacher_form.gender.label_tag }}
+                {{ add_teacher_form.gender }}
+                {% if add_teacher_form.gender.errors %}<div class="invalid-feedback d-block">{{ add_teacher_form.gender.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-md-12">
+                {{ add_teacher_form.department.label_tag }}
+                {{ add_teacher_form.department }}
+                {% if add_teacher_form.department.errors %}<div class="invalid-feedback d-block">{{ add_teacher_form.department.errors.0 }}</div>{% endif %}
+              </div>
             </div>
-            <div class="col-md-6 mb-2">
-              <label for="id_last_name" class="form-label">Last Name</label>
-              {{ add_teacher_form.last_name }}
-              {% if add_teacher_form.last_name.errors %}<div class="text-danger small">{{ add_teacher_form.last_name.errors }}</div>{% endif %}
+          </div>
+        </div>
+        <!-- Step 2: Account Info -->
+        <div class="step-card d-none" data-step="1">
+          <div class="card mb-4 border-0 shadow-sm bg-primary bg-opacity-10">
+            <div class="card-header fw-bold bg-primary bg-opacity-10">Account Information</div>
+            <div class="card-body row g-3">
+              <div class="col-md-6">
+                {{ add_teacher_form.username.label_tag }}
+                <input type="text" name="username" value="{{ add_teacher_form.username.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if add_teacher_form.username.errors %} is-invalid{% endif %}" id="id_username" placeholder="Enter username">
+                {% if add_teacher_form.username.errors %}<div class="invalid-feedback d-block">{{ add_teacher_form.username.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                {{ add_teacher_form.email.label_tag }}
+                <input type="email" name="email" value="{{ add_teacher_form.email.value|default_if_none:'' }}" class="form-control form-control-lg rounded-3{% if add_teacher_form.email.errors %} is-invalid{% endif %}" id="id_email" placeholder="Enter email">
+                {% if add_teacher_form.email.errors %}<div class="invalid-feedback d-block">{{ add_teacher_form.email.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                {{ add_teacher_form.password.label_tag }}
+                <input type="password" name="password" class="form-control form-control-lg rounded-3{% if add_teacher_form.password.errors %} is-invalid{% endif %}" id="id_password" placeholder="Enter password">
+                {% if add_teacher_form.password.errors %}<div class="invalid-feedback d-block">{{ add_teacher_form.password.errors.0 }}</div>{% endif %}
+              </div>
             </div>
-            <div class="col-md-6 mb-2">
-              <label for="id_username" class="form-label">Username</label>
-              {{ add_teacher_form.username }}
-              {% if add_teacher_form.username.errors %}<div class="text-danger small">{{ add_teacher_form.username.errors }}</div>{% endif %}
-            </div>
-            <div class="col-md-6 mb-2">
-              <label for="id_email" class="form-label">Email</label>
-              {{ add_teacher_form.email }}
-              {% if add_teacher_form.email.errors %}<div class="text-danger small">{{ add_teacher_form.email.errors }}</div>{% endif %}
-            </div>
-            <div class="col-md-6 mb-2">
-              <label for="id_password" class="form-label">Password</label>
-              {{ add_teacher_form.password }}
-              {% if add_teacher_form.password.errors %}<div class="text-danger small">{{ add_teacher_form.password.errors }}</div>{% endif %}
-            </div>
-            <div class="col-md-6 mb-2">
-              <label for="id_tsc_number" class="form-label">TSC Number</label>
-              {{ add_teacher_form.tsc_number }}
-              {% if add_teacher_form.tsc_number.errors %}<div class="text-danger small">{{ add_teacher_form.tsc_number.errors }}</div>{% endif %}
-            </div>
-            <div class="col-md-6 mb-2">
-              <label for="id_staff_id" class="form-label">Staff ID</label>
-              {{ add_teacher_form.staff_id }}
-              {% if add_teacher_form.staff_id.errors %}<div class="text-danger small">{{ add_teacher_form.staff_id.errors }}</div>{% endif %}
-            </div>
-            <div class="col-md-6 mb-2">
-              <label for="id_phone" class="form-label">Phone</label>
-              {{ add_teacher_form.phone }}
-              {% if add_teacher_form.phone.errors %}<div class="text-danger small">{{ add_teacher_form.phone.errors }}</div>{% endif %}
-            </div>
-            <div class="col-md-6 mb-2">
-              <label for="id_gender" class="form-label">Gender</label>
-              {{ add_teacher_form.gender }}
-              {% if add_teacher_form.gender.errors %}<div class="text-danger small">{{ add_teacher_form.gender.errors }}</div>{% endif %}
-            </div>
-            <div class="col-md-6 mb-2">
-              <label for="id_department" class="form-label">Department</label>
-              {{ add_teacher_form.department }}
-              {% if add_teacher_form.department.errors %}<div class="text-danger small">{{ add_teacher_form.department.errors }}</div>{% endif %}
-            </div>
-            <div class="col-12 mb-2">
-              <label class="form-label">Subjects</label>
-              <div class="row row-cols-2 row-cols-md-3 g-1">
+          </div>
+        </div>
+        <!-- Step 3: Subject Allocation -->
+        <div class="step-card d-none" data-step="2">
+          <div class="card mb-4 border-0 shadow-sm bg-primary bg-opacity-10">
+            <div class="card-header fw-bold bg-primary bg-opacity-10">Subject Allocation</div>
+            <div class="card-body">
+              <div class="row row-cols-2 row-cols-md-3 g-2">
                 {% for checkbox in add_teacher_form.subjects %}
                   <div class="col">
                     <div class="form-check">
@@ -217,14 +264,18 @@
                 {% endfor %}
               </div>
               {% if add_teacher_form.subjects.errors %}
-                <div class="text-danger small">{{ add_teacher_form.subjects.errors }}</div>
+                <div class="invalid-feedback d-block">{{ add_teacher_form.subjects.errors }}</div>
               {% endif %}
             </div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Add Teacher</button>
+        <!-- Stepper Navigation Buttons -->
+        <div class="d-flex justify-content-between align-items-center mt-2">
+          <button type="button" class="btn btn-secondary" id="addTeacherPrevBtn">Back</button>
+          <div>
+            <button type="button" class="btn btn-primary" id="addTeacherNextBtn">Next</button>
+            <button type="submit" class="btn btn-primary d-none" id="addTeacherSubmitBtn">Add Teacher</button>
+          </div>
         </div>
       </form>
     </div>
@@ -232,6 +283,10 @@
 </div>
 
 <div class="card-header bg-info text-white">
+
+<!-- Add Teacher Stepper Script -->
+<script src="{% static 'add_teacher_stepper.js' %}"></script>
+<script src="{% static 'print_section.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   var form = document.querySelector('#addTeacherModal form');

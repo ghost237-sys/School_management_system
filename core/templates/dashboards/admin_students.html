@@ -1,21 +1,84 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}Admin Students{% endblock %}
 {% block content %}
 
-<h1 class="mb-4">Students</h1>
-<button class="btn btn-primary mb-4" type="button" data-bs-toggle="collapse" data-bs-target="#addStudentFormCollapse" aria-expanded="false" aria-controls="addStudentFormCollapse">
-  Add New Student
-</button>
-<div class="collapse mb-4" id="addStudentFormCollapse">
-    {% include 'partials/add_student_form.html' with form=add_student_form %}
+{% if messages %}
+<div class="container mt-3">
+    {% for message in messages %}
+    <div class="alert {% if message.tags %}{% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags }}{% endif %}{% else %}alert-info{% endif %} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
 </div>
-<div id="toast-container"></div>
+{% endif %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <h1 class="mb-0">Students</h1>
+    <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addStudentModal">
+      <i class="bi bi-plus-lg me-1"></i> Add New Student
+    </button>
+</div>
+<!-- Add Student Modal (modern stepper) -->
+<div class="modal fade" id="addStudentModal" tabindex="-1" aria-labelledby="addStudentModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      {% include 'dashboards/partials/add_student_form.html' with form=add_student_form %}
+    </div>
+  </div>
+</div>
+<!-- Add Student Stepper Script -->
+{% block extra_js %}
+<script src="{% static 'add_teacher_stepper.js' %}"></script>
+<script src="{% static 'print_section.js' %}"></script>
+{% endblock %}
 <div class="mb-3 d-flex flex-wrap gap-2">
-  <form class="d-flex flex-wrap gap-2" method="get">
-    <input type="text" name="search" class="form-control" placeholder="Search by name, email, admission no..." value="{{ request.GET.search }}" style="max-width: 250px;">
-    <button class="btn btn-primary" type="submit">Search</button>
+  <form class="d-flex flex-wrap gap-2 align-items-end" method="get">
+    <div>
+      <label class="form-label mb-1">Search</label>
+      <input type="text" name="search" class="form-control" placeholder="Name, email, admission no" value="{{ request.GET.search }}" style="max-width: 250px;">
+    </div>
+
+    <div>
+      <label class="form-label mb-1">Gender</label>
+      <select name="gender" class="form-select" style="min-width: 140px;">
+        <option value="">All</option>
+        <option value="male" {% if request.GET.gender == 'male' %}selected{% endif %}>Male</option>
+        <option value="female" {% if request.GET.gender == 'female' %}selected{% endif %}>Female</option>
+        <option value="other" {% if request.GET.gender == 'other' %}selected{% endif %}>Other</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="form-label mb-1">Class</label>
+      <select name="class_id" class="form-select" style="min-width: 180px;">
+        <option value="">All</option>
+        {% for c in classes %}
+          <option value="{{ c.id }}" {% if request.GET.class_id == c.id|stringformat:'s' %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="form-label mb-1">Age Min</label>
+      <input type="number" name="age_min" class="form-control" min="1" max="30" value="{{ request.GET.age_min }}" style="width: 100px;">
+    </div>
+    <div>
+      <label class="form-label mb-1">Age Max</label>
+      <input type="number" name="age_max" class="form-control" min="1" max="30" value="{{ request.GET.age_max }}" style="width: 100px;">
+    </div>
+
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary" type="submit">Apply</button>
+      <a class="btn btn-outline-secondary" href="{% url 'admin_students' %}">Reset</a>
+      <button class="btn btn-outline-primary" type="button" onclick="printSection('studentsPrintable','Students List')">
+        <i class="bi bi-printer"></i> Print
+      </button>
+    </div>
   </form>
 </div>
+<div id="studentsPrintable">
 <div class="card mb-4">
     <div class="card-header bg-success text-white">
         <h5 class="mb-0">All Students</h5>
@@ -27,6 +90,7 @@
                     <th>Name</th>
                     <th>Email</th>
                     <th>Class</th>
+                    <th style="width: 160px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -35,13 +99,39 @@
                     <td><a href="{% url 'student_profile' student.id %}">{% if student.user %}{{ student.user.get_full_name|default:student.user.username }}{% else %}(No user){% endif %}</a></td>
                     <td>{% if student.user %}{{ student.user.email }}{% else %}(No email){% endif %}</td>
                     <td>{{ student.class_group.name }}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="{% url 'student_profile' student.id %}" class="btn btn-outline-primary">
+                                <i class="bi bi-pencil-square"></i> Edit
+                            </a>
+                            {% if student.user %}
+                            <a href="{% url 'delete_user' student.user.id %}" class="btn btn-outline-danger">
+                                <i class="bi bi-trash"></i> Delete
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="3">No students found.</td></tr>
+                <tr><td colspan="4">No students found.</td></tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
+</div>
+<!-- You can include printed filter summary -->
+<div class="small text-muted mb-3">
+  {% if request.GET.search %}<span><strong>Search:</strong> {{ request.GET.search }}</span>{% endif %}
+  {% if request.GET.gender %}<span class="ms-3"><strong>Gender:</strong> {{ request.GET.gender|title }}</span>{% endif %}
+  {% if request.GET.class_id %}
+    {% for c in classes %}{% if request.GET.class_id == c.id|stringformat:'s' %}<span class="ms-3"><strong>Class:</strong> {{ c.name }}</span>{% endif %}{% endfor %}
+  {% endif %}
+  {% if request.GET.age_min %}<span class="ms-3"><strong>Age Min:</strong> {{ request.GET.age_min }}</span>{% endif %}
+  {% if request.GET.age_max %}<span class="ms-3"><strong>Age Max:</strong> {{ request.GET.age_max }}</span>{% endif %}
+  {% if request.GET.search or request.GET.gender or request.GET.class_id or request.GET.age_min or request.GET.age_max %}
+    <span class="ms-3">(Filtered)</span>
+  {% endif %}
+</div>
 </div>
 <div class="card mb-4">
     <div class="card-header bg-secondary text-white">

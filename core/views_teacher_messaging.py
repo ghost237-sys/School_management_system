@@ -58,6 +58,7 @@ def teacher_messaging(request):
                 )
             return redirect(f'{request.path}?recipient={selected_user["id"]}')
     context = {
+        'teacher': teacher,
         'recipients': recipients,
         'selected_user': selected_user,
         'selected_recipient_id': recipient_id,

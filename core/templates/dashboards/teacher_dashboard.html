@@ -5,15 +5,39 @@
 
 {% block content %}
 <div class="container-fluid px-0">
+    <style>
+      .tdb-accent { color:#0d6efd; }
+      .tdb-chip { display:inline-block; background:#eef4ff; color:#0d47a1; border-radius:999px; padding:4px 10px; font-size:12px; margin:2px 6px 0 0; }
+      .tdb-kpis .card { border:1px solid #e9ecef; }
+      .tdb-kpi-value { font-weight:700; font-size:1.25rem; }
+      .tdb-class-card { border:1px solid #e9ecef; }
+      .tdb-class-card .card-title { font-weight:600; }
+      .tdb-badge { background:#f1f5f9; color:#0f172a; font-weight:500; }
+      .tdb-actions .btn { min-width: 44px; }
+      .tdb-header-actions .btn { margin-left: .5rem; }
+    </style>
     <!-- Welcome/Profile Summary -->
     <div class="card shadow-sm p-4 mb-4 rounded-0">
-        <div class="d-flex align-items-center">
-            <img src="https://ui-avatars.com/api/?name={{ teacher.user.get_full_name|default:teacher.user.username }}&background=6C2EB7&color=fff&size=100" class="rounded-circle me-4" width="100" height="100" alt="Profile Picture">
-            <div>
-                <h1 class="mb-1">Welcome, {{ greeting_name }}</h1>
-                <div class="mb-1 text-muted">Teacher</div>
-                <div><strong>Subjects:</strong> {{ teacher_subjects|join:', ' }}</div>
-                <div><strong>Classes:</strong> {{ teacher_classes|join:', ' }}</div>
+        <div class="d-flex flex-wrap align-items-center justify-content-between">
+            <div class="d-flex align-items-center mb-3 mb-md-0">
+                <img src="https://ui-avatars.com/api/?name={{ teacher.user.get_full_name|default:teacher.user.username }}&background=0D6EFD&color=fff&size=96" class="rounded-circle me-4" width="96" height="96" alt="Profile Picture">
+                <div>
+                    <h1 class="mb-1">Welcome, <span class="tdb-accent">{{ greeting_name }}</span></h1>
+                    <div class="mb-2 text-muted">Teacher</div>
+                    <div>
+                        {% if teacher_subjects %}
+                          <span class="tdb-chip">Subjects: {{ teacher_subjects|join:', ' }}</span>
+                        {% endif %}
+                        {% if teacher_classes %}
+                          <span class="tdb-chip">Classes: {{ teacher_classes|join:', ' }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="tdb-header-actions">
+                <a href="{% url 'teacher_messaging' %}" class="btn btn-outline-primary"><i class="bi bi-chat-text"></i> Messaging</a>
+                <a href="{% url 'upload_grades' teacher_id=teacher.id %}" class="btn btn-primary"><i class="bi bi-upload"></i> Upload Grades</a>
+                <a href="{% url 'manage_attendance' teacher_id=teacher.id %}" class="btn btn-outline-secondary"><i class="bi bi-check2-square"></i> Attendance</a>
             </div>
         </div>
         {% if notifications %}
@@ -27,16 +51,44 @@
         {% endif %}
     </div>
 
+    <!-- KPI Row -->
+    <div class="row g-3 tdb-kpis px-3 mb-4">
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card p-3 h-100">
+          <div class="text-muted">Today</div>
+          <div class="tdb-kpi-value">{{ now|date:'D, M j' }}</div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card p-3 h-100">
+          <div class="text-muted">Assigned Classes</div>
+          <div class="tdb-kpi-value">{{ class_cards|length }}</div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card p-3 h-100">
+          <div class="text-muted">Pending Grading</div>
+          <div class="tdb-kpi-value">—</div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card p-3 h-100">
+          <div class="text-muted">Messages</div>
+          <div class="tdb-kpi-value"><a href="{% url 'teacher_messaging' %}">Open</a></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Responsibilities Card -->
     <div class="card shadow-sm mb-4">
-        <div class="card-header bg-info text-white">
+        <div class="card-header bg-white border-bottom">
             <h5 class="mb-0">Assigned Responsibilities</h5>
         </div>
         <div class="card-body">
             {% if responsibilities %}
                 <div class="table-responsive">
-                    <table class="table table-bordered align-middle">
-                        <thead class="table-light">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light sticky-top">
                             <tr>
                                 <th>Responsibility</th>
                                 <th>Start Date</th>
@@ -68,31 +120,39 @@
         </div>
     </div>
     <!-- Sidebar Navigation -->
+    {% if request.GET.tab == 'messages' %}
+      <!-- Backward-compat: redirect old tab link to the dedicated page -->
+      <meta http-equiv="refresh" content="0; url={% url 'teacher_messaging' %}">
+      <div class="alert alert-info m-3">
+        Redirecting to <a href="{% url 'teacher_messaging' %}">Teacher Messages</a>...
+      </div>
+    {% else %}
     <div class="row" style="min-height: 80vh;">
-      
       <div class="col-md-10 col-lg-10 p-0">
-        {% if request.get_full_path|slice:'-8:' == '#messages' %}
-          {% include 'dashboards/teacher_messages_tab.html' %}
-        {% else %}
           <div class="container-fluid px-4 pt-3">
               <div class="row">
 
             {% for card in class_cards %}
             <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card h-100 shadow-sm text-white bg-primary">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="card-title mb-0">{{ card.class.name }}</h5>
-                            <i class="bi bi-easel fs-3"></i>
+                <div class="card h-100 shadow-sm tdb-class-card">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h5 class="card-title mb-1">{{ card.class.name }}</h5>
+                                {% if card.subject %}
+                                  <div class="text-muted small">Subject: {{ card.subject.name }}</div>
+                                {% endif %}
+                            </div>
+                            <i class="bi bi-easel fs-4 text-muted"></i>
                         </div>
-                        {% if card.subject %}
-                        <h6 class="card-subtitle mt-2 mb-2 text-white-50">Subject: {{ card.subject.name }}</h6>
-                        {% endif %}
-                        <hr>
-                        <p><strong>Students:</strong> {{ card.student_count }}</p>
-                        <p><strong>Avg Score:</strong> {% if card.avg_score %}{{ card.avg_score|floatformat:2 }}%{% else %}N/A{% endif %}</p>
-                        <a href="{% url 'manage_grades' teacher_id=teacher.id %}" class="btn btn-light btn-sm mt-2">Manage Grades</a>
-                        <a href="{% url 'teacher_class_result_slip' class_id=card.class.id %}" class="btn btn-success btn-sm mt-2 ms-2">View Result Slip</a>
+                        <div class="mb-3">
+                            <span class="badge rounded-pill tdb-badge me-1">Students: {{ card.student_count }}</span>
+                            <span class="badge rounded-pill tdb-badge">Avg: {% if card.avg_score %}{{ card.avg_score|floatformat:2 }}%{% else %}N/A{% endif %}</span>
+                        </div>
+                        <div class="mt-auto d-flex tdb-actions">
+                            <a href="{% url 'manage_grades' teacher_id=teacher.id %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-clipboard2-check"></i> Manage Grades</a>
+                            <a href="{% url 'teacher_class_result_slip' class_id=card.class.id %}" class="btn btn-primary btn-sm ms-2"><i class="bi bi-file-earmark-text"></i> Result Slip</a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -102,16 +162,10 @@
             </div>
             {% endfor %}
         </div>
-
       </div>
-          </div>
-          <div class="tab-pane fade" id="messages" role="tabpanel" aria-labelledby="messages-tab">
-            {% include 'dashboards/teacher_messaging.html' %}
-          </div>
-          <!-- Add other tab panes as needed -->
-        </div>
       </div>
     </div>
+    {% endif %}
     <!-- End Sidebar and Main Content Row -->
 
             <!-- Upcoming Deadlines -->
@@ -158,8 +212,9 @@
                         <p>No upcoming deadlines.</p>
                     {% endif %}
                 </div>
+            </div>
 
-                <!-- Events Calendar Card (Admin Style) -->
+            <!-- Events Calendar Card (Admin Style) -->
                 <div class="card mb-4">
                     <div class="card-header bg-warning text-dark">
                         <h5 class="mb-0">Events & Exam Schedule</h5>
@@ -169,39 +224,10 @@
                         <div id="teacher-calendar"></div>
                     </div>
                 </div>
-
-{% endif %}
+ 
 {% endblock %}
 {% block extra_js %}
     <script src="{% static 'calendar/fullcalendar.min.js' %}"></script>
-<script src="{% static 'teacher_calendar.js' %}"></script>
+<script src="{% static 'teacher_calendar.js' %}?v=2"></script>
 {% endblock %}
-                    new Chart(ctxBar, {
-                        type: 'bar',
-                        data: {
-                            labels: ['Student1', 'Student2'],
-                            datasets: [{
-                                label: 'Scores',
-                                data: [70, 85],
-                                backgroundColor: 'rgba(54, 162, 235, 0.7)'
-                            }]
-                        },
-                        options: {responsive: true}
-                    });
-                }
-                // Grade Distribution Pie Example
-                var ctxPie = document.getElementById('gradeDistChart_{{ class.class }}');
-                if (ctxPie) {
-                    new Chart(ctxPie, {
-                        type: 'pie',
-                        data: {
-                            labels: ['A', 'B', 'C'],
-                            datasets: [{
-                                data: [5, 10, 3],
-                                backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc']
-                            }]
-                        },
-                        options: {responsive: true}
-                    });
-                }
                 // Mean calculation placeholder

@@ -9,14 +9,15 @@ def student_messaging(request):
     # Only allow students
     if not hasattr(request.user, 'student'):
         messages.error(request, 'Only students can access this page.')
-        return redirect('student_profile', student_id=request.user.student.id)
+        # Redirect to a safe generic dashboard instead of accessing request.user.student
+        return redirect('admin_overview')
     student = request.user.student
     # Find admin user(s)
     admin_users = User.objects.filter(role='admin')
     admin_user = admin_users.first() if admin_users.exists() else None
     # Find class teacher
     class_teacher_user = None
-    if student.class_group and student.class_group.class_teacher:
+    if getattr(student, 'class_group', None) and getattr(student.class_group, 'class_teacher', None):
         class_teacher_user = student.class_group.class_teacher.user
     # Recipients list
     recipients = []

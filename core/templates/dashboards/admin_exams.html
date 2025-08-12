@@ -3,12 +3,12 @@
 {% block title %}Exams | Admin{% endblock %}
 
 {% block extra_css %}
-<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.css" rel="stylesheet">
 <style>
     /* Custom FullCalendar styling - Column Layout */
     #exam-calendar {
         max-height: 450px;
         width: 100%;
+
         overflow-y: auto;
         border: 1px solid #dee2e6;
         border-radius: 8px;
@@ -106,36 +106,32 @@
 <!-- Exams tab cleared as per user request. -->
 
 <div class="container-fluid py-4">  
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-2">
         <h2 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>Exams Management</h2>
+        <a href="/admin_manage_grades/" class="btn btn-primary">
+          <i class="bi bi-journal-check me-1"></i> Manage Grades
+        </a>
+    </div>
+    <!-- Top Sticky Exams Nav -->
+    <style>
+      .exam-tabs-top { position: sticky; top: 0; z-index: 1020; background: #fff; padding-top: 4px; }
+    </style>
+    <div class="exam-tabs-top mb-3">
+      <ul class="nav nav-tabs" id="examTabsTop" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="add-exam-tab-top" data-bs-toggle="tab" data-bs-target="#add-exam" type="button" role="tab" aria-controls="add-exam" aria-selected="true">Add Exam</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="available-exams-tab-top" data-bs-toggle="tab" data-bs-target="#available-exams" type="button" role="tab" aria-controls="available-exams" aria-selected="false">Available Exams</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="exam-calendar-tab-top" data-bs-toggle="tab" data-bs-target="#exam-calendar-pane" type="button" role="tab" aria-controls="exam-calendar-pane" aria-selected="false">Exam Calendar</button>
+        </li>
+      </ul>
     </div>
 
-    <div class="row">
-        <!-- Calendar View -->
-        <div class="col-md-6">
-            <div class="card mb-4">
-                <div class="card-body">
-                    <h5 class="mb-3">Exam Calendar</h5>
-                    <div id="exam-calendar" class="mt-4"></div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Grade Input Section -->
-        <div class="col-md-6">
-            <div class="card mb-4">
-                <div class="card-body">
-                    <h5 class="mb-3">Grade Entry</h5>
-                    <div id="grade-entry-section">
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle me-2"></i>
-                            Select an exam from the calendar to enter grades for students.
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Removed always-visible calendar/grade entry row.
+         Calendar now appears only inside the "Exam Calendar" tab pane below. -->
 
 <!-- Exam Details Modal -->
 <div class="modal fade" id="examDetailModal" tabindex="-1" aria-labelledby="examDetailModalLabel" aria-hidden="true">
@@ -157,15 +153,14 @@
     </div>
   </div>
 </div>
-        </div>
-    </div>
     <div class="card mb-4">
     <div class="card-body">
         <!-- Exam Creation Form -->
         <form method="post" class="mb-4">
 
     <!-- Tabs Navigation -->
-    <ul class="nav nav-tabs mb-4" id="examTabs" role="tablist">
+    <!-- Lower nav hidden; top sticky nav controls the same panes -->
+    <ul class="nav nav-tabs mb-4 d-none" id="examTabs" role="tablist">
       <li class="nav-item" role="presentation">
         <button class="nav-link active" id="add-exam-tab" data-bs-toggle="tab" data-bs-target="#add-exam" type="button" role="tab" aria-controls="add-exam" aria-selected="true">Add Exam</button>
       </li>
@@ -245,39 +240,8 @@
         </div>
       </div>
     </div>
-    <!-- FullCalendar JS/CSS -->
+    <!-- FullCalendar CSS for calendar tab -->
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        try {
-            var calendarEl = document.getElementById('exam-calendar');
-            if (!calendarEl) {
-                document.getElementById('calendar-error').textContent = 'Calendar element not found!';
-                document.getElementById('calendar-error').style.display = 'block';
-                return;
-            }
-            var calendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'dayGridMonth',
-                height: 500,
-                events: '/admin_exams/json/',
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
-                },
-                eventClick: function(info) {
-                    alert('Exam: ' + info.event.title + '\nDate: ' + info.event.startStr);
-                }
-            });
-            calendar.render();
-        } catch (e) {
-            document.getElementById('calendar-error').textContent = 'Calendar failed to load: ' + e;
-            document.getElementById('calendar-error').style.display = 'block';
-            console.error('FullCalendar initialization error:', e);
-        }
-    });
-    </script>
     
 
 {% endblock %}
@@ -368,89 +332,74 @@
             }
             return;
         }
-
-        
-        try {
+        // Defer calendar initialization until the Exam Calendar tab is shown
+        function ensureExamCalendar() {
+            if (window._examCalendarInstance) {
+                // Re-render in case container was hidden
+                window._examCalendarInstance.render();
+                return;
+            }
             const calendarEl = document.getElementById('exam-calendar');
-            if (calendarEl) {
-                // Show loading indicator
-                calendarEl.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Loading exam calendar...</p></div>';
-                
+            if (!calendarEl) return;
+            // Show loading indicator
+            calendarEl.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Loading exam calendar...</p></div>';
+            try {
                 const calendar = new FullCalendar.Calendar(calendarEl, {
                     initialView: 'dayGridMonth',
                     height: 450,
                     contentHeight: 400,
-                    headerToolbar: {
-                        left: 'prev,next',
-                        center: 'title',
-                        right: 'today,listWeek'
-                    },
-                    events: {
-                        url: '/api/exams/',
-                        failure: function(error) {
-                            console.error('Error loading exam events:', error);
-                            calendarEl.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Error loading exam calendar. Please refresh the page.</div>';
-                        }
-                    },
-                    loading: function(isLoading) {
-                        if (!isLoading) {
-                            console.log('Exam calendar loaded successfully');
-                        }
-                    },
+                    headerToolbar: { left: 'prev,next', center: 'title', right: 'today,listWeek' },
+                    events: { url: '/api/exams/', failure: function(error) {
+                        console.error('Error loading exam events:', error);
+                        calendarEl.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Error loading exam calendar. Please refresh the page.</div>';
+                    }},
+                    loading: function(isLoading) { if (!isLoading) console.log('Exam calendar loaded'); },
                     eventDidMount: function(info) {
-                        // Add tooltip with exam details
                         info.el.setAttribute('title', info.event.extendedProps.description || info.event.title);
                         info.el.classList.add('fc-event-exam');
                     },
                     eventClick: function(info) {
-                        // Load grade entry form for selected exam
-                        loadGradeEntryForm(info.event.id, info.event.title);
-                        
-                        // Also populate and show the modal for exam details
+                        // Load grade entry form only if container exists
+                        if (document.getElementById('grade-entry-section')) {
+                            loadGradeEntryForm(info.event.id, info.event.title);
+                        }
                         document.getElementById('modalExamName').textContent = info.event.title;
-                        
-                        const startDate = info.event.start ? info.event.start.toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                        }) : 'N/A';
-                        
-                        const endDate = info.event.end ? info.event.end.toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                        }) : 'N/A';
-                        
+                        const startDate = info.event.start ? info.event.start.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
+                        const endDate = info.event.end ? info.event.end.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
                         document.getElementById('modalExamStart').textContent = startDate;
                         document.getElementById('modalExamEnd').textContent = endDate;
                         document.getElementById('modalExamTerm').textContent = info.event.extendedProps.term || 'No Term';
-
                         var examModal = new bootstrap.Modal(document.getElementById('examDetailModal'));
                         examModal.show();
                     },
-                    // Compact calendar options
-                    dayMaxEvents: 2, // Show max 2 events per day, then show "more" link
-                    moreLinkClick: 'popover', // Show popover when clicking "more"
+                    dayMaxEvents: 2,
+                    moreLinkClick: 'popover',
                     eventDisplay: 'block',
-                    fixedWeekCount: false, // Don't show 6 weeks always
-                    showNonCurrentDates: false, // Hide dates from other months
-                    aspectRatio: window.innerWidth < 768 ? 0.8 : 1.5, // Responsive aspect ratio
+                    fixedWeekCount: false,
+                    showNonCurrentDates: false,
+                    aspectRatio: window.innerWidth < 768 ? 0.8 : 1.5,
                     eventTextColor: '#ffffff',
                     eventBorderWidth: 1,
-                    dayHeaderFormat: { weekday: 'short' }, // Shorter day names
-                    scrollTime: '08:00:00' // Default scroll time for week view
+                    dayHeaderFormat: { weekday: 'short' },
+                    scrollTime: '08:00:00'
                 });
-                
+                window._examCalendarInstance = calendar;
                 calendar.render();
-            } else {
-                console.error('Exam calendar element not found.');
-            }
-        } catch (e) {
-            console.error('Error initializing exam calendar:', e);
-            const calendarEl = document.getElementById('exam-calendar');
-            if (calendarEl) {
+            } catch (e) {
+                console.error('Error initializing exam calendar:', e);
                 calendarEl.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Error initializing exam calendar: ' + e.message + '</div>';
             }
+        }
+        // Hook to both possible tab triggers (top and hidden lower)
+        ['exam-calendar-tab-top','exam-calendar-tab'].forEach(function(id){
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('shown.bs.tab', function(){ ensureExamCalendar(); });
+        });
+        // If the calendar pane is already active on load, initialize immediately
+        var pane = document.getElementById('exam-calendar-pane');
+        if (pane && pane.classList.contains('show') && pane.classList.contains('active')) {
+            ensureExamCalendar();
         }
     });
     
@@ -731,36 +680,6 @@
                             No students found in the selected class.
                         </div>
                     `;
-
-        var calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'dayGridMonth',
-            height: 500,
-            events: '/admin_exams/json/',
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay'
-            },
-            eventDidMount: function(info) {
-                // Only display exam events (category == 'exam')
-                if (info.event.extendedProps.category !== 'exam') {
-                    info.el.style.display = 'none';
-                }
-            },
-            eventClick: function(info) {
-                try {
-                    var exam = info.event.extendedProps;
-                    document.getElementById('modalExamName').textContent = info.event.title;
-                    document.getElementById('modalExamDate').textContent = info.event.startStr;
-                    document.getElementById('modalExamType').textContent = exam.type || '';
-                    document.getElementById('modalExamLevel').textContent = exam.level || '';
-                    document.getElementById('modalExamRoom').textContent = exam.room || '';
-                    var examModal = new bootstrap.Modal(document.getElementById('examDetailsModal'));
-                    examModal.show();
-                } catch (err) {
-                    alert('Error displaying exam details: ' + err);
-                    console.error('Exam modal error:', err);
-
                 }
             })
             .catch(error => {
