@@ -48,6 +48,11 @@
     @page { margin: 1cm; }
 }
 </style>
+<div class="d-flex gap-3">
+  <div class="d-none d-md-block">
+    {% include 'dashboards/teacher_sidebar.html' %}
+  </div>
+  <div class="flex-grow-1">
 <div class="container-fluid">
     <div class="d-flex align-items-center justify-content-between mt-4 mb-2">
         <h1 class="mb-0">School Timetable</h1>
@@ -196,6 +201,8 @@
         Please select a class to view its timetable.
     </div>
     {% endif %}
+</div>
+  </div>
 </div>
 
 <script>

@@ -1197,7 +1197,45 @@ def delete_class(request, class_id):
 
 # Timetable View (placeholder for NoReverseMatch)
 def timetable_view(request):
-    return render(request, 'dashboards/timetable_placeholder.html')
+    teacher = None
+    if request.user.is_authenticated and hasattr(request.user, 'role') and request.user.role == 'teacher':
+        try:
+            teacher = Teacher.objects.get(user=request.user)
+        except Teacher.DoesNotExist:
+            teacher = None
+
+    # This view now primarily handles class-based timetables.
+    # It's kept simple, but we pass the teacher for the sidebar.
+    classes = Class.objects.all().order_by('level', 'name')
+    subjects = Subject.objects.all().order_by('name')
+    teachers = Teacher.objects.select_related('user').all().order_by('user__last_name')
+    periods = PeriodSlot.objects.all()
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+
+    selected_class_id = request.GET.get('class_id')
+    selected_class = None
+    timetable_grid = {}
+
+    if selected_class_id:
+        selected_class = get_object_or_404(Class, id=selected_class_id)
+        # Build the grid for the selected class
+        entries = DefaultTimetable.objects.filter(class_group=selected_class).select_related('period', 'subject', 'teacher__user')
+        for entry in entries:
+            if entry.period.id not in timetable_grid:
+                timetable_grid[entry.period.id] = {}
+            timetable_grid[entry.period.id][entry.day] = entry
+
+    context = {
+        'teacher': teacher,
+        'classes': classes,
+        'selected_class': selected_class,
+        'subjects': subjects,
+        'teachers': teachers,
+        'periods': periods,
+        'days': days,
+        'timetable_grid': timetable_grid,
+    }
+    return render(request, 'timetable/timetable.html', context)
 
 # Admin Academic Years & Terms View
 from .models import AcademicYear, Term

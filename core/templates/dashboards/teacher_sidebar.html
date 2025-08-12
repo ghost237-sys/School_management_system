@@ -1,57 +1,124 @@
 {# Teacher Sidebar Navigation - Bootstrap Vertical Pills #}
-<nav class="sidebar-custom p-3 d-flex flex-column justify-content-between" style="width: 220px; min-height: 100vh; background: var(--sidebar-gradient); color: #fff;">
-    <h4 class="mb-4" style="font-size:1.3rem;">Teacher Panel</h4>
+<style>
+  /* Scoped styles for teacher sidebar */
+  .sidebar-custom {
+    width: 240px;
+    min-height: 100vh;
+    background: var(--sidebar-gradient, linear-gradient(180deg, #1f2937 0%, #0f172a 100%));
+    color: #e5e7eb;
+    backdrop-filter: saturate(120%) blur(6px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .sidebar-custom .brand {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .25rem .5rem; border-radius: .5rem;
+  }
+  .sidebar-custom .brand .logo {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: rgba(255,255,255,.15);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff;
+  }
+  .sidebar-custom .nav .nav-link {
+    color: #e5e7eb;
+    border-radius: .55rem;
+    padding: .6rem .75rem;
+    display: flex; align-items: center; gap: .6rem;
+    transition: background-color .2s ease, color .2s ease, transform .1s ease;
+  }
+  .sidebar-custom .nav .nav-link .sb-nav-link-icon { width: 1.25rem; display: inline-flex; justify-content: center; }
+  .sidebar-custom .nav .nav-link:hover { background: rgba(255,255,255,0.08); color: #fff; transform: translateX(2px); }
+  .sidebar-custom .nav .nav-link.active,
+  .sidebar-custom .nav .nav-link.active:hover {
+    color: #0b1220;
+    background: linear-gradient(135deg, #60a5fa 0%, #34d399 100%);
+    box-shadow: 0 6px 16px rgba(96,165,250,.35);
+  }
+  .sidebar-custom .section-label { color: #9ca3af; font-size: .75rem; letter-spacing: .06em; margin: .5rem 0 .25rem; text-transform: uppercase; }
+  .sidebar-custom .dropdown-menu-dark { background-color: #111827; border-color: rgba(255,255,255,.08); }
+  .sidebar-custom .dropdown-item { color: #e5e7eb; }
+  .sidebar-custom .dropdown-item:hover { background-color: rgba(255,255,255,.08); color: #fff; }
+  .sidebar-divider { height: 1px; background: rgba(255,255,255,0.08); margin: .5rem 0 1rem; }
+  .sidebar-custom .btn-secondary { background: rgba(255,255,255,0.12); border: none; }
+  .sidebar-custom .btn-secondary:hover { background: rgba(255,255,255,0.18); }
+  .sidebar-footnote { color: #9ca3af; font-size: .75rem; }
+</style>
+<nav class="sidebar-custom p-3 d-flex flex-column justify-content-between">
+    <div>
+        <div class="brand mb-3">
+            <span class="logo"><i class="bi bi-mortarboard"></i></span>
+            <h4 class="m-0" style="font-size:1.1rem;">Teacher Panel</h4>
+        </div>
+        <div class="sidebar-divider"></div>
+    </div>
     <ul class="nav nav-pills flex-column mb-auto">
+        {% if teacher %}
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}" href="{% url 'teacher_dashboard' teacher_id=teacher.id %}">
-                <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+            <a class="nav-link {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}" href="{% url 'teacher_dashboard' teacher_id=teacher.id %}" {% if request.resolver_match.url_name == 'teacher_dashboard' %}aria-current="page"{% endif %}>
+                <div class="sb-nav-link-icon"><i class="bi bi-speedometer2"></i></div>
                 Dashboard
             </a>
         </li>
+        {% endif %}
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'teacher_messaging' %}active{% endif %}" href="{% url 'teacher_messaging' %}">
+            <a class="nav-link {% if request.resolver_match.url_name == 'teacher_messaging' %}active{% endif %}" href="{% url 'teacher_messaging' %}" {% if request.resolver_match.url_name == 'teacher_messaging' %}aria-current="page"{% endif %}>
                 <div class="sb-nav-link-icon"><i class="bi bi-chat-dots"></i></div>
                 Messaging
             </a>
         </li>
+        {% if teacher %}
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'gradebook' %}active{% endif %}" href="{% url 'gradebook' teacher_id=teacher.id %}">
+            <a class="nav-link {% if request.resolver_match.url_name == 'gradebook' %}active{% endif %}" href="{% url 'gradebook' teacher_id=teacher.id %}" {% if request.resolver_match.url_name == 'gradebook' %}aria-current="page"{% endif %}>
+                <div class="sb-nav-link-icon"><i class="bi bi-journal-check"></i></div>
                 Gradebook
             </a>
         </li>
+        {% endif %}
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'timetable_view' %}active{% endif %}" href="{% url 'timetable_view' %}">
-                <div class="sb-nav-link-icon"><i class="fas fa-calendar-alt"></i></div>
+            <a class="nav-link {% if request.resolver_match.url_name == 'timetable_view' %}active{% endif %}" href="{% url 'timetable_view' %}" {% if request.resolver_match.url_name == 'timetable_view' %}aria-current="page"{% endif %}>
+                <div class="sb-nav-link-icon"><i class="bi bi-calendar3"></i></div>
                 Timetable
             </a>
         </li>
+        {% if teacher %}
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name in 'manage_grades,input_grades,exam_results' %}active{% endif %}" href="{% url 'manage_grades' teacher_id=teacher.id %}">
+            <a class="nav-link {% if request.resolver_match.url_name in 'manage_grades,input_grades,exam_results' %}active{% endif %}" href="{% url 'manage_grades' teacher_id=teacher.id %}" {% if request.resolver_match.url_name in 'manage_grades,input_grades,exam_results' %}aria-current="page"{% endif %}>
+                <div class="sb-nav-link-icon"><i class="bi bi-card-checklist"></i></div>
                 Exams
             </a>
         </li>
+        {% endif %}
+        {% if teacher %}
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'upload_grades' %}active{% endif %}" href="{% url 'upload_grades' teacher_id=teacher.id %}">
+            <a class="nav-link {% if request.resolver_match.url_name == 'upload_grades' %}active{% endif %}" href="{% url 'upload_grades' teacher_id=teacher.id %}" {% if request.resolver_match.url_name == 'upload_grades' %}aria-current="page"{% endif %}>
+                <div class="sb-nav-link-icon"><i class="bi bi-upload"></i></div>
                 Upload Grades
             </a>
         </li>
+        {% endif %}
+        {% if teacher %}
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'manage_attendance' %}active{% endif %}" href="{% url 'manage_attendance' teacher_id=teacher.id %}">
+            <a class="nav-link {% if request.resolver_match.url_name == 'manage_attendance' %}active{% endif %}" href="{% url 'manage_attendance' teacher_id=teacher.id %}" {% if request.resolver_match.url_name == 'manage_attendance' %}aria-current="page"{% endif %}>
+                <div class="sb-nav-link-icon"><i class="bi bi-clipboard-check"></i></div>
                 Attendance
             </a>
         </li>
+        {% endif %}
+        {% if teacher %}
         <li class="nav-item mb-2">
-            <a class="nav-link text-white {% if request.resolver_match.url_name == 'teacher_profile' %}active{% endif %}" href="{% url 'teacher_profile' teacher_id=teacher.id %}">
+            <a class="nav-link {% if request.resolver_match.url_name == 'teacher_profile' %}active{% endif %}" href="{% url 'teacher_profile' teacher_id=teacher.id %}" {% if request.resolver_match.url_name == 'teacher_profile' %}aria-current="page"{% endif %}>
+                <div class="sb-nav-link-icon"><i class="bi bi-person-circle"></i></div>
                 Profile
             </a>
         </li>
+        {% endif %}
     </ul>
     <div class="mt-auto">
         <div class="dropdown">
-            <a href="#" class="nav-link text-white d-flex align-items-center" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-bell fs-5"></i>
-                <span class="badge rounded-pill bg-danger ms-2" id="notification-count" style="display: none;"></span>
-                <span class="ms-2">Notifications</span>
+            <a href="#" class="nav-link d-flex align-items-center" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <div class="sb-nav-link-icon"><i class="bi bi-bell fs-6"></i></div>
+                <span class="badge rounded-pill bg-danger ms-1" id="notification-count" style="display: none;"></span>
+                <span class="ms-1">Notifications</span>
             </a>
             <ul class="dropdown-menu dropdown-menu-dark text-small shadow" aria-labelledby="notificationDropdown" id="notification-list" style="width: 280px;">
                 <li><a class="dropdown-item" href="#">No new notifications</a></li>
@@ -60,6 +127,7 @@
         <form method="post" action="{% url 'logout' %}" class="mt-3">
             {% csrf_token %}
             <button type="submit" class="btn btn-secondary w-100 d-flex align-items-center justify-content-center"><i class="bi bi-box-arrow-right me-2"></i> Logout</button>
+            <div class="text-center mt-2 sidebar-footnote">v1 · Teacher</div>
         </form>
     </div>
 </nav>

@@ -52,6 +52,11 @@
     .print-day:last-child { page-break-after: auto; }
   }
 </style>
+<div class="d-flex gap-3">
+  <div class="d-none d-md-block">
+    {% include 'dashboards/teacher_sidebar.html' %}
+  </div>
+  <div class="flex-grow-1">
 <div class="container-fluid">
   <div class="mb-1">
     <h1 class="mt-2 mb-0 page-title">Whole-School Timetable</h1>
@@ -130,16 +135,7 @@
   </div>
   </div>
   
-  <!-- Events Calendar Card -->
-  <div class="card card-modern mb-3 d-print-none">
-    <div class="card-header bg-warning text-dark">
-      <strong>Events & Exam Schedule</strong>
-    </div>
-    <div class="card-body">
-      <link rel="stylesheet" href="{% static 'calendar/fullcalendar.min.css' %}">
-      <div id="teacher-calendar"></div>
-    </div>
-  </div>
+
   
   <script>
     (function() {
@@ -184,9 +180,7 @@
       // bindScrollRouting(); // disabled to avoid interfering with native scrolling
     })();
   </script>
-  <!-- Calendar scripts -->
-  <script src="{% static 'calendar/fullcalendar.min.js' %}"></script>
-  <script src="{% static 'teacher_calendar.js' %}?v=2"></script>
+
 
   <!-- Print-only: Whole week, each day on its own page -->
   <div class="print-week">
@@ -231,6 +225,8 @@
         </div>
       </div>
     {% endfor %}
+  </div>
+</div>
   </div>
 </div>
 <script>
