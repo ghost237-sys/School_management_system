@@ -1,0 +1,8 @@
+{# Category template: Feature Block #}
+<div class="card" style="padding:20px; display:flex; gap:8px; align-items:flex-start;">
+  <div style="width:8px; height:100%; background:var(--primary,#0d6efd); border-radius:4px;"></div>
+  <div>
+    <div style="font-weight:700; font-size:1.15rem;">{{ c.name }}</div>
+    <div class="muted" style="margin-top:4px;">{{ c.description|default:"Details coming soon." }}</div>
+  </div>
+</div>

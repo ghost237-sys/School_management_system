@@ -9,7 +9,7 @@ class User(AbstractUser):
         ('teacher', 'Teacher'),
         ('student', 'Student'),
     ]
-    email = models.EmailField()
+    email = models.EmailField(blank=True, null=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
 
     class Meta:
@@ -21,6 +21,8 @@ class Subject(models.Model):
     code = models.CharField(max_length=10)
     department = models.ForeignKey('Department', null=True, blank=True, on_delete=models.SET_NULL, related_name='subjects')
     color = models.CharField(max_length=7, default='#007bff', help_text="Color for the timetable events")
+    # Admin-configurable average number of lessons per week for this subject
+    weekly_lessons = models.PositiveIntegerField(default=3, help_text="Average lessons per week (default 3)")
 
     def __str__(self):
         return f"{self.name} ({self.department})" if self.department else self.name
@@ -185,6 +187,34 @@ class FeePayment(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['reference'], name='unique_mpesa_reference')
         ]
+
+    # Link back to MpesaTransaction when available (for traceability)
+    mpesa_transaction = models.ForeignKey('MpesaTransaction', on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
+
+class MpesaTransaction(models.Model):
+    """Tracks STK push requests and their lifecycle for verification."""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('success', 'Success'),
+        ('failed', 'Failed'),
+    ]
+    student = models.ForeignKey(Student, on_delete=models.SET_NULL, null=True, blank=True, related_name='mpesa_transactions')
+    fee_assignment = models.ForeignKey(FeeAssignment, on_delete=models.SET_NULL, null=True, blank=True, related_name='mpesa_transactions')
+    phone_number = models.CharField(max_length=20)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    account_reference = models.CharField(max_length=100, blank=True, null=True)
+    merchant_request_id = models.CharField(max_length=100, blank=True, null=True)
+    checkout_request_id = models.CharField(max_length=100, unique=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    result_code = models.IntegerField(null=True, blank=True)
+    result_desc = models.CharField(max_length=255, blank=True, null=True)
+    mpesa_receipt = models.CharField(max_length=100, blank=True, null=True)
+    raw_callback = models.JSONField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"MpesaTX {self.checkout_request_id} ({self.status})"
 
 class TeacherClassAssignment(models.Model):
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)

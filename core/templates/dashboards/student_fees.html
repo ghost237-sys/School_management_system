@@ -1,79 +1,112 @@
 {% extends 'base.html' %}
 {% block title %}My Fees{% endblock %}
 {% block content %}
+<style>
+  /* Modern finance theme */
+  .finance-hero {background: linear-gradient(135deg,#0ea5e9 0%, #2563eb 60%, #1e40af 100%); color:#fff; border-radius:16px;}
+  .finance-hero .title {font-weight:700; letter-spacing:.3px;}
+  .shadow-soft {box-shadow: 0 8px 24px rgba(2,6,23,.08);} 
+  .kpi-card {border:1px solid #e8eef8; border-radius: 12px; background:#fff;}
+  .kpi-value {font-size:1.35rem; font-weight:800;}
+  .chip {background:#f1f5f9; color:#0f172a; padding:.35rem .6rem; border-radius:16px; font-size:.75rem;}
+  .card-elevated {border:1px solid #edf2f7; border-radius:14px;}
+  .label {font-size:.85rem; font-weight:600; color:#334155;}
+  .help {font-size:.8rem; color:#64748b;}
+  .divider {height:1px; background:#eef2f7; margin:1.25rem 0;}
+  .badge-soft {border-radius:9999px; padding:.25rem .5rem; font-weight:600; font-size:.75rem; border:1px solid #ffffff33;}
+  .badge-current {background:#ffffff1a; color:#fff; border-color:#ffffff33;}
+  .input-xl {padding:.8rem 1rem; font-size:1rem; border-radius:10px;}
+  .btn-lgx {padding:.8rem 1.2rem; border-radius:10px;}
+  .monospace {font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+</style>
 {% if messages %}
   {% for message in messages %}
     <div class="alert alert-{{ message.tags }} mt-2">{{ message }}</div>
   {% endfor %}
 {% endif %}
 <div class="container mt-4">
-    {% if current_term %}
-      <div class="card mb-3">
-        <div class="card-header bg-primary text-white">
-          Academic Year: <strong>{{ current_term.academic_year.year }}</strong>
+  <!-- Finance hero header -->
+  <div class="finance-hero p-4 p-md-5 shadow-soft mb-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+      <div>
+        <h3 class="mb-1 title">My Fees</h3>
+        <div class="opacity-75">Pay your school fees securely with M-Pesa STK Push.</div>
+      </div>
+      {% if current_term %}
+      <div class="text-end">
+        <div class="fw-semibold">Academic Year <span class="ms-1">{{ current_term.academic_year.year }}</span></div>
+        <div class="mt-1">
+          <span class="badge-soft badge-current">{{ current_term.name }}</span>
+          {% if current_term.start_date and current_term.end_date %}
+            <span class="chip ms-2"><i class="bi bi-calendar3"></i> {{ current_term.start_date|date:'M d, Y' }} — {{ current_term.end_date|date:'M d, Y' }}</span>
+          {% endif %}
         </div>
-        <div class="card-body">
-          <h5>Term</h5>
-          <ul class="list-group">
-            <li class="list-group-item list-group-item-info">
-              <strong>{{ current_term.name }}</strong>
-              {% if current_term.start_date and current_term.end_date %}
-                <span class="text-muted"> ({{ current_term.start_date|date:'M d, Y' }} to {{ current_term.end_date|date:'M d, Y' }})</span>
-              {% endif %}
-              <span class="badge bg-info text-dark ms-2">Current</span>
-            </li>
-          </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-6">
+      <div class="kpi-card p-3 shadow-soft h-100 d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small">Total Outstanding</div>
+          <div class="kpi-value">{{ total_outstanding }}</div>
         </div>
+        <div class="opacity-50"><i class="bi bi-cash-stack fs-3 text-primary"></i></div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6">
+      <div class="kpi-card p-3 shadow-soft h-100 d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small">Payment Method</div>
+          <div class="kpi-value">M-Pesa Paybill</div>
+        </div>
+        <div class="opacity-50"><i class="bi bi-phone fs-3 text-success"></i></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment card -->
+  <div class="card-elevated bg-white shadow-soft p-3 p-md-4 mb-4">
+    {% if success %}
+      <div class="alert alert-success" role="alert">
+        Payment submitted successfully!
       </div>
     {% endif %}
 
-
-
-
-    <div class="card mb-4">
-        <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">Make a Payment</h5>
+    <form id="studentPaymentForm" method="post" action="{% url 'student_fees' %}" autocomplete="off">
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <label for="amount_paid" class="label">Amount</label>
+          <input type="number" step="0.01" min="0" class="form-control input-xl" id="amount_paid" name="amount_paid" required placeholder="Enter amount e.g. 1500">
         </div>
-        <div class="card-body">
-            {% if success %}
-                <div class="alert alert-success d-flex justify-content-between align-items-center" role="alert">
-                    <span>Payment submitted successfully!</span>
-                    <a href="{% url 'student_fees' %}" class="btn btn-outline-success btn-sm ms-3">Back</a>
-                </div>
-            {% endif %}
-            <div class="alert alert-info mb-3">
-                <strong>Total Outstanding:</strong> {{ total_outstanding }}
-            </div>
-            <form id="studentPaymentForm" method="post" action="{% url 'student_fees' %}" autocomplete="off">
-                {% csrf_token %}
-                <div class="mb-3">
-                    <label for="amount_paid" class="form-label">Amount</label>
-                    <input type="number" step="0.01" min="0" class="form-control" id="amount_paid" name="amount_paid" required>
-                </div>
-                <div class="mb-3">
-                    <label for="payment_method" class="form-label">Payment Method</label>
-                    <select class="form-select" id="payment_method" name="payment_method" required>
-                        <option value="">-- Select Payment Method --</option>
-                        <option value="Cash">Cash</option>
-                        <option value="Bank">Bank</option>
-                        <option value="Mpesa Paybill">Mpesa Paybill (STK Push)</option>
-                    </select>
-                </div>
-                <div class="mb-3 d-none" id="phone_group">
-                    <label for="phone_number" class="form-label">Phone Number (for STK Push)</label>
-                    <input type="text" class="form-control" id="phone_number" name="phone_number" placeholder="e.g. 0712345678" pattern="^0[7][0-9]{8}$" maxlength="10" minlength="10" inputmode="numeric" aria-describedby="phoneHelp">
-                    <div id="phoneHelp" class="form-text">Enter a valid Safaricom number starting with 07XXXXXXXX.</div>
-                    <div class="invalid-feedback">
-                        Please enter a valid Safaricom phone number (e.g. 0712345678).
-                    </div>
-                </div>
-                
-                <button type="submit" class="btn btn-primary" id="submitBtn">
-                    <span id="submitSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                    <span id="submitBtnText">Submit Payment</span>
-                </button>
-                <a href="{% url 'student_dashboard' %}" class="btn btn-secondary ms-2">Back</a>
-            <script>
+        <div class="col-12 col-md-6">
+          <label for="payment_method" class="label">Payment Method</label>
+          <select class="form-select input-xl" id="payment_method" name="payment_method" required>
+            <option value="">-- Select Payment Method --</option>
+            <option value="Mpesa Paybill">Mpesa Paybill (STK Push)</option>
+          </select>
+        </div>
+        <div class="col-12 d-none" id="phone_group">
+          <label for="phone_number" class="label">Phone Number (for STK Push)</label>
+          <input type="text" class="form-control input-xl monospace" id="phone_number" name="phone_number" placeholder="0712345678" pattern="^0[7][0-9]{8}$" maxlength="10" minlength="10" inputmode="numeric" aria-describedby="phoneHelp">
+          <div id="phoneHelp" class="help">Enter a valid Safaricom number starting with 07XXXXXXXX.</div>
+          <div class="invalid-feedback">Please enter a valid Safaricom phone number (e.g. 0712345678).</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary btn-lgx" id="submitBtn">
+          <span id="submitSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+          <span id="submitBtnText">Submit Payment</span>
+        </button>
+      </div>
+      <script>
 document.addEventListener('DOMContentLoaded', function() {
     const paymentMethod = document.getElementById('payment_method');
     const phoneGroup = document.getElementById('phone_group');
@@ -112,40 +145,26 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-</script>
-</form>
-<hr class="my-4">
-<div class="mb-3">
-    <h5>Already paid? Verify your payment below:</h5>
-    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#verifyPaymentModal">
-        Verify Payment (Reference Code)
+      </script>
+    </form>
+  </div>
+
+  <!-- Verify payment -->
+  <div class="card-elevated bg-white shadow-soft p-3 p-md-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+      <h5 class="mb-0">Already paid? Verify your payment</h5>
+      <small class="text-muted">Use your M-Pesa reference to confirm.</small>
+    </div>
+    <button type="button" class="btn btn-outline-secondary btn-lgx" data-bs-toggle="modal" data-bs-target="#verifyPaymentModal">
+      <i class="bi bi-upc-scan"></i> Verify Payment (Reference Code)
     </button>
     {% include 'dashboards/partials/verify_payment_modal.html' %}
-</div>
-        </div>
-    </div>
-    <div class="text-center my-4">
-        <a href="{% url 'student_profile' student.id %}" class="btn btn-info">
-            <i class="fa fa-user"></i> Back to Profile
-        </a>
-    </div>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const paymentMethod = document.getElementById('payment_method');
-        const phoneGroup = document.getElementById('phone_group');
-        const phoneInput = document.getElementById('phone_number');
-        const referenceGroup = document.getElementById('reference_group');
-        paymentMethod.addEventListener('change', function() {
-            if (paymentMethod.value === 'Mpesa Paybill') {
-                phoneGroup.classList.remove('d-none');
-                phoneInput.required = true;
-            } else {
-                phoneGroup.classList.add('d-none');
-                phoneInput.required = false;
-            }
-        });
-    });
-    </script>
-    </div>
+  </div>
+
+  <div class="text-center my-4">
+    <a href="{% url 'student_profile' student.id %}" class="btn btn-light btn-lgx">
+      <i class="fa fa-user"></i> Back to Profile
+    </a>
+  </div>
 </div>
 {% endblock %}

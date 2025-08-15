@@ -179,9 +179,9 @@
         {% endif %}
         <!-- Stepper Navigation -->
         <ul class="nav modern-stepper-nav mb-4 justify-content-center" id="addTeacherStepperNav">
-          <li class="nav-item"><button class="nav-link active" type="button" data-step="0">1. Personal Info</button></li>
-          <li class="nav-item"><button class="nav-link" type="button" data-step="1">2. Account Info</button></li>
-          <li class="nav-item"><button class="nav-link" type="button" data-step="2">3. Subject Allocation</button></li>
+          <li class="nav-item"><button class="nav-link stepper-step active" type="button" data-step="0">1. Personal Info</button></li>
+          <li class="nav-item"><button class="nav-link stepper-step" type="button" data-step="1">2. Account Info</button></li>
+          <li class="nav-item"><button class="nav-link stepper-step" type="button" data-step="2">3. Subject Allocation</button></li>
         </ul>
         <!-- Step 1: Personal Info -->
         <div class="step-card" data-step="0">
@@ -271,9 +271,9 @@
         </div>
         <!-- Stepper Navigation Buttons -->
         <div class="d-flex justify-content-between align-items-center mt-2">
-          <button type="button" class="btn btn-secondary" id="addTeacherPrevBtn">Back</button>
+          <button type="button" class="btn btn-secondary stepper-prev" id="addTeacherPrevBtn">Back</button>
           <div>
-            <button type="button" class="btn btn-primary" id="addTeacherNextBtn">Next</button>
+            <button type="button" class="btn btn-primary stepper-next" id="addTeacherNextBtn">Next</button>
             <button type="submit" class="btn btn-primary d-none" id="addTeacherSubmitBtn">Add Teacher</button>
           </div>
         </div>

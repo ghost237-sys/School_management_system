@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Gallery{% endblock %}
+{% block content %}
+<div class="container mt-3" style="max-width: 980px;">
+  <h3 class="mb-3">Gallery</h3>
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card p-3 mb-3">
+    <h5 class="mb-2">Upload Image</h5>
+    <form method="post" enctype="multipart/form-data" class="row g-3">
+      {% csrf_token %}
+      <div class="col-md-4">
+        <label class="form-label">Title</label>
+        {{ form.title }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Caption</label>
+        {{ form.caption }}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Image</label>
+        {{ form.image }}
+      </div>
+      <div class="col-md-1 d-flex align-items-end">
+        <div class="form-check">
+          {{ form.is_featured }}
+          <label class="form-check-label">Featured</label>
+        </div>
+      </div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary">Upload</button>
+      </div>
+    </form>
+  </div>
+
+  <div>
+    <h5 class="mb-2">Images</h5>
+    <div class="row g-3">
+      {% for img in images %}
+      <div class="col-md-3">
+        <div class="card h-100">
+          <img src="{{ img.image.url }}" class="card-img-top" style="height:180px; object-fit:cover;" alt="{{ img.title }}" />
+          <div class="card-body">
+            {% if img.title %}<div class="fw-bold">{{ img.title }}</div>{% endif %}
+            {% if img.caption %}<div class="text-muted small">{{ img.caption }}</div>{% endif %}
+            {% if img.is_featured %}<span class="badge bg-success mt-2">Featured</span>{% endif %}
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <div class="col-12 text-muted">No images yet. Upload above.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

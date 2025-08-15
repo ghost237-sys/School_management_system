@@ -16,11 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from core import views as core_views
 from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # Direct mapping to ensure availability even if includes are stale
+    path('timetable/auto-generate/', core_views.timetable_auto_generate, name='timetable_auto_generate'),
     path('', include('core.urls')),
 ]
 

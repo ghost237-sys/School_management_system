@@ -1,4 +1,92 @@
 <div class="card mb-4">
+    <style>
+      /* Scrollable container with subtle effects */
+      .payments-scroll {
+        max-height: 420px;
+        overflow-y: auto;
+        border-radius: 8px;
+        border: 1px solid #e0e7ef;
+        box-shadow: 0 1px 4px rgba(80,120,200,0.07);
+        scroll-behavior: smooth;
+      }
+      /* Sticky header so column titles remain visible */
+      .payments-scroll thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #f8fafc;
+        box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+      }
+      /* Nice thin scrollbar (WebKit) */
+      .payments-scroll::-webkit-scrollbar { height: 8px; width: 10px; }
+      .payments-scroll::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, #93c5fd 0%, #60a5fa 100%);
+        border-radius: 8px;
+      }
+      .payments-scroll::-webkit-scrollbar-track { background: #eef2ff; border-radius: 8px; }
+      /* Firefox */
+      .payments-scroll { scrollbar-width: thin; scrollbar-color: #60a5fa #eef2ff; }
+
+      /* Modern finance look */
+      .card-header.bg-success {
+        background: linear-gradient(90deg, #16a34a 0%, #059669 50%, #0ea5e9 100%) !important;
+      }
+      .table thead th {
+        color: #0f172a;
+        font-weight: 700;
+        font-size: 0.9rem;
+        letter-spacing: 0.2px;
+      }
+      .table tbody td { vertical-align: middle; }
+      .payments-scroll table tbody tr:hover {
+        background: #f1f5f9;
+        transition: background 0.15s ease;
+      }
+      .finance-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #eef2ff;
+        border: 1px solid #dbeafe;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.82rem;
+        color: #0f172a;
+        box-shadow: 0 1px 2px rgba(2, 6, 23, 0.06);
+      }
+      .finance-chip .copy-btn {
+        border: none;
+        background: transparent;
+        color: #64748b;
+        padding: 0;
+      }
+      .badge.approved-badge {
+        background: linear-gradient(90deg, #34d399 0%, #10b981 100%);
+        color: white;
+        box-shadow: 0 2px 6px rgba(16,185,129,0.25);
+      }
+      .badge.pending-badge {
+        background: linear-gradient(90deg, #fde68a 0%, #f59e0b 100%);
+        color: #1f2937;
+        box-shadow: 0 2px 6px rgba(245,158,11,0.25);
+      }
+      .badge.rejected-badge {
+        background: linear-gradient(90deg, #fda4af 0%, #ef4444 100%);
+        color: white;
+        box-shadow: 0 2px 6px rgba(239,68,68,0.25);
+      }
+      .method-pill {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        background: linear-gradient(90deg, #e0f2fe 0%, #d1fae5 100%);
+        color: #0f766e;
+        border: 1px solid #bae6fd;
+      }
+    </style>
     <div class="card-header bg-success text-white d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
     <h5 class="mb-0">History of Payments</h5>
     <form method="get" class="d-flex flex-wrap gap-2 align-items-center mb-0" style="max-width: 100%;">
@@ -10,7 +98,7 @@
     </form>
 </div>
     <div class="card-body">
-        <div style="max-height: 400px; overflow-y: auto; border-radius: 8px; border: 1px solid #e0e7ef; box-shadow: 0 1px 4px rgba(80,120,200,0.07);">
+        <div class="payments-scroll">
             <table class="table table-striped mb-0">
             <thead>
                 <tr>
@@ -19,6 +107,8 @@
                     <th>Fee</th>
                     <th>Amount Paid</th>
                     <th>Method</th>
+                    <th>Status</th>
+                    <th>Txn Code</th>
                     <th>Reference</th>
                 </tr>
             </thead>
@@ -29,11 +119,49 @@
                     <td>{% if payment.student and payment.student.user %}{{ payment.student.user.get_full_name|default:payment.student.user.username }}{% else %}N/A{% endif %}</td>
                     <td>{{ payment.fee_assignment.fee_category.name }}</td>
                     <td>{{ payment.amount_paid }}</td>
-                    <td>{{ payment.payment_method|default:'-' }}</td>
-                    <td>{{ payment.reference|default:'-' }}</td>
+                    <td>
+                        {% if payment.payment_method %}
+                          <span class="method-pill">{{ payment.payment_method|lower }}</span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>
+                        {% if payment.status %}
+                            {% if payment.status == 'approved' %}
+                                <span class="badge approved-badge">Approved</span>
+                            {% elif payment.status == 'pending' %}
+                                <span class="badge pending-badge">Pending</span>
+                            {% else %}
+                                <span class="badge rejected-badge">Rejected</span>
+                            {% endif %}
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>
+                        {% if payment.mpesa_transaction and payment.mpesa_transaction.checkout_request_id %}
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="finance-chip" title="CheckoutRequestID">
+                                  {{ payment.mpesa_transaction.checkout_request_id }}
+                                  <button type="button" class="copy-btn" onclick="navigator.clipboard.writeText('{{ payment.mpesa_transaction.checkout_request_id }}')" title="Copy">
+                                    <i class="bi bi-clipboard"></i>
+                                  </button>
+                                </span>
+                            </div>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>
+                        {% if payment.reference %}
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="finance-chip" title="{% if payment.payment_method|lower == 'mpesa' %}M-Pesa Receipt Number{% else %}Reference{% endif %}">
+                                  {{ payment.reference }}
+                                  <button type="button" class="copy-btn" onclick="navigator.clipboard.writeText('{{ payment.reference }}')" title="Copy">
+                                    <i class="bi bi-clipboard"></i>
+                                  </button>
+                                </span>
+                            </div>
+                        {% else %}-{% endif %}
+                    </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="6">No payments recorded.</td></tr>
+                <tr><td colspan="8">No payments recorded.</td></tr>
             {% endfor %}
             </tbody>
             </table>

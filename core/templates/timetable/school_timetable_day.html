@@ -52,11 +52,6 @@
     .print-day:last-child { page-break-after: auto; }
   }
 </style>
-<div class="d-flex gap-3">
-  <div class="d-none d-md-block">
-    {% include 'dashboards/teacher_sidebar.html' %}
-  </div>
-  <div class="flex-grow-1">
 <div class="container-fluid">
   <div class="mb-1">
     <h1 class="mt-2 mb-0 page-title">Whole-School Timetable</h1>
@@ -225,8 +220,6 @@
         </div>
       </div>
     {% endfor %}
-  </div>
-</div>
   </div>
 </div>
 <script>

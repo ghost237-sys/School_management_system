@@ -82,6 +82,24 @@
         border: none;
     }
     
+    /* Modern subtle elevation */
+    .card {
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+    }
+
+    .btn-soft-primary {
+        background: #e7f1ff;
+        color: #0d47a1;
+        border-color: #d6e6ff;
+    }
+
+    .table thead th {
+        background: #f7f9fc;
+        font-weight: 600;
+    }
+
     @media (max-width: 768px) {
         .fc-toolbar {
             flex-direction: column;
@@ -106,8 +124,11 @@
 <!-- Exams tab cleared as per user request. -->
 
 <div class="container-fluid py-4">  
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <h2 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>Exams Management</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>Exams Management</h2>
+            <small class="text-muted">Create exams, view the calendar, and manage grades efficiently.</small>
+        </div>
         <a href="/admin_manage_grades/" class="btn btn-primary">
           <i class="bi bi-journal-check me-1"></i> Manage Grades
         </a>
@@ -201,23 +222,43 @@
         <div class="card mb-4">
           <div class="card-body">
             {% if exams %}  
-              <div class="table-responsive mb-4">
-                <table class="table table-bordered table-striped">
+              <div class="table-responsive mb-2">
+                <table class="table align-middle table-hover">
                   <thead>
                     <tr>
                       <th>Name</th>
                       <th>Term</th>
-                      <th>Date</th>
+                      <th>Start</th>
+                      <th>End</th>
                       <th>Type</th>
+                      <th class="text-end">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for exam in exams %}
                     <tr>
-                      <td>{{ exam.name }}</td>
+                      <td class="fw-semibold">{{ exam.name }}</td>
                       <td>{{ exam.term }}</td>
-                      <td>{{ exam.date }}</td>
-                      <td>{{ exam.get_type_display }}</td>
+                      <td>{{ exam.start_date|date:'d M Y' }}</td>
+                      <td>{{ exam.end_date|date:'d M Y' }}</td>
+                      <td><span class="badge bg-light text-dark border">{{ exam.get_type_display }}</span></td>
+                      <td class="text-end">
+                        <button type="button" class="btn btn-soft-primary btn-sm me-1"
+                                data-bs-toggle="modal" data-bs-target="#examDetailModal"
+                                data-exam-name="{{ exam.name }}"
+                                data-exam-start="{{ exam.start_date|date:'d M Y' }}"
+                                data-exam-end="{{ exam.end_date|date:'d M Y' }}"
+                                data-exam-term="{{ exam.term }}"
+                                onclick="openExamModal(this)">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                        <form method="post" action="{% url 'delete_exam' exam.id %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger btn-sm" title="Delete" onclick="return confirm('Delete exam {{ exam.name }}?');">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                      </td>
                     </tr>   
                     {%endfor%}
                   </tbody>
@@ -245,50 +286,6 @@
     
 
 {% endblock %}
-<form method="post" class="mb-4">
-
-            {% csrf_token %}
-            {{ exam_form.as_p }}
-            <button type="submit" name="add_exam" class="btn btn-success">Add Exam</button>
-        </form>
-        <!-- Exams Table -->
-        {% if exams %}
-            <div class="table-responsive mb-4">
-                <table class="table table-bordered table-striped">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Term</th>
-                            <th>Start Date</th>
-                            <th>End Date</th>
-                            <th>Type</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for exam in exams %}
-                        <tr>
-                            <td>{{ exam.name }}</td>
-                            <td>{{ exam.term }}</td>
-                            <td>{{ exam.start_date|date:"d M Y" }}</td>
-                            <td>{{ exam.end_date|date:"d M Y" }}</td>
-                            <td>{{ exam.get_type_display }}</td>
-                            <td>
-                                <form method="post" action="{% url 'delete_exam' exam.id %}" style="display: inline;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this exam?');">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        {% endif %}
-    </div>
-</div>  
 
 <div class="card mb-4">
     <div class="card-body">
@@ -916,5 +913,25 @@
     
     // Global variable to store current exam ID
     let currentExamId = null;
+
+    // Helper to populate the Exam Details modal from data-* attributes
+    function openExamModal(btn) {
+        try {
+            const name = btn.getAttribute('data-exam-name') || '';
+            const start = btn.getAttribute('data-exam-start') || '';
+            const end = btn.getAttribute('data-exam-end') || '';
+            const term = btn.getAttribute('data-exam-term') || '';
+            var nameEl = document.getElementById('modalExamName');
+            var startEl = document.getElementById('modalExamStart');
+            var endEl = document.getElementById('modalExamEnd');
+            var termEl = document.getElementById('modalExamTerm');
+            if (nameEl) nameEl.textContent = name;
+            if (startEl) startEl.textContent = start;
+            if (endEl) endEl.textContent = end;
+            if (termEl) termEl.textContent = term;
+        } catch (e) {
+            console.error('Failed to open exam modal:', e);
+        }
+    }
 </script>
 {% endblock %}

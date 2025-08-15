@@ -1,0 +1,25 @@
+{# Category template: Single Photo #}
+{% for item in c.media.all|slice:':1' %}
+  {% if item.kind == 'image' and item.image %}
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="padding:12px 12px 0 12px;">
+        <div style="font-weight:700;">{{ c.name }}</div>
+        {% if c.description %}<div class="muted" style="margin:6px 0 10px;">{{ c.description }}</div>{% endif %}
+      </div>
+      <img src="{{ item.image.url }}" alt="{{ item.caption }}" style="display:block; width:100%; height:auto;" />
+      {% if item.caption %}<div style="padding:12px;" class="muted">{{ item.caption }}</div>{% endif %}
+    </div>
+  {% else %}
+    <div class="card" style="padding:12px;">
+      <div style="font-weight:700;">{{ c.name }}</div>
+      {% if c.description %}<div class="muted" style="margin-top:6px;">{{ c.description }}</div>{% endif %}
+      <div class="muted" style="margin-top:10px;">Upload an image to show here.</div>
+    </div>
+  {% endif %}
+{% empty %}
+  <div class="card" style="padding:12px;">
+    <div style="font-weight:700;">{{ c.name }}</div>
+    {% if c.description %}<div class="muted" style="margin-top:6px;">{{ c.description }}</div>{% endif %}
+    <div class="muted" style="margin-top:10px;">No media yet.</div>
+  </div>
+{% endfor %}

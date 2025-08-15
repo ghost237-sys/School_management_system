@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -41,7 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'core',
+    'core.apps.CoreConfig',
     'crispy_forms',
     'crispy_bootstrap5',
 ]
@@ -112,7 +113,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Use local timezone for Kenya by default
+TIME_ZONE = 'Africa/Nairobi'
 
 USE_I18N = True
 
@@ -129,14 +131,37 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Email (SMTP) settings for Gmail
-# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-# EMAIL_HOST = 'smtp.gmail.com'
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = 'emili.mwongela@gmail.com'  # User's actual Gmail address
-# EMAIL_HOST_PASSWORD = 'jzxz kdnl ukij cnwd'  # Gmail App Password
-# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+# Email backend
+# For development, print emails to console. Configure SMTP below for production.
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587')) if os.environ.get('EMAIL_PORT') else None
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').lower() == 'true'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-reply@example.com')
+
+# School branding used in outgoing messages
+SCHOOL_NAME = os.environ.get('SCHOOL_NAME', 'Your School')
+
+# SMS settings (Africa's Talking)
+SMS_ENABLED = os.environ.get('SMS_ENABLED', 'true').lower() == 'true'
+AFRICASTALKING_USERNAME = os.environ.get('AFRICASTALKING_USERNAME', '')
+AFRICASTALKING_API_KEY = os.environ.get('AFRICASTALKING_API_KEY', '')
+AFRICASTALKING_SENDER_ID = os.environ.get('AFRICASTALKING_SENDER_ID', '')  # empty in sandbox
+DEFAULT_SMS_COUNTRY_CODE = os.environ.get('DEFAULT_SMS_COUNTRY_CODE', '254')
+
+# Timetable notifications debounce window (seconds)
+TIMETABLE_NOTIFY_COOLDOWN = int(os.environ.get('TIMETABLE_NOTIFY_COOLDOWN', '120'))
+
+# M-Pesa (Daraja) configuration
+MPESA_ENVIRONMENT = os.environ.get('MPESA_ENVIRONMENT', 'sandbox')  # 'sandbox' or 'production'
+MPESA_CONSUMER_KEY = os.environ.get('MPESA_CONSUMER_KEY', '')
+MPESA_CONSUMER_SECRET = os.environ.get('MPESA_CONSUMER_SECRET', '')
+MPESA_SHORTCODE = os.environ.get('MPESA_SHORTCODE', '')  # PayBill/Till number
+MPESA_PASSKEY = os.environ.get('MPESA_PASSKEY', '')      # For STK push password
+# Public HTTPS URL for callbacks; must be reachable by Safaricom in production
+MPESA_CALLBACK_URL = os.environ.get('MPESA_CALLBACK_URL', '')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

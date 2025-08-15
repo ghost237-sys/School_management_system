@@ -7,6 +7,9 @@ from django.db.models import Q, Sum, Avg, Count
 from django.urls import reverse
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse, HttpResponse
 from django.template.loader import render_to_string
+from django.conf import settings
+from landing.forms import SiteSettingsForm, GalleryImageForm, CategoryForm, CategoryMediaForm
+from landing.models import SiteSettings, GalleryImage, Category, CategoryMedia
 
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -14,6 +17,8 @@ from django.views.decorators.csrf import csrf_protect, csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils.dateparse import parse_datetime
 from django.db import transaction
+from .messaging_utils import _normalize_msisdn
+from .mpesa_utils import initiate_stk_push, query_stk_status
 
 import datetime
 import openpyxl
@@ -24,16 +29,588 @@ from .models import (
     User, Student, Teacher, Class, Subject, Exam, Term, Grade, 
     FeeCategory, FeeAssignment, FeePayment, Event, Deadline, 
     TeacherClassAssignment, Department, AcademicYear, Notification,
-    PeriodSlot, DefaultTimetable, Attendance
+    PeriodSlot, DefaultTimetable, Attendance, MpesaTransaction
 )
 from .forms import (
     AddStudentForm, StudentContactUpdateForm, EditStudentClassForm, FeeCategoryForm,
-    GradeUploadForm, TeacherProfileUpdateForm,
+    GradeUploadForm, TeacherProfileUpdateForm, EditTermDatesForm,
 )
 from django.contrib.auth.decorators import user_passes_test
+from django.db.models.functions import Length
+from django.db.models import Sum
+import csv
 
 def is_admin(user):
     return user.is_authenticated and getattr(user, 'role', None) == 'admin'
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def admin_website_settings(request):
+    """Allow admins to manage public website settings and categories."""
+    settings = SiteSettings.objects.first()
+    if settings is None:
+        settings = SiteSettings.objects.create()
+    category_form = CategoryForm()
+    media_form = CategoryMediaForm()
+    edit_category_obj = None
+    edit_id = request.GET.get('edit')
+    if edit_id:
+        try:
+            edit_category_obj = Category.objects.get(pk=edit_id)
+            category_form = CategoryForm(instance=edit_category_obj)
+        except Category.DoesNotExist:
+            edit_category_obj = None
+    if request.method == 'POST':
+        # Distinguish which form was submitted
+        if 'save_settings' in request.POST:
+            form = SiteSettingsForm(request.POST, request.FILES, instance=settings)
+            if form.is_valid():
+                form.save()
+                messages.success(request, 'Website settings updated successfully.')
+                return redirect('admin_website_settings')
+            else:
+                messages.error(request, 'Please correct the errors below.')
+        elif 'add_category' in request.POST:
+            category_form = CategoryForm(request.POST)
+            if category_form.is_valid():
+                category_form.save()
+                messages.success(request, 'Category added.')
+                return redirect('admin_website_settings')
+            else:
+                messages.error(request, 'Please correct the errors in category form.')
+        elif 'save_category' in request.POST:
+            cat_id = request.POST.get('category_id')
+            if not cat_id:
+                messages.error(request, 'Missing category ID.')
+            else:
+                instance = get_object_or_404(Category, pk=cat_id)
+                category_form = CategoryForm(request.POST, instance=instance)
+                if category_form.is_valid():
+                    category_form.save()
+                    messages.success(request, 'Category updated.')
+                    return redirect('admin_website_settings')
+                else:
+                    messages.error(request, 'Please correct the errors in category form.')
+        elif 'delete_category' in request.POST:
+            cat_id = request.POST.get('category_id')
+            if not cat_id:
+                messages.error(request, 'Missing category ID.')
+            else:
+                try:
+                    Category.objects.get(pk=cat_id).delete()
+                    messages.success(request, 'Category deleted.')
+                    return redirect('admin_website_settings')
+                except Category.DoesNotExist:
+                    messages.error(request, 'Category not found.')
+        elif 'add_category_media' in request.POST:
+            media_form = CategoryMediaForm(request.POST, request.FILES)
+            if media_form.is_valid():
+                media_form.save()
+                messages.success(request, 'Category media uploaded.')
+                return redirect('admin_website_settings')
+            else:
+                messages.error(request, 'Please correct the errors in media form.')
+        elif 'add_gallery_images' in request.POST:
+            # Multi-upload for Gallery template
+            try:
+                cat_id = int(request.POST.get('category'))
+                category = get_object_or_404(Category, pk=cat_id)
+            except (TypeError, ValueError):
+                category = None
+            images = request.FILES.getlist('images')
+            caption = request.POST.get('caption', '')
+            try:
+                base_order = int(request.POST.get('order', '0'))
+            except ValueError:
+                base_order = 0
+            if not category:
+                messages.error(request, 'Invalid category for gallery upload.')
+            elif not images:
+                messages.error(request, 'Please select one or more images.')
+            else:
+                created = 0
+                for idx, img in enumerate(images):
+                    CategoryMedia.objects.create(
+                        category=category,
+                        kind='image',
+                        image=img,
+                        caption=caption,
+                        order=base_order + idx,
+                    )
+                    created += 1
+                messages.success(request, f'Uploaded {created} image(s) to gallery.')
+                return redirect('admin_website_settings')
+        elif 'add_single_photo' in request.POST:
+            # Single image for Single Photo template
+            try:
+                cat_id = int(request.POST.get('category'))
+                category = get_object_or_404(Category, pk=cat_id)
+            except (TypeError, ValueError):
+                category = None
+            img = request.FILES.get('image')
+            caption = request.POST.get('caption', '')
+            try:
+                order_val = int(request.POST.get('order', '0'))
+            except ValueError:
+                order_val = 0
+            if not category or not img:
+                messages.error(request, 'Please select an image to upload.')
+            else:
+                CategoryMedia.objects.create(
+                    category=category,
+                    kind='image',
+                    image=img,
+                    caption=caption,
+                    order=order_val,
+                )
+                messages.success(request, 'Photo uploaded.')
+                return redirect('admin_website_settings')
+        elif 'add_video_file' in request.POST:
+            # Single video file for Video template
+            try:
+                cat_id = int(request.POST.get('category'))
+                category = get_object_or_404(Category, pk=cat_id)
+            except (TypeError, ValueError):
+                category = None
+            vid = request.FILES.get('video_file')
+            caption = request.POST.get('caption', '')
+            try:
+                order_val = int(request.POST.get('order', '0'))
+            except ValueError:
+                order_val = 0
+            if not category or not vid:
+                messages.error(request, 'Please select a video file to upload.')
+            else:
+                CategoryMedia.objects.create(
+                    category=category,
+                    kind='video',
+                    file=vid,
+                    caption=caption,
+                    order=order_val,
+                )
+                messages.success(request, 'Video uploaded.')
+                return redirect('admin_website_settings')
+        elif 'add_pdf_files' in request.POST:
+            # Multi-upload for File template (PDF documents)
+            try:
+                cat_id = int(request.POST.get('category'))
+                category = get_object_or_404(Category, pk=cat_id)
+            except (TypeError, ValueError):
+                category = None
+            pdfs = request.FILES.getlist('pdfs')
+            caption = request.POST.get('caption', '')
+            try:
+                base_order = int(request.POST.get('order', '0'))
+            except ValueError:
+                base_order = 0
+            if not category:
+                messages.error(request, 'Invalid category for PDF upload.')
+            elif not pdfs:
+                messages.error(request, 'Please select one or more PDF files.')
+            else:
+                created = 0
+                for idx, f in enumerate(pdfs):
+                    name_ok = f.name.lower().endswith('.pdf')
+                    content_ok = getattr(f, 'content_type', '') == 'application/pdf'
+                    if not (name_ok or content_ok):
+                        continue
+                    CategoryMedia.objects.create(
+                        category=category,
+                        kind='file',
+                        file=f,
+                        caption=caption,
+                        order=base_order + idx,
+                    )
+                    created += 1
+                if created:
+                    messages.success(request, f'Uploaded {created} PDF file(s).')
+                else:
+                    messages.error(request, 'No valid PDF files were uploaded.')
+                return redirect('admin_website_settings')
+        elif 'save_video_side_text' in request.POST:
+            # Update only the support text for video template from the preview column
+            cat_id = request.POST.get('category_id')
+            if not cat_id:
+                messages.error(request, 'Missing category ID.')
+            else:
+                instance = get_object_or_404(Category, pk=cat_id)
+                instance.video_side_text = request.POST.get('video_side_text', '')
+                instance.save(update_fields=['video_side_text'])
+                messages.success(request, 'Support text updated.')
+                return redirect('admin_website_settings')
+        elif 'delete_media' in request.POST:
+            media_id = request.POST.get('media_id')
+            try:
+                obj = CategoryMedia.objects.get(pk=media_id)
+                obj.delete()
+                messages.success(request, 'Media deleted.')
+            except CategoryMedia.DoesNotExist:
+                messages.error(request, 'Media not found.')
+            return redirect('admin_website_settings')
+        else:
+            # Fallback to settings form
+            form = SiteSettingsForm(request.POST, request.FILES, instance=settings)
+            if form.is_valid():
+                form.save()
+                messages.success(request, 'Website settings updated successfully.')
+                return redirect('admin_website_settings')
+            else:
+                messages.error(request, 'Please correct the errors below.')
+    else:
+        form = SiteSettingsForm(instance=settings)
+    categories = Category.objects.all()
+    media_items = CategoryMedia.objects.select_related('category').all()
+    return render(request, 'dashboards/admin_website_settings.html', { 'form': form, 'category_form': category_form, 'media_form': media_form, 'categories': categories, 'media_items': media_items, 'edit_category': edit_category_obj })
+
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def admin_gallery(request):
+    """Upload and manage gallery images."""
+    if request.method == 'POST':
+        form = GalleryImageForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Image uploaded to gallery.')
+            return redirect('admin_gallery')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = GalleryImageForm()
+
+    images = GalleryImage.objects.all()
+    return render(request, 'dashboards/admin_gallery.html', { 'form': form, 'images': images })
+
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def admin_categories(request):
+    """Add and manage navbar categories."""
+    if request.method == 'POST':
+        form = CategoryForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Category saved.')
+            return redirect('admin_categories')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = CategoryForm()
+
+    categories = Category.objects.all()
+    return render(request, 'dashboards/admin_categories.html', { 'form': form, 'categories': categories })
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def downloads(request):
+    """
+    Simple Downloads hub for admins.
+    Provides links to download templates and exports already implemented in the system.
+    """
+    classes = Class.objects.all().order_by('level', 'name')
+    users_preview = User.objects.all().order_by('-date_joined')[:10]
+    teachers_preview = Teacher.objects.select_related('user', 'department').order_by('id')[:10]
+    students_preview = Student.objects.select_related('user', 'class_group').order_by('id')[:10]
+    departments = Department.objects.all().order_by('name')
+    subjects = Subject.objects.all().order_by('name')
+    levels = Class.objects.values_list('level', flat=True).distinct().order_by('level')
+    fee_categories = FeeCategory.objects.all().order_by('name')
+    terms = Term.objects.select_related('academic_year').all().order_by('-academic_year__year', 'name')
+    exams = Exam.objects.select_related('term').all().order_by('-term__academic_year__year', 'term__name', 'name')
+    return render(request, 'dashboards/downloads.html', {
+        'classes': classes,
+        'users_preview': users_preview,
+        'teachers_preview': teachers_preview,
+        'students_preview': students_preview,
+        'users_total': User.objects.count(),
+        'teachers_total': Teacher.objects.count(),
+        'students_total': Student.objects.count(),
+        'departments': departments,
+        'subjects': subjects,
+        'levels': levels,
+        'fee_categories': fee_categories,
+        'terms': terms,
+        'exams': exams,
+    })
+
+# =============================
+# CSV/Export Endpoints (Admin)
+# =============================
+
+def _csv_response(filename: str):
+    resp = HttpResponse(content_type='text/csv')
+    resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return resp
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def export_students_with_arrears_csv(request):
+    class_id = request.GET.get('class_id')
+    term_id = request.GET.get('term_id')
+    order = request.GET.get('order', 'desc')  # asc/desc
+    sort_by = request.GET.get('sort_by', 'balance')  # balance|name|admission
+    min_balance = request.GET.get('min_balance')
+    max_balance = request.GET.get('max_balance')
+
+    students = Student.objects.select_related('user', 'class_group').all()
+    if class_id:
+        students = students.filter(class_group_id=class_id)
+
+    # Build balances
+    rows = []
+    for s in students:
+        # Owed: sum of fee assignments for student's class (optionally by term)
+        fa_q = FeeAssignment.objects.filter(class_group=s.class_group)
+        if term_id:
+            fa_q = fa_q.filter(term_id=term_id)
+        owed = fa_q.aggregate(total=Sum('amount'))['total'] or 0
+        # Paid: sum of approved payments for this student (optionally by term via fee_assignment)
+        fp_q = FeePayment.objects.filter(student=s, status='approved')
+        if term_id:
+            fp_q = fp_q.filter(fee_assignment__term_id=term_id)
+        paid = fp_q.aggregate(total=Sum('amount_paid'))['total'] or 0
+        balance = (owed - paid)
+        if balance > 0:
+            rows.append((s, balance, owed, paid))
+
+    # Optional balance range filter
+    try:
+        if min_balance is not None and min_balance != '':
+            mb = float(min_balance)
+            rows = [r for r in rows if r[1] >= mb]
+        if max_balance is not None and max_balance != '':
+            xb = float(max_balance)
+            rows = [r for r in rows if r[1] <= xb]
+    except ValueError:
+        pass
+
+    # Sorting
+    is_desc = order in ['desc', 'za']
+    if sort_by == 'name':
+        rows.sort(key=lambda r: ((r[0].user.first_name or '') + ' ' + (r[0].user.last_name or '')).strip().lower(), reverse=is_desc)
+    elif sort_by == 'admission':
+        rows.sort(key=lambda r: (len(r[0].admission_no), r[0].admission_no), reverse=is_desc)
+    else:  # balance
+        rows.sort(key=lambda r: r[1], reverse=is_desc)
+
+    resp = _csv_response('students_with_arrears.csv')
+    writer = csv.writer(resp)
+    writer.writerow(['Admission No', 'Full Name', 'Class', 'Level', 'Owed', 'Paid', 'Balance'])
+    for s, balance, owed, paid in rows:
+        user = s.user
+        writer.writerow([
+            s.admission_no,
+            user.get_full_name() if user else '',
+            getattr(s.class_group, 'name', ''),
+            getattr(s.class_group, 'level', ''),
+            owed,
+            paid,
+            balance,
+        ])
+    return resp
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def export_students_without_arrears_csv(request):
+    class_id = request.GET.get('class_id')
+    term_id = request.GET.get('term_id')
+    order = request.GET.get('order', 'asc')  # asc/desc
+    sort_by = request.GET.get('sort_by', 'name')  # name|admission|balance
+    min_balance = request.GET.get('min_balance')
+    max_balance = request.GET.get('max_balance')
+
+    students = Student.objects.select_related('user', 'class_group').all()
+    if class_id:
+        students = students.filter(class_group_id=class_id)
+
+    rows = []
+    for s in students:
+        fa_q = FeeAssignment.objects.filter(class_group=s.class_group)
+        if term_id:
+            fa_q = fa_q.filter(term_id=term_id)
+        owed = fa_q.aggregate(total=Sum('amount'))['total'] or 0
+        fp_q = FeePayment.objects.filter(student=s, status='approved')
+        if term_id:
+            fp_q = fp_q.filter(fee_assignment__term_id=term_id)
+        paid = fp_q.aggregate(total=Sum('amount_paid'))['total'] or 0
+        balance = (owed - paid)
+        if balance <= 0:
+            rows.append((s, balance, owed, paid))
+
+    # Optional balance range filter (allow negatives too)
+    try:
+        if min_balance is not None and min_balance != '':
+            mb = float(min_balance)
+            rows = [r for r in rows if r[1] >= mb]
+        if max_balance is not None and max_balance != '':
+            xb = float(max_balance)
+            rows = [r for r in rows if r[1] <= xb]
+    except ValueError:
+        pass
+
+    is_desc = order in ['desc', 'za']
+    if sort_by == 'admission':
+        rows.sort(key=lambda r: (len(r[0].admission_no), r[0].admission_no), reverse=is_desc)
+    elif sort_by == 'balance':
+        rows.sort(key=lambda r: r[1], reverse=is_desc)
+    else:
+        rows.sort(key=lambda r: ((r[0].user.first_name or '') + ' ' + (r[0].user.last_name or '')).strip().lower(), reverse=is_desc)
+
+    resp = _csv_response('students_without_arrears.csv')
+    writer = csv.writer(resp)
+    writer.writerow(['Admission No', 'Full Name', 'Class', 'Level', 'Owed', 'Paid', 'Balance'])
+    for s, balance, owed, paid in rows:
+        user = s.user
+        writer.writerow([
+            s.admission_no,
+            user.get_full_name() if user else '',
+            getattr(s.class_group, 'name', ''),
+            getattr(s.class_group, 'level', ''),
+            owed,
+            paid,
+            balance,
+        ])
+    return resp
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def export_users_csv(request):
+    qs = User.objects.all().order_by('id')
+    resp = _csv_response('users.csv')
+    writer = csv.writer(resp)
+    writer.writerow(['ID', 'Username', 'First Name', 'Last Name', 'Email', 'Role', 'Is Active', 'Date Joined'])
+    for u in qs:
+        writer.writerow([u.id, u.username, u.first_name, u.last_name, u.email, getattr(u, 'role', ''), u.is_active, u.date_joined])
+    return resp
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def export_teachers_csv(request):
+    qs = Teacher.objects.select_related('user', 'department').all()
+    # Filters
+    dept_id = request.GET.get('department_id')
+    subj_id = request.GET.get('subject_id')
+    order = request.GET.get('order', 'az')  # az or za
+    if dept_id:
+        qs = qs.filter(department_id=dept_id)
+    if subj_id:
+        qs = qs.filter(subjects__id=subj_id)
+    # Ordering by teacher name
+    if order == 'za':
+        qs = qs.order_by('-user__first_name', '-user__last_name', '-id')
+    else:
+        qs = qs.order_by('user__first_name', 'user__last_name', 'id')
+    resp = _csv_response('teachers.csv')
+    writer = csv.writer(resp)
+    writer.writerow(['ID', 'Name', 'Username', 'Department', 'TSC Number', 'Staff ID', 'Phone', 'Gender', 'Email'])
+    for t in qs:
+        user = t.user
+        name = user.get_full_name() if user else ''
+        writer.writerow([t.id, name, user.username if user else '', getattr(t.department, 'name', ''), t.tsc_number or '', t.staff_id or '', t.phone or '', t.gender or '', (user.email if user else '')])
+    return resp
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def export_students_csv(request):
+    qs = Student.objects.select_related('user', 'class_group').all()
+    # Filters
+    class_id = request.GET.get('class_id')
+    level = request.GET.get('level')
+    order = request.GET.get('order', 'asc')  # asc/desc or az/za
+    sort_by = request.GET.get('sort_by', 'admission')  # name or admission
+    if class_id:
+        qs = qs.filter(class_group_id=class_id)
+    if level:
+        qs = qs.filter(class_group__level=level)
+    # Ordering by student name
+    is_desc = order in ['desc', 'za']
+    if sort_by == 'admission':
+        # Length-aware lexicographic ordering to handle ADM2 < ADM10 numerically
+        qs = qs.annotate(_adm_len=Length('admission_no'))
+        if is_desc:
+            qs = qs.order_by('-_adm_len', '-admission_no')
+        else:
+            qs = qs.order_by('_adm_len', 'admission_no')
+    else:
+        # name
+        qs = qs.order_by('-user__first_name', '-user__last_name') if is_desc else qs.order_by('user__first_name', 'user__last_name')
+    resp = _csv_response('students.csv')
+    writer = csv.writer(resp)
+    writer.writerow(['Admission No', 'Full Name', 'Username', 'Class', 'Level', 'Gender', 'Phone', 'Graduated'])
+    for s in qs:
+        user = s.user
+        full_name = user.get_full_name() if user else ''
+        username = user.username if user else ''
+        writer.writerow([s.admission_no, full_name, username, getattr(s.class_group, 'name', ''), getattr(s.class_group, 'level', ''), s.gender, s.phone or '', s.graduated])
+    return resp
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def export_fee_assignments_csv(request):
+    qs = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term__academic_year').all()
+    class_id = request.GET.get('class_id')
+    term_id = request.GET.get('term_id')
+    if class_id:
+        qs = qs.filter(class_group_id=class_id)
+    if term_id:
+        qs = qs.filter(term_id=term_id)
+    qs = qs.order_by('class_group__level', 'class_group__name', 'fee_category__name')
+    resp = _csv_response('fee_assignments.csv')
+    writer = csv.writer(resp)
+    writer.writerow(['ID', 'Fee Category', 'Class', 'Level', 'Term', 'Academic Year', 'Amount'])
+    for fa in qs:
+        writer.writerow([
+            fa.id,
+            fa.fee_category.name if fa.fee_category else '',
+            fa.class_group.name if fa.class_group else '',
+            fa.class_group.level if fa.class_group else '',
+            fa.term.name if fa.term else '',
+            fa.term.academic_year.year if getattr(fa.term, 'academic_year', None) else '',
+            fa.amount,
+        ])
+    return resp
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def export_fee_payments_csv(request):
+    qs = FeePayment.objects.select_related('student__user', 'fee_assignment__fee_category', 'fee_assignment__class_group', 'fee_assignment__term__academic_year').all()
+    # Filters
+    method = request.GET.get('method')  # mpesa, cash, bank
+    category_id = request.GET.get('category_id')
+    class_id = request.GET.get('class_id')
+    term_id = request.GET.get('term_id')
+    if method:
+        qs = qs.filter(payment_method__iexact=method)
+    if category_id:
+        qs = qs.filter(fee_assignment__fee_category_id=category_id)
+    if class_id:
+        qs = qs.filter(fee_assignment__class_group_id=class_id)
+    if term_id:
+        qs = qs.filter(fee_assignment__term_id=term_id)
+    qs = qs.order_by('-payment_date')
+    resp = _csv_response('fee_payments.csv')
+    writer = csv.writer(resp)
+    writer.writerow(['ID', 'Student', 'Admission No', 'Class', 'Level', 'Fee Category', 'Amount Paid', 'Payment Date', 'Method', 'Reference', 'Phone', 'Status'])
+    for p in qs:
+        student = p.student
+        user = getattr(student, 'user', None)
+        class_group = getattr(student, 'class_group', None)
+        cat = p.fee_assignment.fee_category.name if p.fee_assignment and p.fee_assignment.fee_category else ''
+        writer.writerow([
+            p.id,
+            (user.get_full_name() if user else str(student.id)),
+            getattr(student, 'admission_no', ''),
+            getattr(class_group, 'name', ''),
+            getattr(class_group, 'level', ''),
+            cat,
+            p.amount_paid,
+            p.payment_date.strftime('%Y-%m-%d %H:%M'),
+            p.payment_method or '',
+            p.reference or '',
+            p.phone_number or '',
+            p.status,
+        ])
+    return resp
 
 @login_required(login_url='login')
 @user_passes_test(is_admin)
@@ -51,6 +628,80 @@ def admin_payment_callback_logs(request):
 
 
 from django.http import JsonResponse
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def export_result_slip_csv(request):
+    """
+    Result slip rows per subject for each student, filtered by exam and optionally class or level.
+    GET: exam_id (required), class_id (optional), level (optional)
+    """
+    exam_id = request.GET.get('exam_id')
+    class_id = request.GET.get('class_id')
+    level = request.GET.get('level')
+    if not exam_id:
+        return HttpResponse("Missing exam_id", status=400)
+    grades = Grade.objects.select_related('student__user', 'student__class_group', 'subject', 'exam__term__academic_year').filter(exam_id=exam_id)
+    if class_id:
+        grades = grades.filter(student__class_group_id=class_id)
+    if level:
+        grades = grades.filter(student__class_group__level=level)
+    grades = grades.order_by('student__class_group__level', 'student__class_group__name', 'student__admission_no', 'subject__name')
+    resp = _csv_response('result_slip.csv')
+    writer = csv.writer(resp)
+    writer.writerow(['Admission No', 'Full Name', 'Class', 'Level', 'Subject', 'Score', 'Grade', 'Exam', 'Term', 'Year'])
+    for g in grades:
+        s = g.student
+        user = s.user
+        cls = s.class_group
+        term = g.exam.term if g.exam else None
+        writer.writerow([
+            s.admission_no,
+            user.get_full_name() if user else '',
+            getattr(cls, 'name', ''),
+            getattr(cls, 'level', ''),
+            g.subject.name if g.subject else '',
+            g.score,
+            g.grade_letter or '',
+            g.exam.name if g.exam else '',
+            term.name if term else '',
+            term.academic_year.year if getattr(term, 'academic_year', None) else '',
+        ])
+    return resp
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def export_empty_subject_list_csv(request):
+    """
+    Empty mark entry template for a chosen class and subject.
+    GET: class_id (required), subject_id (required)
+    """
+    class_id = request.GET.get('class_id')
+    subject_id = request.GET.get('subject_id')
+    if not class_id or not subject_id:
+        return HttpResponse("Missing class_id or subject_id", status=400)
+    try:
+        cls = Class.objects.get(id=class_id)
+        subj = Subject.objects.get(id=subject_id)
+    except Class.DoesNotExist:
+        return HttpResponse("Invalid class_id", status=400)
+    except Subject.DoesNotExist:
+        return HttpResponse("Invalid subject_id", status=400)
+    students = Student.objects.select_related('user').filter(class_group=cls).order_by('user__first_name', 'user__last_name')
+    resp = _csv_response('empty_subject_list.csv')
+    writer = csv.writer(resp)
+    writer.writerow(['Admission No', 'Full Name', 'Class', 'Level', 'Subject', 'Score'])
+    for s in students:
+        user = s.user
+        writer.writerow([
+            s.admission_no,
+            user.get_full_name() if user else '',
+            getattr(cls, 'name', ''),
+            getattr(cls, 'level', ''),
+            subj.name,
+            '',
+        ])
+    return resp
 
 @login_required(login_url='login')
 def manage_class_subjects(request, class_id):
@@ -134,7 +785,8 @@ def view_attendance(request):
     status_filter = request.GET.get('status', '')
     class_filter = request.GET.get('class_id', '')
 
-    attendances = Attendance.objects.all().select_related(
+    # Defer 'timestamp' to avoid selecting a non-existent DB column if migrations haven't been applied yet
+    attendances = Attendance.objects.all().defer('timestamp').select_related(
         'student__user', 'subject', 'teacher__user', 'class_group'
     ).order_by('-date')
 
@@ -776,8 +1428,16 @@ def admin_exams_json(request):
     return JsonResponse(events, safe=False)
 
 @login_required(login_url='login')
-@login_required(login_url='login')
-def admin_overview(request):
+def timetable_view(request):
+    # Allow admin to trigger auto-generation via POST to this same view
+    if request.method == 'POST' and getattr(request.user, 'role', None) == 'admin' and request.POST.get('auto_generate') == '1':
+        try:
+            report = generate_timetable(overwrite=True)
+            messages.success(request, f"Timetable generated. Placed: {report.get('placed', 0)}, Skipped: {report.get('skipped', 0)}")
+        except Exception as e:
+            messages.error(request, f"Failed to generate timetable: {e}")
+        from django.shortcuts import redirect
+        return redirect('timetable_view')
     if not request.user.role == 'admin':
         return HttpResponseForbidden("You are not authorized to view this page.")
     
@@ -1252,7 +1912,7 @@ def timetable_view(request):
     classes = Class.objects.all().order_by('level', 'name')
     subjects = Subject.objects.all().order_by('name')
     teachers = Teacher.objects.select_related('user').all().order_by('user__last_name')
-    periods = PeriodSlot.objects.all()
+    periods = PeriodSlot.objects.filter(is_class_slot=True).order_by('start_time')
     days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
     selected_class_id = request.GET.get('class_id')
@@ -2227,7 +2887,7 @@ def edit_teacher(request, teacher_id):
 
 @login_required(login_url='login')
 def admin_payment(request):
-    from .models import Student, Term, FeeAssignment, FeePayment
+    from .models import Student, Term, FeeAssignment, FeePayment, MpesaTransaction
     from django.utils import timezone
     from django.contrib import messages
     from .mpesa_utils import initiate_stk_push
@@ -2260,33 +2920,52 @@ def admin_payment(request):
                 # else: assume already correct
                 print("[DEBUG] Normalized phone number:", phone_number)
                 print("[DEBUG] Payment method:", payment_method)
-                print("[DEBUG] About to call initiate_stk_push with:", phone_number, amount_paid, reference or student.admission_no)
+                account_ref = f"Account#{student.admission_no}"
+                print("[DEBUG] About to call initiate_stk_push with:", phone_number, amount_paid, account_ref)
                 stk_response = initiate_stk_push(
                     phone_number=phone_number,
                     amount=amount_paid,
-                    account_ref=reference or student.admission_no,
+                    account_ref=account_ref,
                     transaction_desc=f'Fee payment for {student.full_name}'
                 )
                 print("[DEBUG] STK Response:", stk_response)
                 if stk_response.get('ResponseCode') == '0':
+                    # Persist a pending MpesaTransaction for later verification
+                    try:
+                        MpesaTransaction.objects.create(
+                            student=student,
+                            fee_assignment=fee_assignment,
+                            phone_number=phone_number,
+                            amount=amount_paid,
+                            account_reference=account_ref,
+                            merchant_request_id=stk_response.get('MerchantRequestID'),
+                            checkout_request_id=stk_response.get('CheckoutRequestID'),
+                            status='pending'
+                        )
+                    except Exception as e:
+                        print('[M-PESA][WARN] Could not persist MpesaTransaction:', e)
                     messages.success(request, 'STK Push sent! Complete payment on your phone.')
                 else:
                     messages.error(request, f"STK Push failed: {stk_response.get('errorMessage', stk_response)}")
                     # Optionally, do not save payment if STK Push fails
                     return redirect(request.path + f'?student_id={student.id}')
-            payment = FeePayment.objects.create(
-                student=student,
-                fee_assignment=fee_assignment,
-                amount_paid=amount_paid,
-                payment_method=payment_method,
-                reference=reference,
-                phone_number=phone_number
-            )
+            # Only create FeePayment immediately for non-Mpesa methods
+            if payment_method != 'Mpesa Paybill':
+                payment = FeePayment.objects.create(
+                    student=student,
+                    fee_assignment=fee_assignment,
+                    amount_paid=amount_paid,
+                    payment_method=payment_method,
+                    reference=reference,
+                    phone_number=phone_number
+                )
+            else:
+                payment = None
             from django.db.models import Sum
             total_billed = fee_assignment.amount
             total_paid = FeePayment.objects.filter(student=student, fee_assignment=fee_assignment).aggregate(total=Sum('amount_paid'))['total'] or 0
             balance = total_billed - total_paid
-            payment_date = payment.payment_date.strftime('%Y-%m-%d %H:%M') if hasattr(payment, 'payment_date') else str(timezone.now())
+            payment_date = payment.payment_date.strftime('%Y-%m-%d %H:%M') if payment else str(timezone.now())
             confirm_msg = f"Dear {student.full_name}, your payment of Ksh. {amount_paid} has been received on {payment_date}. Outstanding balance: Ksh. {balance:.2f}. Thank you."
             if student.user and student.user.email:
                 from django.core.mail import send_mail
@@ -2305,7 +2984,10 @@ def admin_payment(request):
             if student.user:
                 notif_msg = f"Your payment of Ksh. {amount_paid} has been received on {payment_date}. Outstanding balance: Ksh. {balance:.2f}."
                 create_notification(student.user, notif_msg)
-            messages.success(request, f'Payment of Ksh. {amount_paid} recorded for {student.full_name}. Confirmation sent.')
+            if payment_method != 'Mpesa Paybill':
+                messages.success(request, f'Payment of Ksh. {amount_paid} recorded for {student.full_name}. Confirmation sent.')
+            else:
+                messages.info(request, f'STK initiated for Ksh. {amount_paid}. Payment will reflect after confirmation.')
             return redirect(request.path + f'?student_id={student.id}')
         except Student.DoesNotExist:
             # Notify admin of error
@@ -2434,11 +3116,46 @@ def admin_events(request):
 
 @login_required(login_url='login')
 def teacher_timetable(request, teacher_id):
-    return render(request, 'dashboards/teacher_timetable.html', {})
+    # Personalized timetable for a teacher across the week
+    from .models import Teacher, DefaultTimetable, PeriodSlot
+
+    # Access control: allow admins or the owner teacher to view
+    is_admin = getattr(request.user, 'role', None) == 'admin'
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    if not is_admin and getattr(request.user, 'id', None) != getattr(teacher.user, 'id', None):
+        # Forbidden
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden('You are not allowed to view this timetable.')
+
+    # Match class timetable: only class slots, ordered by start
+    periods = PeriodSlot.objects.filter(is_class_slot=True).order_by('start_time')
+    days = [d[0] for d in DefaultTimetable.DAY_CHOICES]
+
+    # Initialize grid: period.id -> day -> None/entry
+    timetable_grid = {p.id: {day: None for day in days} for p in periods}
+
+    # Fetch this teacher's assignments
+    entries = (
+        DefaultTimetable.objects
+        .filter(teacher=teacher)
+        .select_related('class_group', 'subject', 'period')
+    )
+
+    for entry in entries:
+        if entry.period_id in timetable_grid and entry.day in timetable_grid[entry.period_id]:
+            timetable_grid[entry.period_id][entry.day] = entry
+
+    context = {
+        'teacher': teacher,
+        'days': days,
+        'periods': periods,
+        'timetable_grid': timetable_grid,
+    }
+    return render(request, 'dashboards/teacher_timetable.html', context)
 
 @login_required(login_url='login')
 def student_fees(request):
-    from .models import FeeAssignment, FeePayment, Term, Student
+    from .models import FeeAssignment, FeePayment, Term, Student, MpesaTransaction
     from django.utils import timezone
     from django.db.models import Sum
     from django.contrib import messages
@@ -2475,25 +3192,41 @@ def student_fees(request):
                 elif phone_number.startswith('7') and len(phone_number) == 9:
                     phone_number = '254' + phone_number
                 # else: assume already correct
+                account_ref = f"Account#{student.admission_no}"
                 stk_response = initiate_stk_push(
                     phone_number=phone_number,
                     amount=amount_paid,
-                    account_ref=reference or student.admission_no,
+                    account_ref=account_ref,
                     transaction_desc=f'Fee payment for {student.full_name}'
                 )
                 if stk_response.get('ResponseCode') == '0':
+                    try:
+                        MpesaTransaction.objects.create(
+                            student=student,
+                            fee_assignment=fee_assignment,
+                            phone_number=phone_number,
+                            amount=amount_paid,
+                            account_reference=account_ref,
+                            merchant_request_id=stk_response.get('MerchantRequestID'),
+                            checkout_request_id=stk_response.get('CheckoutRequestID'),
+                            status='pending'
+                        )
+                    except Exception as e:
+                        print('[M-PESA][WARN] Could not persist MpesaTransaction (student):', e)
                     messages.success(request, 'STK Push sent! Complete payment on your phone.')
                 else:
                     messages.error(request, f"STK Push failed: {stk_response.get('errorMessage', stk_response)}")
                     return redirect(request.path)
-            FeePayment.objects.create(
-                student=student,
-                fee_assignment=fee_assignment,
-                amount_paid=amount_paid,
-                payment_method=payment_method,
-                reference=reference,
-                phone_number=phone_number
-            )
+            # Only create FeePayment immediately for non-Mpesa methods
+            if payment_method != 'Mpesa Paybill':
+                FeePayment.objects.create(
+                    student=student,
+                    fee_assignment=fee_assignment,
+                    amount_paid=amount_paid,
+                    payment_method=payment_method,
+                    reference=reference,
+                    phone_number=phone_number
+                )
             messages.success(request, f'Payment of Ksh. {amount_paid} recorded.')
             return redirect(f'{request.path}?success=1')
         except Exception as e:
@@ -2504,12 +3237,37 @@ def student_fees(request):
 
     from .forms import StudentContactUpdateForm
     contact_form = StudentContactUpdateForm(instance=student, user_instance=student.user)
+    # Compute total outstanding balance (arrears from previous terms + current term balance)
+    total_outstanding = 0
+    try:
+        # Current term billed and paid
+        billed_current = fee_assignments.aggregate(total=Sum('amount'))['total'] or 0
+        paid_current = fee_payments.aggregate(total=Sum('amount_paid'))['total'] or 0
+
+        # Previous terms arrears
+        previous_terms = Term.objects.none()
+        if current_term:
+            previous_terms = Term.objects.filter(start_date__lt=current_term.start_date).order_by('start_date')
+        else:
+            previous_terms = Term.objects.all().order_by('start_date')
+
+        prev_assignments = FeeAssignment.objects.filter(class_group=student.class_group, term__in=previous_terms)
+        billed_prev = prev_assignments.aggregate(total=Sum('amount'))['total'] or 0
+        paid_prev = FeePayment.objects.filter(student=student, fee_assignment__term__in=previous_terms).aggregate(total=Sum('amount_paid'))['total'] or 0
+
+        total_outstanding = (billed_prev + billed_current) - (paid_prev + paid_current)
+        if total_outstanding < 0:
+            total_outstanding = 0
+    except Exception:
+        # Fail-safe: keep zero if any issue occurs
+        total_outstanding = 0
     context = {
         'student': student,
         'current_term': current_term,
         'fee_assignments': fee_assignments,
         'fee_payments': fee_payments,
         'success': success,
+        'total_outstanding': total_outstanding,
     }
     return render(request, 'dashboards/student_fees.html', context)
 
@@ -2735,6 +3493,40 @@ def admin_fees(request):
     return render(request, 'dashboards/admin_fees.html', context)
 
 @login_required(login_url='login')
+def admin_payment_history_partial(request):
+    """Return only the History of Payments partial for AJAX updates.
+    Supports filtering by `payment_search` and sorting by `payment_sort` (newest|oldest).
+    Only admins are allowed.
+    """
+    if getattr(request.user, 'role', None) != 'admin':
+        return HttpResponseForbidden('You are not authorized to access this resource.')
+
+    from .models import FeePayment
+    from django.db.models import Q
+
+    payment_sort = request.GET.get('payment_sort', 'newest')
+    payment_search = request.GET.get('payment_search', '').strip()
+
+    payments_qs = FeePayment.objects.select_related('student__user', 'fee_assignment__fee_category')
+    if payment_search:
+        payments_qs = payments_qs.filter(
+            Q(student__admission_number__icontains=payment_search) |
+            Q(student__user__username__icontains=payment_search) |
+            Q(student__user__first_name__icontains=payment_search) |
+            Q(student__user__last_name__icontains=payment_search)
+        )
+    if payment_sort == 'oldest':
+        payments_qs = payments_qs.order_by('payment_date')
+    else:
+        payments_qs = payments_qs.order_by('-payment_date')
+
+    context = {
+        'all_fee_payments': payments_qs,
+    }
+    # Render the same partial used by the History tab
+    return render(request, 'dashboards/admin_payment_history.html', context)
+
+@login_required(login_url='login')
 def admin_users(request):
     search_query = request.GET.get('search', '')
     role_filter = request.GET.get('role', '')
@@ -2787,6 +3579,8 @@ def events_json(request):
     from .models import Event, Exam
     from django.utils import timezone
     from django.core.serializers.json import DjangoJSONEncoder
+    from django.utils.dateparse import parse_datetime
+    from datetime import timedelta
     now = timezone.now()
     if not request.user.is_authenticated or request.user.role not in ['admin', 'teacher']:
         return JsonResponse([], safe=False)
@@ -2807,7 +3601,7 @@ def events_json(request):
         events_qs = events_qs.filter(start__lte=window_end)
     # Fallback window ±1 year to avoid empty feed if params missing
     if not window_start and not window_end:
-        one_year = datetime.timedelta(days=365)
+        one_year = timedelta(days=365)
         events_qs = events_qs.filter(start__gte=now - one_year, start__lte=now + one_year)
     # Ensure start exists
     events_qs = events_qs.exclude(start__isnull=True).order_by('start')
@@ -2828,7 +3622,7 @@ def events_json(request):
         exams_qs = exams_qs.filter(end_date__gte=window_start)  # overlapping
     if window_end:
         exams_qs = exams_qs.filter(start_date__lte=window_end)
-    for ex in exams:
+    for ex in exams_qs:
         # Use start_date and end_date for calendar events
         if not ex.start_date:
             continue  # skip exams without a start date (FullCalendar requires start)
@@ -3592,6 +4386,7 @@ from django.db.models import Q
 from .forms import MessagingForm
 from django.core.mail import send_mail
 from .models import Class, Subject, Teacher, Term
+from .services.timetable_scheduler import generate_timetable
 
 @login_required(login_url='login')
 def admin_send_message(request):
@@ -3630,9 +4425,69 @@ def admin_send_message(request):
 
     return render(request, 'messaging/send_message.html', {'form': form, 'sent': sent})
 
+@login_required(login_url='login')
+def admin_overview(request):
+    """Admin landing page with quick stats, upcoming events, and responsibilities."""
+    if getattr(request.user, 'role', None) != 'admin':
+        return HttpResponseForbidden('Forbidden')
+
+    # Build dashboard context
+    from django.utils import timezone
+    from .models import (
+        Student, Teacher, Class, Subject,
+        FeeCategory, Event, Term, TeacherResponsibility,
+    )
+
+    now = timezone.now()
+
+    total_students = Student.objects.filter(graduated=False).count()
+    students_boys = Student.objects.filter(graduated=False, gender__iexact='male').count()
+    students_girls = Student.objects.filter(graduated=False, gender__iexact='female').count()
+    total_teachers = Teacher.objects.count()
+    teachers_male = Teacher.objects.filter(gender__iexact='male').count()
+    teachers_female = Teacher.objects.filter(gender__iexact='female').count()
+    total_classes = Class.objects.count()
+    total_subjects = Subject.objects.count()
+    total_fees = FeeCategory.objects.count()
+
+    today = now.date()
+    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
+
+    upcoming_events = Event.objects.filter(is_done=False, start__gte=now).order_by('start')[:5]
+    responsibilities = (
+        TeacherResponsibility.objects
+        .select_related('teacher', 'teacher__user', 'assigned_by')
+        .order_by('-assigned_at')[:8]
+    )
+
+    context = {
+        'total_students': total_students,
+        'students_boys': students_boys,
+        'students_girls': students_girls,
+        'total_teachers': total_teachers,
+        'teachers_male': teachers_male,
+        'teachers_female': teachers_female,
+        'total_classes': total_classes,
+        'total_subjects': total_subjects,
+        'total_fees': total_fees,
+        'current_term': current_term,
+        'upcoming_events': upcoming_events,
+        'responsibilities': responsibilities,
+    }
+
+    return render(request, 'dashboards/admin_overview.html', context)
+
 @login_required
 def timetable_view(request):
     """Displays the timetable for a selected class."""
+    # Handle admin-triggered auto-generate POST from template button
+    if request.method == 'POST' and getattr(request.user, 'role', None) == 'admin' and request.POST.get('auto_generate') == '1':
+        try:
+            report = generate_timetable(overwrite=True)
+            messages.success(request, f"Timetable generated. Placed: {report.get('placed', 0)}, Skipped: {report.get('skipped', 0)}")
+        except Exception as e:
+            messages.error(request, f"Failed to generate timetable: {e}")
+        return redirect('timetable_view')
     classes = Class.objects.all().order_by('level', 'name')
     selected_class_id = request.GET.get('class_id')
     selected_class = None
@@ -3649,12 +4504,19 @@ def timetable_view(request):
 
             # Correctly fetch subjects and teachers from the TeacherClassAssignment model
             assignments = TeacherClassAssignment.objects.filter(class_group=selected_class).select_related('subject', 'teacher__user')
-            
-            subject_ids = assignments.values_list('subject_id', flat=True).distinct()
-            subjects = Subject.objects.filter(id__in=subject_ids).order_by('name')
-            
-            teacher_ids = assignments.values_list('teacher_id', flat=True).distinct()
-            teachers = Teacher.objects.filter(id__in=teacher_ids).select_related('user').order_by('user__first_name', 'user__last_name')
+
+            # Build subject and teacher options from assignments; if none, fall back to all
+            subject_ids = list(assignments.values_list('subject_id', flat=True).distinct())
+            if subject_ids:
+                subjects = Subject.objects.filter(id__in=subject_ids).order_by('name')
+            else:
+                subjects = Subject.objects.all().order_by('name')
+
+            teacher_ids = list(assignments.values_list('teacher_id', flat=True).distinct())
+            if teacher_ids:
+                teachers = Teacher.objects.filter(id__in=teacher_ids).select_related('user').order_by('user__first_name', 'user__last_name')
+            else:
+                teachers = Teacher.objects.select_related('user').all().order_by('user__first_name', 'user__last_name')
 
             # Populate the grid with existing timetable entries
             entries = DefaultTimetable.objects.filter(class_group=selected_class)
@@ -3683,7 +4545,8 @@ def school_timetable_day(request):
     """Render a comprehensive timetable for the entire school for one selected day.
     Grid: rows = PeriodSlot, columns = Class.
     """
-    # Use same day choices as the class timetable
+    
+# Use same day choices as the class timetable
     valid_days = [d[0] for d in DefaultTimetable.DAY_CHOICES]
     selected_day = request.GET.get('day') or (valid_days[0] if valid_days else 'Monday')
     if selected_day not in valid_days and valid_days:
@@ -3725,8 +4588,82 @@ def school_timetable_day(request):
     return render(request, 'timetable/school_timetable_day.html', context)
 
 
+@login_required(login_url='login')
+def admin_period_slots(request):
+    """Admin-only editor for PeriodSlot session times and labels."""
+    if getattr(request.user, 'role', None) != 'admin':
+        return HttpResponseForbidden('Permission denied.')
+
+    from .models import PeriodSlot
+    if request.method == 'POST':
+        slot_id = request.POST.get('slot_id')
+        label = (request.POST.get('label') or '').strip()
+        start_time = request.POST.get('start_time')
+        end_time = request.POST.get('end_time')
+        is_class_slot = True if request.POST.get('is_class_slot') == 'on' else False
+
+        # Basic validation: start < end
+        from datetime import time as dtime
+        try:
+            # Expecting HH:MM format from input type="time"
+            h1, m1 = [int(x) for x in (start_time or '').split(':')]
+            h2, m2 = [int(x) for x in (end_time or '').split(':')]
+            t1 = dtime(h1, m1)
+            t2 = dtime(h2, m2)
+            if t1 >= t2:
+                messages.error(request, 'Start time must be before end time.')
+                return redirect('admin_period_slots')
+        except Exception:
+            messages.error(request, 'Invalid time format.')
+            return redirect('admin_period_slots')
+
+        if slot_id:
+            # Update existing slot
+            try:
+                slot = PeriodSlot.objects.get(id=slot_id)
+            except PeriodSlot.DoesNotExist:
+                messages.error(request, 'Period not found.')
+                return redirect('admin_period_slots')
+
+            slot.label = label or slot.label
+            slot.start_time = t1
+            slot.end_time = t2
+            slot.is_class_slot = is_class_slot
+            slot.save()
+            messages.success(request, f'Updated {slot.label}.')
+        else:
+            # Create new slot
+            if not label:
+                messages.error(request, 'Label is required to add a new period.')
+                return redirect('admin_period_slots')
+            slot = PeriodSlot.objects.create(
+                label=label,
+                start_time=t1,
+                end_time=t2,
+                is_class_slot=is_class_slot,
+            )
+            messages.success(request, f'Added {slot.label}.')
+        return redirect('admin_period_slots')
+
+    periods = PeriodSlot.objects.all().order_by('start_time')
+    return render(request, 'timetable/period_slots.html', { 'periods': periods })
+
 @login_required
 @require_POST
+def timetable_auto_generate(request):
+    """Admin-only endpoint: auto-generate the entire school timetable, overwriting existing entries."""
+    # Role check
+    if getattr(request.user, 'role', None) != 'admin':
+        return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+
+    try:
+        report = generate_timetable(overwrite=True)
+        messages.success(request, f"Timetable generated. Placed: {report.get('placed', 0)}, Skipped: {report.get('skipped', 0)}")
+        # Optionally return JSON for AJAX; but we redirect back to timetable page
+        return redirect('timetable_view')
+    except Exception as e:
+        messages.error(request, f"Failed to generate timetable: {e}")
+        return redirect('timetable_view')
 def timetable_edit_api(request):
     try:
         data = json.loads(request.body)
@@ -3735,6 +4672,12 @@ def timetable_edit_api(request):
         day = data.get('day')
         subject_id = data.get('subject')
         teacher_id = data.get('teacher')
+
+        # Permission check: only admins can edit the timetable
+        # Assumes custom User model has a 'role' attribute with value 'admin' for admins
+        user_role = getattr(request.user, 'role', None)
+        if user_role != 'admin':
+            return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
 
         if not all([class_id, period_id, day]):
             return JsonResponse({'success': False, 'error': 'Missing required parameters.'}, status=400)
@@ -3832,19 +4775,26 @@ import json
 def mpesa_callback(request):
     import logging
     from django.utils import timezone
-    from .models import Student, FeeAssignment, FeePayment, Term
+    from decimal import Decimal
+    from .models import Student, FeeAssignment, FeePayment, Term, MpesaTransaction
+    from .mpesa_utils import query_stk_status
     logger = logging.getLogger('django')
     try:
         data = json.loads(request.body.decode('utf-8'))
         stk_callback = data.get('Body', {}).get('stkCallback', {})
         result_code = stk_callback.get('ResultCode', -1)
+        merchant_request_id = stk_callback.get('MerchantRequestID')
+        checkout_request_id = stk_callback.get('CheckoutRequestID')
         logger.info(f"[M-PESA CALLBACK] Received: {data}")
         # Log callback to file for admin viewing
-        import os, json
+        import os
         from datetime import datetime
         log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'payment_callback_logs.txt')
         try:
-            with open(log_path, 'r+') as logf:
+            # Ensure the log file exists and append safely
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            with open(log_path, 'a+') as logf:
+                logf.seek(0)
                 try:
                     logs = json.load(logf)
                 except Exception:
@@ -3854,29 +4804,61 @@ def mpesa_callback(request):
                     'status': 'success' if result_code == 0 else 'failed',
                     'details': data
                 })
-                logf.seek(0)
                 json.dump(logs, logf, indent=2)
                 logf.truncate()
         except Exception as logerr:
             logger.error(f"[M-PESA CALLBACK] Could not write callback log: {logerr}")
+        # Helper: normalize phone to 2547XXXXXXXX
+        def _normalize(msisdn: str) -> str:
+            if not msisdn:
+                return msisdn
+            s = str(msisdn).strip().replace(' ', '')
+            if s.startswith('+254'):
+                return s[1:]
+            if s.startswith('07'):
+                return '254' + s[1:]
+            if s.startswith('7') and len(s) == 9:
+                return '254' + s
+            return s
+
         if result_code == 0:
             metadata = stk_callback.get('CallbackMetadata', {}).get('Item', [])
             amount = next((item['Value'] for item in metadata if item['Name'] == 'Amount'), None)
-            phone = next((item['Value'] for item in metadata if item['Name'] == 'PhoneNumber'), None)
+            phone = _normalize(next((item['Value'] for item in metadata if item['Name'] == 'PhoneNumber'), None))
             mpesa_receipt = next((item['Value'] for item in metadata if item['Name'] == 'MpesaReceiptNumber'), None)
             trans_time = next((item['Value'] for item in metadata if item['Name'] == 'TransactionDate'), None)
+            account_ref_meta = next((item['Value'] for item in metadata if item['Name'] in ['AccountReference','BillRefNumber']), None)
             logger.info(f"[M-PESA CALLBACK] Success: Amount={amount}, Phone={phone}, Receipt={mpesa_receipt}")
-            if not (amount and phone):
-                logger.error(f"[M-PESA CALLBACK] Missing amount or phone in metadata: {metadata}")
-                return JsonResponse({"ResultCode": 1, "ResultDesc": "Missing payment details"}, status=400)
-            # Find student by phone
-            student = Student.objects.filter(phone=phone).first()
+            if not amount:
+                logger.error(f"[M-PESA CALLBACK] Missing amount in metadata: {metadata}")
+                return JsonResponse({"ResultCode": 0, "ResultDesc": "Missing payment amount"})
+            # Attach to existing MpesaTransaction if available
+            tx = None
+            if checkout_request_id:
+                tx = MpesaTransaction.objects.filter(checkout_request_id=checkout_request_id).first()
+            if not tx and merchant_request_id:
+                tx = MpesaTransaction.objects.filter(merchant_request_id=merchant_request_id).first()
+            # Determine student priority: AccountReference -> tx.student -> phone
+            student = None
+            if account_ref_meta and isinstance(account_ref_meta, str) and account_ref_meta.startswith('Account#'):
+                adm = account_ref_meta.split('#', 1)[1].strip()
+                student = Student.objects.filter(admission_no=adm).first()
+            if not student and tx and tx.student_id:
+                student = tx.student
+            # If still no student, try resolving from tx.account_reference
+            if not student and tx and tx.account_reference and isinstance(tx.account_reference, str) and tx.account_reference.startswith('Account#'):
+                adm = tx.account_reference.split('#', 1)[1].strip()
+                student = Student.objects.filter(admission_no=adm).first()
+            if not student:
+                student = Student.objects.filter(phone=phone).first()
             if not student:
                 logger.warning(f"[M-PESA CALLBACK] No student found with phone {phone}. Logging unmatched payment.")
                 # Log unmatched callback for audit
                 unmatched_log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'payment_callback_logs.txt')
                 try:
-                    with open(unmatched_log_path, 'r+') as logf:
+                    os.makedirs(os.path.dirname(unmatched_log_path), exist_ok=True)
+                    with open(unmatched_log_path, 'a+') as logf:
+                        logf.seek(0)
                         try:
                             logs = json.load(logf)
                         except Exception:
@@ -3891,23 +4873,38 @@ def mpesa_callback(request):
                                 'raw': data
                             }
                         })
-                        logf.seek(0)
                         json.dump(logs, logf, indent=2)
                         logf.truncate()
                 except Exception as logerr:
                     logger.error(f"[M-PESA CALLBACK] Could not write unmatched callback log: {logerr}")
-                return JsonResponse({"ResultCode": 1, "ResultDesc": "Student not found, but callback logged"}, status=200)
+                return JsonResponse({"ResultCode": 0, "ResultDesc": "Student not found, but callback logged"})
+            # Ensure there is at least a stub MpesaTransaction for traceability
+            if not tx:
+                try:
+                    # Generate a unique checkout id if missing
+                    if not checkout_request_id:
+                        from datetime import datetime
+                        checkout_request_id = f"cb-{datetime.now().strftime('%Y%m%d%H%M%S')}-{str(phone)[-4:]}"
+                    tx = MpesaTransaction.objects.create(
+                        student=student,
+                        phone_number=phone,
+                        amount=Decimal(str(amount)),
+                        account_reference=f"Account#{student.admission_no}",
+                        merchant_request_id=merchant_request_id,
+                        checkout_request_id=checkout_request_id,
+                        status='pending'
+                    )
+                except Exception as e:
+                    logger.error(f"[M-PESA CALLBACK] Could not create stub MpesaTransaction: {e}")
             # Find current term
             today = timezone.now().date()
             current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
             if not current_term:
-                logger.error(f"[M-PESA CALLBACK] No current term found for today {today}")
-                return JsonResponse({"ResultCode": 1, "ResultDesc": "Current term not found"}, status=404)
+                logger.warning(f"[M-PESA CALLBACK] No current term found for today {today}; proceeding without linking to a specific term.")
             # Find unpaid FeeAssignment(s) for student's class in current term
-            fee_assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term)
-            if not fee_assignments.exists():
-                logger.error(f"[M-PESA CALLBACK] No fee assignments for student {student} in term {current_term}")
-                return JsonResponse({"ResultCode": 1, "ResultDesc": "No fee assignments found"}, status=404)
+            fee_assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term) if current_term else FeeAssignment.objects.none()
+            if current_term and not fee_assignments.exists():
+                logger.warning(f"[M-PESA CALLBACK] No fee assignments for student {student} in term {current_term}; will record without assignment.")
             # Try to find an assignment with outstanding balance
             from django.db.models import Sum, F
             outstanding_assignment = None
@@ -3916,33 +4913,113 @@ def mpesa_callback(request):
                 if float(total_paid) < float(assignment.amount):
                     outstanding_assignment = assignment
                     break
-            if not outstanding_assignment:
+            if not outstanding_assignment and fee_assignments.exists():
                 # If all paid, just link to first assignment
                 outstanding_assignment = fee_assignments.first()
-            # Idempotency: don't double-record
-            if FeePayment.objects.filter(reference=mpesa_receipt, phone_number=phone).exists():
+            # Idempotency: don't double-record (by receipt)
+            if mpesa_receipt and FeePayment.objects.filter(reference=mpesa_receipt).exists():
                 logger.warning(f"[M-PESA CALLBACK] Duplicate payment detected: Receipt={mpesa_receipt}, Phone={phone}")
+                # Update linked MpesaTransaction if found
+                if tx:
+                    tx.status = 'success'
+                    tx.result_code = int(result_code)
+                    tx.result_desc = stk_callback.get('ResultDesc')
+                    tx.mpesa_receipt = mpesa_receipt
+                    tx.raw_callback = data
+                    tx.save(update_fields=['status','result_code','result_desc','mpesa_receipt','raw_callback','updated_at'])
                 return JsonResponse({"ResultCode": 0, "ResultDesc": "Duplicate payment ignored"})
-            # Record payment
-            if mpesa_receipt:
-                FeePayment.objects.create(
-                    student=student,
-                    fee_assignment=outstanding_assignment,
-                    amount_paid=amount,
-                    payment_method="mpesa",
-                    reference=mpesa_receipt,
-                    phone_number=phone,
-                    status="pending"
-                )
+            # Verify with Daraja STK Query before approving
+            verified_ok = False
+            query_resp = query_stk_status(checkout_request_id) if checkout_request_id else {"error": "missing CheckoutRequestID"}
+            if isinstance(query_resp, dict) and not query_resp.get('error') and str(query_resp.get('ResultCode')) == '0':
+                verified_ok = True
+            if not verified_ok:
+                # Mark transaction pending and create a visible pending FeePayment (idempotent)
+                if tx:
+                    tx.status = 'pending'
+                    tx.result_code = int(result_code)
+                    tx.result_desc = stk_callback.get('ResultDesc')
+                    tx.mpesa_receipt = mpesa_receipt
+                    tx.raw_callback = data
+                    tx.save(update_fields=['status','result_code','result_desc','mpesa_receipt','raw_callback','updated_at'])
+                # Create a pending FeePayment if not already created
+                try:
+                    already = False
+                    if mpesa_receipt:
+                        already = FeePayment.objects.filter(reference=mpesa_receipt).exists()
+                    if not already and tx:
+                        already = FeePayment.objects.filter(mpesa_transaction=tx).exists()
+                    if not already:
+                        FeePayment.objects.create(
+                            student=student,
+                            fee_assignment=outstanding_assignment,
+                            amount_paid=Decimal(str(amount)),
+                            payment_method="mpesa",
+                            reference=mpesa_receipt,
+                            phone_number=phone,
+                            status="pending",
+                            mpesa_transaction=tx if tx else None
+                        )
+                except Exception as e:
+                    logger.error(f"[M-PESA CALLBACK] Error creating pending FeePayment: {e}")
+                logger.warning(f"[M-PESA CALLBACK] Verification failed or pending for CheckoutRequestID={checkout_request_id}, query={query_resp}")
+                return JsonResponse({"ResultCode": 0, "ResultDesc": "Verification pending"})
+            # Create approved payment
+            try:
+                # Update in-place if a pending payment exists; otherwise create new
+                updated = False
+                if mpesa_receipt:
+                    pending_fp = FeePayment.objects.filter(reference=mpesa_receipt).first()
+                    if pending_fp:
+                        pending_fp.fee_assignment = outstanding_assignment
+                        pending_fp.amount_paid = Decimal(str(amount))
+                        pending_fp.status = "approved"
+                        pending_fp.mpesa_transaction = tx if tx else pending_fp.mpesa_transaction
+                        pending_fp.save(update_fields=["fee_assignment","amount_paid","status","mpesa_transaction"])
+                        updated = True
+                if not updated and tx:
+                    pending_fp = FeePayment.objects.filter(mpesa_transaction=tx).first()
+                    if pending_fp:
+                        pending_fp.fee_assignment = outstanding_assignment
+                        pending_fp.reference = pending_fp.reference or mpesa_receipt
+                        pending_fp.amount_paid = Decimal(str(amount))
+                        pending_fp.phone_number = phone
+                        pending_fp.status = "approved"
+                        pending_fp.save(update_fields=["fee_assignment","reference","amount_paid","phone_number","status"])
+                        updated = True
+                if not updated:
+                    FeePayment.objects.create(
+                        student=student,
+                        fee_assignment=outstanding_assignment,
+                        amount_paid=Decimal(str(amount)),
+                        payment_method="mpesa",
+                        reference=mpesa_receipt,
+                        phone_number=phone,
+                        status="approved",
+                        mpesa_transaction=tx if tx else None
+                    )
+            except Exception as e:
+                logger.error(f"[M-PESA CALLBACK] Error creating/updating FeePayment: {e}")
+                return JsonResponse({"ResultCode": 0, "ResultDesc": "Recorded with issues"})
+            if tx:
+                tx.status = 'success'
+                tx.result_code = int(result_code)
+                tx.result_desc = stk_callback.get('ResultDesc')
+                tx.mpesa_receipt = mpesa_receipt
+                tx.raw_callback = data
+                # If we computed outstanding_assignment, link it to tx for completeness
+                if outstanding_assignment and not tx.fee_assignment_id:
+                    tx.fee_assignment = outstanding_assignment
+                tx.save(update_fields=['status','result_code','result_desc','mpesa_receipt','raw_callback','updated_at','fee_assignment'])
             else:
                 logger.error(f"[M-PESA CALLBACK] Invalid payment: missing MpesaReceiptNumber for phone {phone}, amount {amount}")
-                return JsonResponse({"ResultCode": 1, "ResultDesc": "Invalid payment: missing reference number"}, status=400)
+                return JsonResponse({"ResultCode": 0, "ResultDesc": "Invalid payment: missing reference number"})
             logger.info(f"[M-PESA CALLBACK] Payment recorded for student {student} amount {amount} assignment {outstanding_assignment} (pending verification)")
         else:
             # Extract phone, amount, receipt if present
             metadata = stk_callback.get('CallbackMetadata', {}).get('Item', [])
             amount = next((item['Value'] for item in metadata if item['Name'] == 'Amount'), None)
-            phone = next((item['Value'] for item in metadata if item['Name'] == 'PhoneNumber'), None)
+            phone = _normalize(next((item['Value'] for item in metadata if item['Name'] == 'PhoneNumber'), None))
             mpesa_receipt = next((item['Value'] for item in metadata if item['Name'] == 'MpesaReceiptNumber'), None)
             # Only record if we have at least a phone and student
             if phone:
@@ -3953,23 +5030,156 @@ def mpesa_callback(request):
                     fee_assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term)
                     assignment = fee_assignments.first() if fee_assignments.exists() else None
                     # Idempotency: don't double-record
-                    if not FeePayment.objects.filter(reference=mpesa_receipt, phone_number=phone, status='failed').exists():
+                    if not (mpesa_receipt and FeePayment.objects.filter(reference=mpesa_receipt).exists()):
                         if mpesa_receipt:
                             FeePayment.objects.create(
                                 student=student,
                                 fee_assignment=assignment,
-                                amount_paid=amount or 0,
+                                amount_paid=Decimal(str(amount or 0)),
                                 payment_method="mpesa",
                                 reference=mpesa_receipt,
                                 phone_number=phone,
-                                status="failed"
+                                status="rejected"
                             )
                             logger.info(f"[M-PESA CALLBACK] Failed payment recorded for student {student} assignment {assignment} phone {phone}")
                         else:
                             logger.error(f"[M-PESA CALLBACK] Invalid failed payment: missing MpesaReceiptNumber for phone {phone}, amount {amount}")
-                            return JsonResponse({"ResultCode": 1, "ResultDesc": "Invalid failed payment: missing reference number"}, status=400)
+                            return JsonResponse({"ResultCode": 0, "ResultDesc": "Invalid failed payment: missing reference number"})
+            # Update MpesaTransaction if present
+            if checkout_request_id:
+                tx = MpesaTransaction.objects.filter(checkout_request_id=checkout_request_id).first()
+                if tx:
+                    tx.status = 'failed'
+                    tx.result_code = int(result_code)
+                    tx.result_desc = stk_callback.get('ResultDesc')
+                    tx.mpesa_receipt = mpesa_receipt
+                    tx.raw_callback = data
+                    tx.save(update_fields=['status','result_code','result_desc','mpesa_receipt','raw_callback','updated_at'])
             logger.warning(f"[M-PESA CALLBACK] Payment failed or cancelled. ResultCode={result_code}, Data={data}")
     except Exception as e:
         logger.error(f"[M-PESA CALLBACK] Error processing callback: {e}", exc_info=True)
-        return JsonResponse({"ResultCode": 1, "ResultDesc": "Error processing callback"}, status=400)
+        # DEBUG: return error detail to help diagnose in dev
+        return JsonResponse({"ResultCode": 0, "ResultDesc": f"Error processing callback: {e}"})
     return JsonResponse({"ResultCode": 0, "ResultDesc": "Received"})
+
+
+# --- User-facing PayBill Flow ---
+@login_required
+def paybill_start(request):
+    """Render a simple form for students to initiate an M-Pesa PayBill STK push.
+
+    Fields: amount, phone number. Uses student's admission number for AccountReference.
+    """
+    user = request.user
+    # Only students may initiate from this page (can be relaxed later)
+    if getattr(user, 'role', None) != 'student':
+        return HttpResponseForbidden("Only students can initiate M-Pesa payments here.")
+    student = Student.objects.filter(user=user).first()
+    if not student:
+        messages.error(request, 'No student profile linked to your account.')
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        amount_raw = request.POST.get('amount')
+        phone_raw = request.POST.get('phone')
+        try:
+            amount_val = float(amount_raw)
+        except (TypeError, ValueError):
+            amount_val = 0
+        phone = _normalize_msisdn(phone_raw or '')
+        if amount_val <= 0:
+            messages.error(request, 'Enter a valid amount greater than 0.')
+            return render(request, 'fees/paybill_start.html', {
+                'student': student,
+                'shortcode': getattr(settings, 'MPESA_SHORTCODE', ''),
+                'prefill_phone': phone_raw or '',
+            })
+        if not phone or not phone.startswith('254'):
+            messages.error(request, 'Enter a valid Kenyan phone number (e.g., 07XX or 2547XX...).')
+            return render(request, 'fees/paybill_start.html', {
+                'student': student,
+                'shortcode': getattr(settings, 'MPESA_SHORTCODE', ''),
+                'prefill_phone': phone_raw or '',
+            })
+
+        account_ref = f"Account#{student.admission_no}"
+        tx_desc = f"Fees payment for {student.admission_no}"
+        # Call Daraja to initiate STK push
+        resp = initiate_stk_push(phone, amount_val, account_ref, tx_desc)
+        merchant_id = None
+        checkout_id = None
+        error_text = None
+        if isinstance(resp, dict):
+            merchant_id = resp.get('MerchantRequestID')
+            checkout_id = resp.get('CheckoutRequestID')
+            if not checkout_id:
+                # Surface error details from Daraja
+                error_text = resp.get('errorMessage') or resp.get('error') or resp.get('ResponseDescription')
+        if not checkout_id:
+            messages.error(request, f"Failed to initiate STK push: {error_text or 'Unknown error'}")
+            return render(request, 'fees/paybill_start.html', {
+                'student': student,
+                'shortcode': getattr(settings, 'MPESA_SHORTCODE', ''),
+                'prefill_phone': phone_raw or '',
+            })
+
+        # Record a pending MpesaTransaction for tracking
+        tx = MpesaTransaction.objects.create(
+            student=student,
+            phone_number=phone,
+            amount=amount_val,
+            account_reference=account_ref,
+            merchant_request_id=merchant_id,
+            checkout_request_id=checkout_id,
+            status='pending'
+        )
+        # Redirect to status page
+        return redirect('paybill_status', checkout_request_id=tx.checkout_request_id)
+
+    return render(request, 'fees/paybill_start.html', {
+        'student': student,
+        'shortcode': getattr(settings, 'MPESA_SHORTCODE', ''),
+        'prefill_phone': student.phone or '',
+    })
+
+
+@login_required
+def paybill_status(request, checkout_request_id: str):
+    """Show live status for a specific STK push transaction and allow polling/query."""
+    user = request.user
+    tx = MpesaTransaction.objects.filter(checkout_request_id=checkout_request_id).first()
+    if not tx:
+        messages.error(request, 'Transaction not found.')
+        return redirect('paybill_start')
+    # Authorization: only owner student or admin
+    if getattr(user, 'role', None) not in ('admin', 'teacher'):
+        owner_id = getattr(getattr(tx, 'student', None), 'user_id', None)
+        if owner_id and owner_id != user.id:
+            return HttpResponseForbidden('Not authorized to view this transaction.')
+
+    # Poll on demand (GET param ?refresh=1) or auto when pending
+    if request.GET.get('refresh') == '1' or tx.status == 'pending':
+        q = query_stk_status(tx.checkout_request_id)
+        # Update local tx based on query if it returns valid data
+        if isinstance(q, dict) and not q.get('error'):
+            result_code = q.get('ResultCode')
+            result_desc = q.get('ResultDesc')
+            if result_code is not None:
+                try:
+                    tx.result_code = int(result_code)
+                except Exception:
+                    pass
+            if result_desc:
+                tx.result_desc = result_desc
+            # Heuristic: ResultCode 0 means success; others may be in-flight or failed
+            if str(q.get('ResultCode')) == '0':
+                tx.status = 'success'
+            elif str(q.get('ResultCode')) not in (None, '', '0'):
+                tx.status = 'failed'
+            tx.save()
+
+    context = {
+        'tx': tx,
+        'shortcode': getattr(settings, 'MPESA_SHORTCODE', ''),
+    }
+    return render(request, 'fees/paybill_status.html', context)

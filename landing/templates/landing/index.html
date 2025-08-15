@@ -1,66 +1,348 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ school_name }}</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 0;
-            background: #f4f4f4;
-            color: #333;
-        }
-        .container {
-            width: 80%;
-            margin: auto;
-            overflow: hidden;
-            padding: 20px;
-        }
-        header {
-            background: #333;
-            color: #fff;
-            padding-top: 30px;
-            min-height: 70px;
-            border-bottom: #0779e4 3px solid;
-        }
-        header h1 {
-            text-align: center;
-            text-transform: uppercase;
-            margin: 0;
-        }
-        .main {
-            padding: 20px;
-            background: #fff;
-            margin-top: 20px;
-        }
-        .login-link {
-            display: block;
-            text-align: center;
-            margin-top: 20px;
-            padding: 10px;
-            background: #0779e4;
-            color: #fff;
-            text-decoration: none;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ school_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: {{ settings.primary_color|default:'#0d6efd' }};
+      --secondary: {{ settings.secondary_color|default:'#6c757d' }};
+      --bg: #f5f7fa;
+      --surface: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: rgba(0,0,0,.08);
+      --shadow: 0 2px 16px rgba(0,0,0,.08);
+      /* Derived tones */
+      --primary-soft: color-mix(in srgb, var(--primary) 22%, transparent);
+      --primary-softer: color-mix(in srgb, var(--primary) 12%, transparent);
+      --secondary-soft: color-mix(in srgb, var(--secondary) 18%, transparent);
+    }
+    :root[data-theme="dark"] {
+      --bg: #0b0f18;
+      --surface: #0f172a;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: rgba(255,255,255,.08);
+      --shadow: 0 10px 30px rgba(0,0,0,.45);
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: 'Poppins', Arial, sans-serif; color: var(--text); background: var(--bg); }
+    a { text-decoration: none; }
+    .container { width:min(1100px, 92%); margin:0 auto; }
+    /* Navbar */
+    .navbar { position:sticky; top:0; z-index:50; display:flex; align-items:center; justify-content:space-between; padding:14px 0; padding-top:calc(14px + env(safe-area-inset-top)); backdrop-filter:saturate(140%) blur(8px); -webkit-backdrop-filter:saturate(140%) blur(8px); }
+    .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.2rem; color: var(--text); }
+    .brand img { height:36px; width:auto; }
+    .nav-actions a { padding:10px 16px; border-radius:12px; font-weight:600; }
+    .btn-login { background:var(--primary); color:#fff; box-shadow:0 8px 24px color-mix(in srgb, var(--primary) 30%, transparent); }
+    .btn-login:hover { opacity:.95; }
+    /* Hero */
+    .hero { position:relative; isolation:isolate; min-height:88vh; display:flex; align-items:center; }
+    .hero::before { content:""; position:absolute; inset:0; background:
+      radial-gradient(1200px 600px at 10% 10%, var(--primary-soft), transparent 60%),
+      radial-gradient(900px 520px at 90% 30%, var(--secondary-soft), transparent 60%),
+      linear-gradient(180deg, color-mix(in srgb, var(--surface) 10%, var(--primary-soft)) 0%, color-mix(in srgb, var(--surface) 10%, var(--secondary-soft)) 60%, var(--bg) 100%);
+      z-index:-1; }
+    .hero-inner { display:grid; grid-template-columns:1.2fr .8fr; gap:30px; align-items:center; padding:40px 0 30px; }
+    .hero-title { font-size: clamp(2rem, 4.5vw, 3.2rem); line-height:1.08; margin:0 0 12px; color: var(--text); letter-spacing:-0.02em; }
+    .hero-sub { font-size:1.08rem; color: var(--muted); margin-bottom:18px; }
+    .cta { display:inline-flex; align-items:center; gap:10px; padding:12px 18px; background:var(--primary); color:#fff; border-radius:14px; font-weight:700; box-shadow:0 14px 36px color-mix(in srgb, var(--primary) 35%, transparent); }
+    .cta:hover { transform: translateY(-1px); }
+    .hero-card { background: color-mix(in srgb, var(--surface) 86%, transparent); border:1px solid var(--border); backdrop-filter: blur(10px) saturate(130%); -webkit-backdrop-filter: blur(10px) saturate(130%); border-radius:18px; box-shadow: var(--shadow); min-height:280px; background-size:cover; background-position:center; color: var(--text); }
+    /* Background Video */
+    .bg-video { position:absolute; inset:0; z-index:-2; overflow:hidden; border-radius:0; }
+    .bg-video video { position:absolute; top:50%; left:50%; min-width:100%; min-height:100%; width:auto; height:auto; transform: translate(-50%, -50%) scale(1.03); filter: blur(2px) saturate(110%); opacity:.45; object-fit:cover; }
+    /* Sections */
+    .section { padding:36px 0; }
+    .section h2 { font-size:1.4rem; margin:0 0 12px; color: var(--text); }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:18px; }
+    /* Vertical list layout for categories */
+    .list { display:flex; flex-direction:column; gap:18px; width:100%; }
+    .list-item { width:100%; }
+    .card { background: color-mix(in srgb, var(--surface) 88%, transparent); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow: var(--shadow); color: var(--text); }
+    .muted { color: var(--muted); }
+    /* Footer */
+    footer { background: var(--surface); color: var(--muted); padding:26px 0; margin-top:20px; border-top:1px solid var(--border); }
+    .footer-grid { display:grid; grid-template-columns: 2fr 1fr 1fr; gap:20px; }
+    .social a{ color: color-mix(in srgb, var(--secondary) 70%, var(--text)); margin-right:10px; }
+    @media (max-width: 900px){
+      body{ padding-bottom:84px; }
+      .navbar{ padding:10px 0; padding-top:calc(10px + env(safe-area-inset-top)); }
+      .brand span{ font-size:1.05rem; }
+      .nav-links{ display:none; }
+      .nav-links::-webkit-scrollbar{ display:none; }
+      .nav-actions{ display:none; }
+      .hero{ min-height:72vh; }
+      .hero-inner{ grid-template-columns:1fr; padding:26px 0 22px; }
+      .hero-card{ display:none; }
+      .cta{ width:100%; justify-content:center; padding:14px 18px; }
+      .grid{ grid-template-columns:1fr; }
+      .footer-grid{ grid-template-columns:1fr; }
+      .mobile-actions{ display:block; }
+    }
+
+    @media (max-width: 600px){
+      .container{ width:min(680px, 92%); }
+      .hero-title{ font-size: clamp(1.6rem, 8vw, 2.2rem); }
+      .hero-sub{ font-size:.98rem; }
+      .section{ padding:26px 0; }
+      .card{ padding:14px; border-radius:14px; }
+      .bg-video video{ opacity:.35; filter: blur(1.5px) saturate(110%) hue-rotate(0deg); }
+      .btn-login{ padding:10px 14px; border-radius:12px; }
+      .brand img{ height:30px; }
+    }
+
+    @media (max-width: 380px){
+      .btn-login{ padding:9px 12px; }
+      .brand span{ font-size:1rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      .bg-video video{ transform: translate(-50%, -50%); }
+    }
+    /* Mobile bottom action bar */
+    .mobile-actions{ display:none; position:fixed; left:0; right:0; bottom:0; z-index:60; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); background:linear-gradient(180deg, color-mix(in srgb, var(--bg) 0%, transparent) 0%, color-mix(in srgb, var(--bg) 60%, transparent) 100%); backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%); border-top:1px solid var(--border); }
+    .mobile-actions .bar{ display:flex; gap:12px; }
+    .mobile-actions a{ flex:1; text-align:center; padding:12px 16px; border-radius:14px; font-weight:700; }
+    .mobile-actions .btn-outline{ background:transparent; border:1px solid color-mix(in srgb, var(--secondary) 30%, var(--border)); color: var(--text); }
+    .mobile-actions .btn-primary{ background:var(--primary); color:#fff; box-shadow:0 10px 26px color-mix(in srgb, var(--primary) 35%, transparent); }
+
+    /* Floating theme toggle bubble for landing */
+    .theme-toggle-bubble {
+      position: fixed; right: 18px; bottom: 18px; z-index: 1055;
+      width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center;
+      background: color-mix(in srgb, var(--surface) 85%, transparent);
+      backdrop-filter: blur(10px) saturate(130%); -webkit-backdrop-filter: blur(10px) saturate(130%);
+      border: 1px solid var(--border); box-shadow: var(--shadow); color: var(--text);
+      cursor: pointer; transition: transform .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+    }
+    .theme-toggle-bubble:hover { transform: translateY(-2px); }
+    .theme-toggle-bubble svg { width: 22px; height: 22px; }
+    .icon-sun { display: none; }
+    [data-theme="dark"] .icon-sun { display: block; }
+    [data-theme="dark"] .icon-moon { display: none; }
+
+    /* Floating logout bubble */
+    .logout-bubble {
+      position: fixed; right: 18px; bottom: 86px; z-index: 1055; /* stacked above theme toggle */
+      width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center;
+      background: color-mix(in srgb, var(--surface) 85%, transparent);
+      backdrop-filter: blur(10px) saturate(130%); -webkit-backdrop-filter: blur(10px) saturate(130%);
+      border: 1px solid var(--border); box-shadow: var(--shadow); color: var(--text);
+      cursor: pointer; transition: transform .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+    }
+    .logout-bubble:hover { transform: translateY(-2px); }
+    .logout-bubble svg { width: 22px; height: 22px; }
+  </style>
+  {% if settings and settings.favicon %}
+    <link rel="icon" href="{{ settings.favicon.url }}">
+  {% elif settings and settings.favicon_url %}
+    <link rel="icon" href="{{ settings.favicon_url }}">
+  {% endif %}
+  <meta name="description" content="{{ school_aim }}" />
+  <meta property="og:title" content="{{ school_name }}" />
+  <meta property="og:description" content="{{ school_aim }}" />
+  {% if settings and settings.hero_background_url %}
+    <meta property="og:image" content="{{ settings.hero_background_url }}" />
+  {% endif %}
+  
 </head>
 <body>
-    <header>
-        <div class="container">
-            <h1>{{ school_name }}</h1>
-        </div>
-    </header>
-
-    <div class="container main">
-        <h2>Our Aim</h2>
-        <p>{{ school_aim }}</p>
-        <h2>Our Motto</h2>
-        <p><em>"{{ school_motto }}"</em></p>
-
-        <a href="{% url 'login' %}" class="login-link">Login to Portal</a>
+  <div class="container navbar">
+    <div class="brand">
+      {% if settings and settings.logo %}
+        <img src="{{ settings.logo.url }}" alt="Logo" />
+      {% elif settings and settings.logo_url %}
+        <img src="{{ settings.logo_url }}" alt="Logo" />
+      {% endif %}
+      <span>{{ school_name }}</span>
     </div>
+    <nav class="nav-links" style="display:flex; gap:16px; align-items:center;">
+      <a href="#explore" class="nav-anchor" style="color: color-mix(in srgb, var(--primary) 40%, #cbd5e1); text-decoration:none; font-weight:600;">Explore</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="btn-login" href="{% url 'login' %}">Login to Portal</a>
+    </div>
+  </div>
+
+  <section class="hero" id="hero">
+    {% if settings.hero_video %}
+    <div class="bg-video" aria-hidden="true">
+      <video autoplay muted loop playsinline preload="auto">
+        <source src="{{ settings.hero_video.url }}" type="video/mp4" />
+      </video>
+    </div>
+    {% elif settings.hero_video_url %}
+    <div class="bg-video" aria-hidden="true">
+      <video autoplay muted loop playsinline preload="auto">
+        <source src="{{ settings.hero_video_url }}" type="video/mp4" />
+      </video>
+    </div>
+    {% endif %}
+    <div class="container hero-inner">
+      <div>
+        <h1 class="hero-title">{{ settings.hero_title|default:'Welcome to Our School' }}</h1>
+        <p class="hero-sub">{{ settings.hero_subtitle|default:school_aim }}</p>
+        <a class="cta" href="{{ settings.hero_cta_link|default:'/login/' }}">{{ settings.hero_cta_text|default:'Login to Portal' }}</a>
+      </div>
+      {% if settings.hero_background_url %}
+      <div class="hero-card" style="background-image:url('{{ settings.hero_background_url }}');"></div>
+      {% else %}
+      <div class="hero-card"></div>
+      {% endif %}
+    </div>
+  </section>
+
+  <a id="explore"></a>
+  <section class="section" id="about">
+    <div class="container">
+      <h2>{{ settings.about_title|default:'About Us' }}</h2>
+      <div class="card">
+        <p class="muted" style="margin:0;">{{ settings.about_text|default:school_aim }}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0;">
+    <div class="container">
+      <h2>Why Choose {{ school_name }}?</h2>
+      <div class="grid">
+        <div class="card"><strong>Academic Excellence</strong><br><span class="muted">High standards, dedicated teachers, and robust curriculum.</span></div>
+        <div class="card"><strong>Holistic Growth</strong><br><span class="muted">Clubs, sports, and arts to nurture every talent.</span></div>
+        <div class="card"><strong>Safe Environment</strong><br><span class="muted">Supportive community focused on student wellbeing.</span></div>
+      </div>
+    </div>
+  </section>
+
+  {% if categories %}
+  <section class="section" id="sections" style="padding-top:0;">
+    <div class="container">
+      <h2>Explore</h2>
+      <div class="list">
+        {% for c in categories %}
+          <div id="{{ c.name|slugify }}" class="list-item">
+            {% include c.template_path with c=c %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if gallery_images %}
+  <section class="section" id="gallery" style="padding-top:0;">
+    <div class="container">
+      <h2>Gallery</h2>
+      <div class="grid">
+        {% for img in gallery_images %}
+        <div class="card" style="padding:0; overflow:hidden;">
+          <img src="{{ img.image.url }}" alt="{{ img.title }}" style="width:100%; height:220px; object-fit:cover; display:block;" />
+          {% if img.title or img.caption %}
+          <div style="padding:12px;">
+            {% if img.title %}<strong>{{ img.title }}</strong><br>{% endif %}
+            {% if img.caption %}<span class="muted">{{ img.caption }}</span>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <footer>
+    <a id="contact"></a>
+    <div class="container footer-grid">
+      <div>
+        <strong>{{ school_name }}</strong><br>
+        <span class="muted">"{{ school_motto }}"</span>
+      </div>
+      <div>
+        <strong>Contact</strong><br>
+        <div class="muted">{{ settings.contact_address }}</div>
+        <div class="muted">{{ settings.contact_phone }}</div>
+        <div class="muted">{{ settings.contact_email }}</div>
+      </div>
+      <div>
+        <strong>Follow</strong><br>
+        <div class="social">
+          {% if settings.facebook_url %}<a href="{{ settings.facebook_url }}" target="_blank">Facebook</a>{% endif %}
+          {% if settings.twitter_url %}<a href="{{ settings.twitter_url }}" target="_blank">Twitter</a>{% endif %}
+          {% if settings.instagram_url %}<a href="{{ settings.instagram_url }}" target="_blank">Instagram</a>{% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="container" style="margin-top:14px; font-size:.9rem; color:#94a3b8;">{{ settings.footer_text|default:'&copy; ' }} {{ now|date:'Y' }}</div>
+  </footer>
+
+  <script>
+    // Theme bootstrapping + Smooth scroll for in-page nav anchors
+    (function() {
+      const root = document.documentElement;
+      const stored = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const initial = stored || (prefersDark ? 'dark' : 'light');
+      root.setAttribute('data-theme', initial);
+    })();
+
+    document.addEventListener('DOMContentLoaded', function() {
+      // Smooth scroll
+      const links = document.querySelectorAll('.nav-anchor[href^="#"]');
+      links.forEach(function(link) {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          const targetId = this.getAttribute('href').substring(1);
+          const el = document.getElementById(targetId);
+          if (el) {
+            window.scrollTo({ top: el.offsetTop - 20, behavior: 'smooth' });
+          }
+        });
+      });
+
+      // Theme toggle
+      const toggleBtn = document.getElementById('themeToggle');
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', function() {
+          root = document.documentElement;
+          root.classList.add('theme-transition');
+          const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+          root.setAttribute('data-theme', next);
+          localStorage.setItem('theme', next);
+          window.setTimeout(() => root.classList.remove('theme-transition'), 250);
+        });
+      }
+    });
+  </script>
+  <!-- Mobile bottom action bar -->
+  <div class="mobile-actions" role="navigation" aria-label="Mobile actions">
+    <div class="container bar">
+      <a href="#explore" class="btn-outline">Explore</a>
+      <a href="{% url 'login' %}" class="btn-primary">Login</a>
+    </div>
+  </div>
+  <!-- Floating logout + theme toggle bubbles -->
+  <form method="post" action="{% url 'logout' %}">
+    {% csrf_token %}
+    <button type="submit" class="logout-bubble" aria-label="Logout" title="Logout">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H9a2 2 0 0 0-2 2v3h2V5h10v14H9v-3H7v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
+      </svg>
+    </button>
+  </form>
+  <button id="themeToggle" class="theme-toggle-bubble" aria-label="Toggle theme" title="Toggle theme">
+    <!-- Moon icon (default in light mode) -->
+    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>
+    <!-- Sun icon (shown in dark mode) -->
+    <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zm10.48 0l1.79-1.79 1.41 1.41-1.79 1.8-1.41-1.42zM1 13h3v-2H1v2zm19 0h3v-2h-3v2zM4.96 19.04l1.41 1.41 1.8-1.79-1.42-1.41-1.79 1.79zm12.67-.38l1.8 1.79 1.41-1.41-1.79-1.8-1.42 1.42zM12 5a7 7 0 100 14 7 7 0 000-14zm0-5h-2v3h2V0zm0 24h-2v-3h2v3z"/>
+    </svg>
+  </button>
 </body>
 </html>

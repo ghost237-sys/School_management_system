@@ -2,3 +2,483 @@
 # Each entry will be a JSON object with timestamp, status, and details.
 
 []
+[
+  {
+    "timestamp": "2025-08-14T23:00:25.061702",
+    "status": "success",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "ResultCode": 0,
+          "MerchantRequestID": "TEST-MR",
+          "CallbackMetadata": {
+            "Item": [
+              {
+                "Value": 1000,
+                "Name": "Amount"
+              },
+              {
+                "Value": "254796031071",
+                "Name": "PhoneNumber"
+              },
+              {
+                "Value": "RANDOM12345",
+                "Name": "MpesaReceiptNumber"
+              },
+              {
+                "Value": "Account#ADM8",
+                "Name": "AccountReference"
+              }
+            ]
+          },
+          "CheckoutRequestID": "TEST-CR"
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-14T23:05:55.523608",
+    "status": "success",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "4943-4a92-8a23-82170f05ce2d92197",
+          "CheckoutRequestID": "ws_CO_140820252305455796031071",
+          "ResultCode": 0,
+          "ResultDesc": "The service request is processed successfully",
+          "CallbackMetadata": {
+            "Item": [
+              {
+                "Name": "Amount",
+                "Value": 1
+              },
+              {
+                "Name": "MpesaReceiptNumber",
+                "Value": "THE5EAOM9V"
+              },
+              {
+                "Name": "Balance",
+                "Value": "{Amount={CurrencyCode=KES, MinimumAmount=11101600, BasicAmount=111016.00}}"
+              },
+              {
+                "Name": "TransactionDate",
+                "Value": 20250814230552
+              },
+              {
+                "Name": "PhoneNumber",
+                "Value": 254796031071
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-14T23:13:47.617967",
+    "status": "success",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "380c-416e-8638-6cc32032fdba58157",
+          "CheckoutRequestID": "ws_CO_140820252313314796031071",
+          "ResultCode": 0,
+          "ResultDesc": "The service request is processed successfully",
+          "CallbackMetadata": {
+            "Item": [
+              {
+                "Name": "Amount",
+                "Value": 1
+              },
+              {
+                "Name": "MpesaReceiptNumber",
+                "Value": "THE8EB6W6Y"
+              },
+              {
+                "Name": "Balance",
+                "Value": "{Amount={CurrencyCode=KES, MinimumAmount=11102000, BasicAmount=111020.00}}"
+              },
+              {
+                "Name": "TransactionDate",
+                "Value": 20250814231338
+              },
+              {
+                "Name": "PhoneNumber",
+                "Value": 254796031071
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-14T23:19:12.806604",
+    "status": "success",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "8442-4724-b651-c43decdfd8da43336",
+          "CheckoutRequestID": "ws_CO_140820252319024796031071",
+          "ResultCode": 0,
+          "ResultDesc": "The service request is processed successfully",
+          "CallbackMetadata": {
+            "Item": [
+              {
+                "Name": "Amount",
+                "Value": 1
+              },
+              {
+                "Name": "MpesaReceiptNumber",
+                "Value": "THE8EBJ9PU"
+              },
+              {
+                "Name": "Balance",
+                "Value": "{Amount={CurrencyCode=KES, MinimumAmount=11102600, BasicAmount=111026.00}}"
+              },
+              {
+                "Name": "TransactionDate",
+                "Value": 20250814231909
+              },
+              {
+                "Name": "PhoneNumber",
+                "Value": 254796031071
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-14T23:21:23.036056",
+    "status": "failed",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "8442-4724-b651-c43decdfd8da43351",
+          "CheckoutRequestID": "ws_CO_140820252321207708374149",
+          "ResultCode": 1037,
+          "ResultDesc": "DS timeout user cannot be reached"
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-14T23:29:56.385316",
+    "status": "success",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "4943-4a92-8a23-82170f05ce2d92418",
+          "CheckoutRequestID": "ws_CO_140820252329421796031071",
+          "ResultCode": 0,
+          "ResultDesc": "The service request is processed successfully",
+          "CallbackMetadata": {
+            "Item": [
+              {
+                "Name": "Amount",
+                "Value": 1
+              },
+              {
+                "Name": "MpesaReceiptNumber",
+                "Value": "THE6EC44YS"
+              },
+              {
+                "Name": "Balance",
+                "Value": "{Amount={CurrencyCode=KES, MinimumAmount=11107400, BasicAmount=111074.00}}"
+              },
+              {
+                "Name": "TransactionDate",
+                "Value": 20250814232949
+              },
+              {
+                "Name": "PhoneNumber",
+                "Value": 254796031071
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-15T02:52:25.607929",
+    "status": "success",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "9008-404d-9f75-3ab3e4cb4add391",
+          "CheckoutRequestID": "ws_CO_150820250252042796031071",
+          "ResultCode": 0,
+          "ResultDesc": "The service request is processed successfully",
+          "CallbackMetadata": {
+            "Item": [
+              {
+                "Name": "Amount",
+                "Value": 1
+              },
+              {
+                "Name": "MpesaReceiptNumber",
+                "Value": "THF9EGQCZV"
+              },
+              {
+                "Name": "Balance",
+                "Value": "{Amount={CurrencyCode=KES, MinimumAmount=11101700, BasicAmount=111017.00}}"
+              },
+              {
+                "Name": "TransactionDate",
+                "Value": 20250815025213
+              },
+              {
+                "Name": "PhoneNumber",
+                "Value": 254796031071
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-15T02:52:25.987841",
+    "status": "success",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "9008-404d-9f75-3ab3e4cb4add391",
+          "CheckoutRequestID": "ws_CO_150820250252042796031071",
+          "ResultCode": 0,
+          "ResultDesc": "The service request is processed successfully",
+          "CallbackMetadata": {
+            "Item": [
+              {
+                "Name": "Amount",
+                "Value": 1
+              },
+              {
+                "Name": "MpesaReceiptNumber",
+                "Value": "THF9EGQCZV"
+              },
+              {
+                "Name": "Balance",
+                "Value": "{Amount={CurrencyCode=KES, MinimumAmount=11101700, BasicAmount=111017.00}}"
+              },
+              {
+                "Name": "TransactionDate",
+                "Value": 20250815025213
+              },
+              {
+                "Name": "PhoneNumber",
+                "Value": 254796031071
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-15T03:19:53.796661",
+    "status": "success",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "380c-416e-8638-6cc32032fdba59817",
+          "CheckoutRequestID": "ws_CO_150820250319316796031071",
+          "ResultCode": 0,
+          "ResultDesc": "The service request is processed successfully",
+          "CallbackMetadata": {
+            "Item": [
+              {
+                "Name": "Amount",
+                "Value": 1
+              },
+              {
+                "Name": "MpesaReceiptNumber",
+                "Value": "THF0EH0PEK"
+              },
+              {
+                "Name": "Balance",
+                "Value": "{Amount={CurrencyCode=KES, MinimumAmount=11101000, BasicAmount=111010.00}}"
+              },
+              {
+                "Name": "TransactionDate",
+                "Value": 20250815031938
+              },
+              {
+                "Name": "PhoneNumber",
+                "Value": 254796031071
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-15T03:19:54.452190",
+    "status": "success",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "380c-416e-8638-6cc32032fdba59817",
+          "CheckoutRequestID": "ws_CO_150820250319316796031071",
+          "ResultCode": 0,
+          "ResultDesc": "The service request is processed successfully",
+          "CallbackMetadata": {
+            "Item": [
+              {
+                "Name": "Amount",
+                "Value": 1
+              },
+              {
+                "Name": "MpesaReceiptNumber",
+                "Value": "THF0EH0PEK"
+              },
+              {
+                "Name": "Balance",
+                "Value": "{Amount={CurrencyCode=KES, MinimumAmount=11101000, BasicAmount=111010.00}}"
+              },
+              {
+                "Name": "TransactionDate",
+                "Value": 20250815031938
+              },
+              {
+                "Name": "PhoneNumber",
+                "Value": 254796031071
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-15T03:19:54.714706",
+    "status": "unmatched",
+    "details": {
+      "phone": "254796031071",
+      "amount": 1,
+      "reference": "THF0EH0PEK",
+      "raw": {
+        "Body": {
+          "stkCallback": {
+            "MerchantRequestID": "380c-416e-8638-6cc32032fdba59817",
+            "CheckoutRequestID": "ws_CO_150820250319316796031071",
+            "ResultCode": 0,
+            "ResultDesc": "The service request is processed successfully",
+            "CallbackMetadata": {
+              "Item": [
+                {
+                  "Name": "Amount",
+                  "Value": 1
+                },
+                {
+                  "Name": "MpesaReceiptNumber",
+                  "Value": "THF0EH0PEK"
+                },
+                {
+                  "Name": "Balance",
+                  "Value": "{Amount={CurrencyCode=KES, MinimumAmount=11101000, BasicAmount=111010.00}}"
+                },
+                {
+                  "Name": "TransactionDate",
+                  "Value": 20250815031938
+                },
+                {
+                  "Name": "PhoneNumber",
+                  "Value": 254796031071
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-15T03:19:54.867366",
+    "status": "unmatched",
+    "details": {
+      "phone": "254796031071",
+      "amount": 1,
+      "reference": "THF0EH0PEK",
+      "raw": {
+        "Body": {
+          "stkCallback": {
+            "MerchantRequestID": "380c-416e-8638-6cc32032fdba59817",
+            "CheckoutRequestID": "ws_CO_150820250319316796031071",
+            "ResultCode": 0,
+            "ResultDesc": "The service request is processed successfully",
+            "CallbackMetadata": {
+              "Item": [
+                {
+                  "Name": "Amount",
+                  "Value": 1
+                },
+                {
+                  "Name": "MpesaReceiptNumber",
+                  "Value": "THF0EH0PEK"
+                },
+                {
+                  "Name": "Balance",
+                  "Value": "{Amount={CurrencyCode=KES, MinimumAmount=11101000, BasicAmount=111010.00}}"
+                },
+                {
+                  "Name": "TransactionDate",
+                  "Value": 20250815031938
+                },
+                {
+                  "Name": "PhoneNumber",
+                  "Value": 254796031071
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-15T03:39:18.482457",
+    "status": "failed",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "380c-416e-8638-6cc32032fdba59934",
+          "CheckoutRequestID": "ws_CO_150820250339093796031071",
+          "ResultCode": 1032,
+          "ResultDesc": "Request Cancelled by user"
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-15T03:39:36.398640",
+    "status": "failed",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "02d1-4b68-b6eb-e1ea5451a84787",
+          "CheckoutRequestID": "ws_CO_150820250339230796031071",
+          "ResultCode": 2001,
+          "ResultDesc": "The initiator information is invalid."
+        }
+      }
+    }
+  }
+]

@@ -48,18 +48,57 @@
     @page { margin: 1cm; }
 }
 </style>
-<div class="d-flex gap-3">
-  <div class="d-none d-md-block">
-    {% include 'dashboards/teacher_sidebar.html' %}
-  </div>
-  <div class="flex-grow-1">
+
 <div class="container-fluid">
     <div class="d-flex align-items-center justify-content-between mt-4 mb-2">
         <h1 class="mb-0">School Timetable</h1>
-        <a class="btn btn-outline-primary d-print-none" href="{% url 'school_timetable_day' %}">
-            <i class="bi bi-grid"></i> Whole-School Day View
-        </a>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-primary d-print-none" href="{% url 'school_timetable_day' %}">
+                <i class="bi bi-grid"></i> Whole-School Day View
+            </a>
+            {% if request.user.role == 'admin' %}
+            <a class="btn btn-outline-secondary d-print-none" href="{% url 'admin_period_slots' %}">
+                <i class="bi bi-clock-history"></i> Edit Session Times
+            </a>
+            <form method="post" action="{% url 'timetable_view' %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="auto_generate" value="1" />
+                <button type="submit" class="btn btn-danger d-print-none" onclick="return confirm('This will overwrite the entire timetable. Continue?')">
+                    <i class="bi bi-magic"></i> Auto Schedule (Overwrite)
+                </button>
+            </form>
+            {% endif %}
+            {% if request.user.role == 'teacher' and request.user.teacher %}
+            <a class="btn btn-outline-secondary d-print-none" href="{% url 'teacher_timetable' request.user.teacher.id %}">
+                <i class="bi bi-person-lines-fill"></i> My Timetable
+            </a>
+            {% endif %}
+        </div>
     </div>
+
+    {# Django messages block #}
+    {% if messages %}
+    <div class="mb-3">
+        {% for message in messages %}
+            {% if message.tags == 'success' %}
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle me-1"></i> {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% elif message.tags == 'error' %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-x-circle me-1"></i> {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% else %}
+                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <!-- Class Selector -->
     <div class="row mb-3">
@@ -122,9 +161,11 @@
                                                     <span class="text-muted">--</span>
                                                 {% endif %}
                                             </div>
+                                            {% if request.user.role == 'admin' %}
                                             <a href="#" class="btn btn-sm btn-light edit-slot-btn" style="position: absolute; top: 2px; right: 2px;" title="Edit Slot">
                                                 &#x270E; <!-- Pencil icon -->
                                             </a>
+                                            {% endif %}
                                         </td>
                                         {% endwith %}
                                     {% endfor %}
@@ -153,6 +194,7 @@
         </div>
     </div>
 
+    {% if request.user.role == 'admin' %}
     <!-- Edit Slot Modal -->
     <div class="modal fade" id="editSlotModal" tabindex="-1" aria-labelledby="editSlotModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -172,19 +214,33 @@
                             <label for="modal-subject" class="form-label">Subject</label>
                             <select id="modal-subject" name="subject" class="form-select">
                                 <option value="">-- Select Subject --</option>
-                                {% for subject in subjects %}
-                                    <option value="{{ subject.id }}" data-code="{{ subject.code }}">{{ subject.name }}</option>
-                                {% endfor %}
+                                {% if subjects %}
+                                    {% for subject in subjects %}
+                                        <option value="{{ subject.id }}" data-code="{{ subject.code }}">{{ subject.name }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="" disabled>No subjects found</option>
+                                {% endif %}
                             </select>
+                            {% if request.user.role == 'admin' %}
+                            <small class="text-muted">Subjects available: {{ subjects|length }}</small>
+                            {% endif %}
                         </div>
                         <div class="mb-3">
                             <label for="modal-teacher" class="form-label">Teacher</label>
                             <select id="modal-teacher" name="teacher" class="form-select">
                                 <option value="">-- Select Teacher --</option>
-                                {% for teacher in teachers %}
-                                    <option value="{{ teacher.id }}" data-username="{{ teacher.user.username }}">{{ teacher.user.get_full_name }}</option>
-                                {% endfor %}
+                                {% if teachers %}
+                                    {% for teacher in teachers %}
+                                        <option value="{{ teacher.id }}" data-username="{{ teacher.user.username }}">{{ teacher.user.get_full_name|default:teacher.user.username }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="" disabled>No teachers found</option>
+                                {% endif %}
                             </select>
+                            {% if request.user.role == 'admin' %}
+                            <small class="text-muted">Teachers available: {{ teachers|length }}</small>
+                            {% endif %}
                         </div>
                     </form>
                 </div>
@@ -195,6 +251,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     {% else %}
     <div class="alert alert-info mt-4" role="alert">
@@ -202,13 +259,20 @@
     </div>
     {% endif %}
 </div>
-  </div>
-</div>
 
+
+{% if request.user.role == 'admin' %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const editSlotModal = new bootstrap.Modal(document.getElementById('editSlotModal'));
     const timetableTable = document.getElementById('timetable-table');
+
+    // Toast setup for client-side success notifications
+    let toastEl = document.getElementById('slotSavedToast');
+    let toast;
+    if (toastEl) {
+        toast = new bootstrap.Toast(toastEl);
+    }
 
     // Only add event listeners if the timetable table exists on the page
     if (timetableTable) {
@@ -291,6 +355,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     currentCell.dataset.teacherId = '';
                 }
                 editSlotModal.hide();
+
+                // Show success toast
+                if (toast) {
+                    const body = toastEl.querySelector('.toast-body');
+                    body.textContent = result.message || 'Timetable slot saved successfully';
+                    toast.show();
+                }
             } else {
                 alert('Error: ' + (result.error || 'Unknown error'));
             }
@@ -303,4 +374,19 @@ document.addEventListener('DOMContentLoaded', function() {
     } // End of the if(timetableTable) block
 });
 </script>
+{% endif %}
+
+{# Toast container for client-side success messages #}
+{% if request.user.role == 'admin' %}
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080">
+  <div id="slotSavedToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body">
+        Timetable slot saved successfully
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

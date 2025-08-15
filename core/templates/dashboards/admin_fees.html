@@ -329,6 +329,60 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+
+    // --- AJAX: Payment History partial updates ---
+    const historyContainer = document.getElementById('payment-history-container');
+    if (historyContainer) {
+        const partialUrl = '{% url "admin_payment_history_partial" %}';
+
+        const fetchAndReplaceHistory = (params) => {
+            const url = new URL(partialUrl, window.location.origin);
+            if (params) {
+                for (const [key, value] of params.entries()) {
+                    url.searchParams.set(key, value);
+                }
+            }
+            // Keep tab on history when re-rendering (if template uses it)
+            url.searchParams.set('tab', 'history');
+            historyContainer.classList.add('opacity-50');
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(resp => resp.text())
+                .then(html => {
+                    historyContainer.innerHTML = html;
+                })
+                .catch(err => {
+                    console.error('Failed to load payment history partial:', err);
+                })
+                .finally(() => {
+                    historyContainer.classList.remove('opacity-50');
+                });
+        };
+
+        // Delegate submit from the history form inside the container
+        historyContainer.addEventListener('submit', function(e) {
+            const form = e.target;
+            if (form && form.tagName === 'FORM') {
+                e.preventDefault();
+                const formData = new FormData(form);
+                fetchAndReplaceHistory(new URLSearchParams(formData));
+            }
+        });
+
+        // Also handle clicks on buttons that are intended to submit (e.g., sort buttons)
+        historyContainer.addEventListener('click', function(e) {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const form = btn.form;
+            if (form) {
+                e.preventDefault();
+                const formData = new FormData(form);
+                if (btn.name && btn.value) {
+                    formData.set(btn.name, btn.value);
+                }
+                fetchAndReplaceHistory(new URLSearchParams(formData));
+            }
+        });
+    }
 });
 </script>
 {% endblock %}
@@ -388,7 +442,9 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="tab-content" id="feesTabContent">
       <!-- History of Payments (Default Tab) -->
       <div class="tab-pane fade show active" id="history" role="tabpanel" aria-labelledby="history-tab">
-        {% include 'dashboards/admin_payment_history.html' %}
+        <div id="payment-history-container">
+          {% include 'dashboards/admin_payment_history.html' %}
+        </div>
       </div>
 
       <!-- Set Fees Category Tab -->

@@ -1,6 +1,31 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="container py-4">
+    <style>
+      /* Mobile-first refinements for student profile dashboard */
+      .fee-card .card-body { padding: 1rem; }
+      .fee-card .metric-title { font-size: 1rem; }
+      .fee-card .metric-value { font-size: 1.25rem; font-weight: 700; }
+      .fee-card .metric-icon { font-size: 1.5rem; margin-right: .75rem; }
+
+      /* Make nav tabs scrollable on small screens */
+      .nav-tabs { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; }
+      .nav-tabs .nav-link { white-space: nowrap; }
+
+      /* Wrap action buttons and reduce size on very small widths */
+      .action-buttons { gap: .5rem; flex-wrap: wrap; }
+      @media (max-width: 576.98px) {
+        .btn-lg { padding: .45rem .75rem; font-size: .95rem; }
+        .fee-card .metric-title { font-size: .95rem; }
+        .fee-card .metric-value { font-size: 1.15rem; }
+        .fee-card .metric-icon { font-size: 1.35rem; }
+        .profile-photo { width: 120px !important; height: 135px !important; }
+        .card-header { align-items: flex-start !important; }
+      }
+
+      /* Ensure tables are scrollable horizontally on mobile */
+      .table-responsive-mobile { overflow-x: auto; }
+    </style>
     <div class="d-flex justify-content-end mb-3">
     <a href="{% url 'logout' %}" class="btn btn-outline-danger">
         <i class="bi bi-power"></i> Log Out
@@ -25,38 +50,38 @@
     </div>
     {% endif %}
     <!-- Fee Summary Cards -->
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="card text-white" style="background-color: #f39c12;">
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-4">
+            <div class="card text-white fee-card" style="background-color: #f39c12;">
                 <div class="card-body d-flex align-items-center">
-                    <div style="font-size:2rem; margin-right:1rem;"><i class="fa fa-tag"></i></div>
+                    <div class="metric-icon"><i class="fa fa-tag"></i></div>
                     <div>
-                        <div style="font-size:1.2rem;">TOTAL BILLED:</div>
-                        <div style="font-size:1.5rem; font-weight:bold;">Ksh. {{ total_billed|floatformat:2 }}</div>
+                        <div class="metric-title">TOTAL BILLED:</div>
+                        <div class="metric-value">Ksh. {{ total_billed|floatformat:2 }}</div>
                         <a href="#" class="btn btn-link text-white p-0" data-bs-toggle="modal" data-bs-target="#feeDetailsModal" data-tab="billed">View Details <i class="fa fa-arrow-circle-right"></i></a>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card text-white" style="background-color: #16a085;">
+        <div class="col-12 col-md-4">
+            <div class="card text-white fee-card" style="background-color: #16a085;">
                 <div class="card-body d-flex align-items-center">
-                    <div style="font-size:2rem; margin-right:1rem;"><i class="fa fa-heart"></i></div>
+                    <div class="metric-icon"><i class="fa fa-heart"></i></div>
                     <div>
-                        <div style="font-size:1.2rem;">TOTAL PAID:</div>
-                        <div style="font-size:1.5rem; font-weight:bold;">Ksh. {{ total_paid|floatformat:2 }}</div>
+                        <div class="metric-title">TOTAL PAID:</div>
+                        <div class="metric-value">Ksh. {{ total_paid|floatformat:2 }}</div>
                         <a href="#" class="btn btn-link text-white p-0" data-bs-toggle="modal" data-bs-target="#feeDetailsModal" data-tab="paid">View Details <i class="fa fa-arrow-circle-right"></i></a>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card text-white" style="background-color: #00bcd4;">
+        <div class="col-12 col-md-4">
+            <div class="card text-white fee-card" style="background-color: #00bcd4;">
                 <div class="card-body d-flex align-items-center">
-                    <div style="font-size:2rem; margin-right:1rem;"><i class="fa fa-comment"></i></div>
+                    <div class="metric-icon"><i class="fa fa-comment"></i></div>
                     <div>
-                        <div style="font-size:1.2rem;">BALANCE:</div>
-                        <div style="font-size:1.5rem; font-weight:bold;">Ksh. {{ balance|floatformat:2 }}</div>
+                        <div class="metric-title">BALANCE:</div>
+                        <div class="metric-value">Ksh. {{ balance|floatformat:2 }}</div>
                         <a href="#" class="btn btn-link text-white p-0" data-bs-toggle="modal" data-bs-target="#feeDetailsModal" data-tab="billed">View Details <i class="fa fa-arrow-circle-right"></i></a>
                     </div>
                 </div>
@@ -74,9 +99,9 @@
                 </div>
                 <div class="card-body text-center">
                     {% if student.photo %}
-                        <img src="{{ student.photo.url }}" class="rounded mb-2" style="width:160px;height:180px;object-fit:cover;" alt="Profile Photo">
+                        <img src="{{ student.photo.url }}" class="rounded mb-2 profile-photo" style="width:160px;height:180px;object-fit:cover;" alt="Profile Photo">
                     {% else %}
-                        <img src="https://ui-avatars.com/api/?name={{ student.user.get_full_name|default:student.user.username|urlencode }}&size=180" class="rounded mb-2" style="width:160px;height:180px;object-fit:cover;" alt="Profile Photo">
+                        <img src="https://ui-avatars.com/api/?name={{ student.user.get_full_name|default:student.user.username|urlencode }}&size=180" class="rounded mb-2 profile-photo" style="width:160px;height:180px;object-fit:cover;" alt="Profile Photo">
                     {% endif %}
                     <div class="fw-bold fs-5 mt-2">{{ student.admission_no }}</div>
                     <div class="text-muted mb-2"><b>Programme</b><br> {{ student.class_group.name }}</div>
@@ -101,14 +126,16 @@
         </div>
         <div class="col-lg-8 mb-4">
             <div class="card">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <strong>Personal Information</strong>
-                    <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#editContactModal">Update Profile</button>
-<div>
-    <button class="btn btn-primary btn-sm me-2" onclick="printSection('result-slip-section', 'Result Slip')"><i class="fa fa-print"></i> Print Result Slip</button>
-<button class="btn btn-success btn-sm me-2" onclick="printSection('fees-statement-section', 'Fees Statement')"><i class="fa fa-money-bill"></i> Print Fees Statement</button>
-<button class="btn btn-info btn-sm" onclick="printSection('fees-structure-section', 'Fees Structure')"><i class="fa fa-list"></i> Print Fees Structure</button>
-</div>
+                <div class="card-header bg-light d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+                    <strong class="me-md-3">Personal Information</strong>
+                    <div class="ms-md-auto d-flex flex-wrap align-items-center gap-2">
+                        <div class="btn-group btn-group-sm me-md-2 flex-wrap" role="group" aria-label="Print actions">
+                            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#actionChooseModal" data-section="result-slip-section" data-title="Result Slip"><i class="fa fa-file"></i> Result Slip</button>
+                            <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#actionChooseModal" data-section="fees-statement-section" data-title="Fees Statement"><i class="fa fa-file"></i> Fees Statement</button>
+                            <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#actionChooseModal" data-section="fees-structure-section" data-title="Fees Structure"><i class="fa fa-file"></i> Fees Structure</button>
+                        </div>
+                        <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#editContactModal">Update Profile</button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="row mb-2">
@@ -209,89 +236,13 @@
 
   </div>
   <div class="tab-pane fade" id="performance" role="tabpanel" aria-labelledby="performance-tab">
-    {# Render performance_per_term as JSON for JS #}
-    {{ exam_performance|json_script:"perf-data" }}
-    <div class="mb-4">
-      <div class="card">
-        <div class="card-header bg-info text-white">
-          <strong>Performance Over Time (All Exams)</strong>
-        </div>
-        <div class="card-body">
-          {% if exam_performance and exam_performance|length > 0 %}
-            <canvas id="performanceChart" height="100"></canvas>
-            <div class="table-responsive mt-3">
-              <table class="table table-sm table-striped mb-0">
-                <thead>
-                  <tr>
-                    <th style="width:140px;">Date</th>
-                    <th>Exam</th>
-                    <th class="text-end" style="width:140px;">Average</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for ex in exam_performance %}
-                    <tr>
-                      <td>{{ ex.date|default:'-' }}</td>
-                      <td>{{ ex.exam_name }}</td>
-                      <td class="text-end">{{ ex.average_score|floatformat:2 }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <div class="alert alert-info mb-0">No performance data available for this student yet.</div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
     <div id="result-slip-section">
     {% include 'dashboards/student_report_card.html' with student=student grades=grades average_score=average_score term=current_term %}
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-      const perfData = JSON.parse(document.getElementById('perf-data').textContent);
-      const filtered = perfData.filter(e => e.average_score !== null && e.average_score !== undefined);
-      const labels = filtered.map(e => `${e.date} - ${e.exam_name}`);
-      const scores = filtered.map(e => e.average_score);
-      if (scores.length > 0) {
-        const ctx = document.getElementById('performanceChart').getContext('2d');
-        new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'Average Score',
-              data: scores,
-              borderColor: '#007bff',
-              backgroundColor: 'rgba(0,123,255,0.1)',
-              fill: true,
-              tension: 0.3,
-              pointRadius: 5,
-              pointHoverRadius: 7
-            }]
-          },
-          options: {
-            responsive: true,
-            plugins: {
-              legend: { display: true },
-              tooltip: { enabled: true }
-            },
-            scales: {
-              y: {
-                beginAtZero: true,
-                title: { display: true, text: 'Average Score' }
-              },
-              x: {
-                title: { display: true, text: 'Term' }
-              }
-            }
-          }
-        });
-      } else {
-        document.getElementById('performanceChart').parentNode.innerHTML += '<div class="text-muted text-center mt-3">No performance data available for chart.</div>';
-      }
-    </script>
+    <!-- html2pdf for client-side PDF downloads (no SRI to avoid mismatch blocking) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- dom-to-image fallback for more reliable rasterization -->
+<script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.4.0/dist/dom-to-image-more.min.js"></script>
   </div>
 <!-- Fee Details Modal -->
 <div class="modal fade" id="feeDetailsModal" tabindex="-1" aria-labelledby="feeDetailsModalLabel" aria-hidden="true">
@@ -312,9 +263,9 @@
         </ul>
         <div class="tab-content" id="feeDetailsTabsContent">
           <div class="tab-pane fade show active" id="billed" role="tabpanel">
-    <div id="fees-structure-section">
+    <div id="fees-structure-section" class="table-responsive-mobile">
         <h6>Assigned Fees</h6>
-        <table class="table table-bordered">
+        <table class="table table-bordered mb-0">
           <thead>
             <tr>
               <th>Fee Category</th>
@@ -339,9 +290,9 @@
     </div>
 </div>
           <div class="tab-pane fade" id="paid" role="tabpanel">
-    <div id="fees-statement-section">
+    <div id="fees-statement-section" class="table-responsive-mobile">
         <h6>Payment History</h6>
-        <table class="table table-sm table-striped">
+        <table class="table table-sm table-striped mb-0">
           <thead>
             <tr>
               <th>Date</th>
@@ -372,37 +323,273 @@
     </div>
   </div>
 </div>
+<!-- Action choose modal (Download or Print) -->
+<div class="modal fade" id="actionChooseModal" tabindex="-1" aria-labelledby="actionChooseModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="actionChooseModalLabel">Choose Action</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">Would you like to download a PDF or print?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-info" id="choosePrintBtn"><i class="fa fa-print"></i> Print</button>
+        <button type="button" class="btn btn-primary" id="chooseDownloadBtn"><i class="fa fa-download"></i> Download PDF</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
 <script>
 // Switch to correct tab when opening modal from a card
 const feeDetailsModal = document.getElementById('feeDetailsModal');
-feeDetailsModal.addEventListener('show.bs.modal', function (event) {
-  const button = event.relatedTarget;
-  if (!button) return;
-  const tab = button.getAttribute('data-tab');
-  if (!tab) return;
-  const tabBtn = document.getElementById(tab+'-tab');
-  if (tabBtn) {
-    const tabTrigger = new bootstrap.Tab(tabBtn);
-    tabTrigger.show();
-  }
-});
+if (feeDetailsModal) {
+  feeDetailsModal.addEventListener('show.bs.modal', function (event) {
+    const button = event.relatedTarget;
+    if (!button) return;
+    const tab = button.getAttribute('data-tab');
+    if (!tab) return;
+    const tabBtn = document.getElementById(tab+'-tab');
+    if (tabBtn) {
+      const tabTrigger = new bootstrap.Tab(tabBtn);
+      tabTrigger.show();
+    }
+  });
+}
 
 function printSection(sectionId, title) {
-    var content = document.getElementById(sectionId);
-    if (!content) {
-        alert('Section not found!');
-        return;
+  const content = document.getElementById(sectionId);
+  if (!content) {
+    alert('Section not found!');
+    return;
+  }
+
+  const printWindow = window.open('', '', 'height=800,width=1000');
+  const styles = Array.from(document.querySelectorAll('link[rel=stylesheet], style')).map(node => node.outerHTML).join('');
+  const now = new Date().toLocaleString();
+  const studentName = "{{ student.user.get_full_name|default:student.user.username }}";
+  const adm = "{{ student.admission_no }}";
+  const term = "{{ current_term.name|default:'-' }}";
+
+  printWindow.document.write(`<!doctype html>
+  <html><head><meta charset="utf-8"><title>${title}</title>${styles}
+  <style>
+    @media print { .no-print { display:none!important; } }
+    body { padding: 24px; }
+    .print-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid #ddd; padding-bottom:10px; }
+    .print-header h2 { margin:0; font-size:1.25rem; }
+    .print-meta { font-size:.9rem; color:#555; }
+  </style></head><body>`);
+
+  printWindow.document.write(`
+    <div class="print-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        {% if school.logo %}
+          <img src="{{ school.logo.url }}" alt="Logo" style="height:54px;width:auto;object-fit:contain;">
+        {% endif %}
+        <div>
+          <div style="font-weight:800;font-size:1.1rem;line-height:1.2;">{{ school.name|default:'School' }}</div>
+          {% if school.motto %}<div style="font-size:.9rem;color:#666;">{{ school.motto }}</div>{% endif %}
+          <div style="font-size:.95rem;margin-top:4px;">${title}</div>
+        </div>
+      </div>
+      <div class="print-meta" style="text-align:right;">
+        <div>Generated: ${now}</div>
+        <div>Adm: ${adm}</div>
+        <div>Term: ${term}</div>
+      </div>
+    </div>
+  `);
+
+  // Clone the section HTML
+  printWindow.document.write(`<div>${content.outerHTML}</div>`);
+  printWindow.document.write('</body></html>');
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.onload = function() {
+    printWindow.print();
+    setTimeout(() => { printWindow.close(); }, 300);
+  };
+}
+
+// Wire the chooser modal to either download or print
+let selectedSectionId = null;
+let selectedTitle = null;
+const actionChooseModal = document.getElementById('actionChooseModal');
+if (actionChooseModal) {
+  actionChooseModal.addEventListener('show.bs.modal', function (event) {
+    const button = event.relatedTarget;
+    selectedSectionId = button?.getAttribute('data-section');
+    selectedTitle = button?.getAttribute('data-title');
+  });
+  document.getElementById('chooseDownloadBtn').addEventListener('click', function(){
+    if (selectedSectionId && selectedTitle) {
+      const modal = bootstrap.Modal.getInstance(actionChooseModal);
+      modal?.hide();
+      downloadSection(selectedSectionId, selectedTitle);
     }
-    var printWindow = window.open('', '', 'height=600,width=900');
-    printWindow.document.write('<html><head><title>' + title + '</title>');
-    // Optionally copy stylesheets
-    var styles = Array.from(document.querySelectorAll('link[rel=stylesheet], style')).map(node => node.outerHTML).join('');
-    printWindow.document.write(styles);
-    printWindow.document.write('</head><body >');
-    printWindow.document.write(content.innerHTML);
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
-    setTimeout(function(){ printWindow.print(); printWindow.close(); }, 500);
+  });
+  document.getElementById('choosePrintBtn').addEventListener('click', function(){
+    if (selectedSectionId && selectedTitle) {
+      const modal = bootstrap.Modal.getInstance(actionChooseModal);
+      modal?.hide();
+      printSection(selectedSectionId, selectedTitle);
+    }
+  });
+}
+
+// Download the same sections as PDF
+function downloadSection(sectionId, title) {
+  const node = document.getElementById(sectionId);
+  if (!node) { alert('Section not found!'); return; }
+
+  // Build header + clone
+  const clone = node.cloneNode(true);
+  // Ensure the clone is visible and not constrained by hidden/tab/collapse styles
+  try {
+    clone.style.display = 'block';
+    clone.style.visibility = 'visible';
+    clone.style.position = 'static';
+    clone.style.opacity = '1';
+    clone.style.width = 'auto';
+    clone.style.maxWidth = '100%';
+    clone.classList.remove('d-none','collapse','collapsed','tab-pane','fade');
+    clone.classList.add('show');
+    // Expand any nested collapse/tab panes inside the clone
+    clone.querySelectorAll('.collapse, .tab-pane').forEach(el => {
+      el.classList.remove('collapse','tab-pane','fade');
+      el.classList.add('show');
+      el.style.display = 'block';
+      el.style.visibility = 'visible';
+    });
+  } catch(_) {}
+  const header = document.createElement('div');
+  header.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid #ccc;padding-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        {% if school.logo %}
+          <img src="{{ school.logo.url }}" alt="Logo" style="height:54px;width:auto;object-fit:contain;">
+        {% endif %}
+        <div>
+          <div style="font-weight:800;font-size:18px;">{{ school.name|default:'School' }}</div>
+          {% if school.motto %}<div style="font-size:12px;color:#666;">{{ school.motto }}</div>{% endif %}
+          <div style="font-size:13px;margin-top:4px;">${title}</div>
+        </div>
+      </div>
+      <div style="text-align:right;font-size:12px;color:#555;">
+        <div>Generated: ${new Date().toLocaleString()}</div>
+        <div>Adm: {{ student.admission_no }}</div>
+        <div>Term: {{ current_term }}</div>
+      </div>
+    </div>`;
+
+  // Render inside an offscreen iframe that imports page styles
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.left = '-10000px';
+  iframe.style.top = '0';
+  iframe.style.width = '900px';
+  iframe.style.height = '1200px';
+  iframe.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(iframe);
+
+  const filename = `${title.replace(/\s+/g,'_')}_{{ student.admission_no }}.pdf`;
+  const opt = {
+    margin:       10,
+    filename:     filename,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, allowTaint: true },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+
+  function copyStyles(srcDoc, destDoc){
+    // Copy link stylesheets
+    srcDoc.querySelectorAll('link[rel="stylesheet"]').forEach(l => {
+      const link = destDoc.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = l.href;
+      destDoc.head.appendChild(link);
+    });
+    // Copy inline styles
+    srcDoc.querySelectorAll('style').forEach(s => {
+      const st = destDoc.createElement('style');
+      st.textContent = s.textContent;
+      destDoc.head.appendChild(st);
+    });
+  }
+
+  function runExport(){
+    const doc = iframe.contentDocument;
+    const win = iframe.contentWindow;
+    try {
+      doc.open();
+      const baseHref = document.baseURI || window.location.origin + '/';
+      doc.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${baseHref}">`);
+      doc.write('</head><body style="background:#fff;color:#000;padding:16px;">');
+      doc.write('<div id="pdf-root"></div>');
+      doc.write('</body></html>');
+      doc.close();
+
+      copyStyles(document, doc);
+      const root = doc.getElementById('pdf-root');
+      root.appendChild(doc.importNode(header, true));
+      root.appendChild(doc.importNode(clone, true));
+
+      // Ensure required libraries exist inside iframe
+      function loadScript(src){
+        return new Promise((resolve, reject) => { const s = doc.createElement('script'); s.src = src; s.onload = resolve; s.onerror = reject; doc.head.appendChild(s); });
+      }
+      const libLoads = [];
+      if (!win.html2pdf) libLoads.push(loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'));
+      if (!win.domtoimage) libLoads.push(loadScript('https://cdn.jsdelivr.net/npm/dom-to-image-more@3.4.0/dist/dom-to-image-more.min.js'));
+
+      const waitFonts = doc.fonts && doc.fonts.ready ? doc.fonts.ready.catch(()=>{}) : Promise.resolve();
+      const waitImages = () => {
+        const imgs = Array.from(doc.images || []);
+        return Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = res; })));
+      };
+
+      Promise.all([waitFonts, waitImages(), Promise.all(libLoads).catch(()=>{})]).then(() => {
+        // Small layout delay
+        setTimeout(() => {
+          // Try html2pdf first
+          win.html2pdf().from(root).set(opt).save().then(() => {
+            iframe.remove();
+          }).catch(async err => {
+            console.warn('html2pdf in iframe failed, fallback to dom-to-image', err);
+            try {
+              const dataUrl = await win.domtoimage.toPng(root, { bgcolor: '#ffffff', quality: 1 });
+              const pdf = new win.jspdf ? new win.jspdf.jsPDF('p','mm','a4') : new (window.jspdf ? window.jspdf.jsPDF : jsPDF)('p','mm','a4');
+              const pageW = 210 - 20; const pageH = 297 - 20;
+              const im = new Image(); im.src = dataUrl; await new Promise(r => { im.onload = r; im.onerror = r; });
+              let w = pageW; let hScaled = (im.height / im.width) * w;
+              if (hScaled > pageH) { hScaled = pageH; w = (im.width / im.height) * hScaled; }
+              pdf.addImage(dataUrl, 'PNG', 10, 10, w, hScaled);
+              pdf.save(filename);
+            } catch (e2) {
+              alert('Unable to generate PDF on this device. Please use Print instead.');
+            } finally { iframe.remove(); }
+          });
+        }, 800);
+      });
+    } catch (e) {
+      console.error(e);
+      iframe.remove();
+      alert('Unable to generate PDF on this device. You can use Print instead.');
+    }
+  }
+  if (typeof window.html2pdf === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+    s.onload = runExport;
+    s.onerror = function(){ alert('PDF library failed to load. Using Print instead.'); printSection(sectionId, title); };
+    document.head.appendChild(s);
+  } else {
+    runExport();
+  }
 }
 </script>
 </div>

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}M-Pesa PayBill - Start{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <h3 class="mb-3">Pay School Fees via M-Pesa</h3>
+  <div class="card">
+    <div class="card-body">
+      <p class="mb-2"><strong>PayBill Number:</strong> {{ shortcode|default:'-' }}</p>
+      <p class="mb-4"><strong>Account Reference:</strong> Account#{{ student.admission_no }}</p>
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-sm-4">
+            <label class="form-label">Amount (KES)</label>
+            <input type="number" step="1" min="1" class="form-control" name="amount" placeholder="e.g. 1000" required>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Phone Number</label>
+            <input type="text" class="form-control" name="phone" value="{{ prefill_phone }}" placeholder="07XX XXX XXX" required>
+            <small class="text-muted">We will send an STK Push to this phone.</small>
+          </div>
+          <div class="col-sm-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-success w-100">Pay with M-Pesa</button>
+          </div>
+        </div>
+      </form>
+      <hr>
+      <p class="text-muted mb-0">If you don't receive the prompt, ensure your phone has network and is on M-Pesa, then try again.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

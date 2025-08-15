@@ -9,11 +9,15 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     '8c31c7ea20f2.ngrok-free.app',
     '08d4e7a36369.ngrok-free.app',  # <-- Added new ngrok domain
+    '469684394867.ngrok-free.app',  # <-- Current ngrok domain
+    '.ngrok-free.app',  # <-- Allow any ngrok subdomain
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     'https://8c31c7ea20f2.ngrok-free.app',
     'https://08d4e7a36369.ngrok-free.app',  # <-- Added new ngrok domain
+    'https://469684394867.ngrok-free.app',  # <-- Current ngrok domain
+    'https://*.ngrok-free.app',  # <-- Trust any ngrok subdomain for CSRF
 ]
 
 MPESA_CONSUMER_KEY = 'EXGFqWiPKTmwUrCGfKmHbUzj43Ikge7ekz5GVSbdzAk37L0j'
@@ -25,6 +29,10 @@ MPESA_INITIATOR_NAME = '<YOUR_INITIATOR_NAME>'
 MPESA_ACCOUNT_NUMBER = '710092'
 MPESA_ENVIRONMENT = 'sandbox'  # or 'production' for live
 # --- End M-Pesa Credentials ---
+
+# Public callback URL used by Safaricom for STK push callbacks
+# Ensure this matches your active tunnel/domain
+MPESA_CALLBACK_URL = 'https://469684394867.ngrok-free.app/mpesa-callback/'
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -55,6 +63,19 @@ TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER', '')
 
+# Africa's Talking SMS settings
+# Prefer using environment variables; fall back to sandbox defaults for development.
+AFRICASTALKING_USERNAME = os.environ.get('AFRICASTALKING_USERNAME', 'sandbox')
+AFRICASTALKING_API_KEY = os.environ.get('AFRICASTALKING_API_KEY', 'atsk_71b95d4bf13dca4dc54611eac4532396b47482939ee43c6da450a4311693086b935ad13e')
+AFRICASTALKING_SENDER_ID = os.environ.get('AFRICASTALKING_SENDER_ID', '')  # leave blank in sandbox
+
+# Default country code for normalizing local phone numbers to E.164
+# Example: '254' for Kenya
+DEFAULT_SMS_COUNTRY_CODE = os.environ.get('DEFAULT_SMS_COUNTRY_CODE', '254')
+
+# Fallback school name used in notifications when SiteSettings is not available
+SCHOOL_NAME = os.environ.get('SCHOOL_NAME', 'Your School')
+
 # Use custom user model
 AUTH_USER_MODEL = 'core.User'
 
@@ -68,6 +89,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# Ensure Django respects HTTPS scheme when behind ngrok's proxy
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 ROOT_URLCONF = 'core.urls'
 
@@ -120,6 +144,10 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Media (user uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

@@ -1,0 +1,38 @@
+{# Category template: Video #}
+<div class="card" style="padding:16px;">
+  <div style="font-weight:700;">{{ c.name }}</div>
+  {% if c.description %}<div class="muted" style="margin:6px 0 10px;">{{ c.description }}</div>{% endif %}
+  <div class="video-grid" style="display:grid; grid-template-columns: minmax(260px, 340px) 1fr; gap:16px; align-items:start;">
+    <div>
+      {% with shown=false %}
+      {% for item in c.media.all %}
+        {% if item.kind == 'video' %}
+          {% if item.video_url %}
+            <div class="ratio" style="position:relative; width:100%; padding-top:56.25%; border-radius:8px; overflow:hidden; margin-bottom:12px;">
+              <iframe src="{{ item.video_url }}" title="Video" allowfullscreen style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;"></iframe>
+            </div>
+          {% elif item.file %}
+            <video controls style="width:100%; border-radius:8px; overflow:hidden; margin-bottom:12px;">
+              <source src="{{ item.file.url }}" type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+          {% endif %}
+          {% if item.caption %}<div class="muted" style="margin-top:-6px; margin-bottom:8px;">{{ item.caption }}</div>{% endif %}
+        {% endif %}
+      {% empty %}
+        <div class="muted">No video uploaded yet.</div>
+      {% endfor %}
+      {% endwith %}
+    </div>
+    <div>
+      {% if c.video_side_text %}
+        <div class="muted" style="white-space:pre-line;">{{ c.video_side_text }}</div>
+      {% else %}
+        <div class="muted">Add supporting text in the admin under "Video Side Text".</div>
+      {% endif %}
+    </div>
+  </div>
+  <style>
+    @media (max-width: 900px){ .video-grid{ grid-template-columns:1fr; } }
+  </style>
+</div>

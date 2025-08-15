@@ -218,9 +218,14 @@
             <div class="text-muted" style="font-size:1rem;">Welcome back, Admin! Manage your school with style.</div>
           </div>
         </div>
-        <a href="{% url 'admin_users' %}" class="btn btn-light border d-flex align-items-center shadow-sm" style="font-weight:600;">
-          <i class="bi bi-people-fill me-2"></i> Manage Users
-        </a>
+        <div class="d-flex gap-2">
+          <a href="{% url 'admin_users' %}" class="btn btn-light border d-flex align-items-center shadow-sm" style="font-weight:600;">
+            <i class="bi bi-people-fill me-2"></i> Manage Users
+          </a>
+          <a href="{% url 'admin_website_settings' %}" class="btn btn-outline-primary d-flex align-items-center shadow-sm" style="font-weight:600;">
+            <i class="bi bi-globe2 me-2"></i> Website Settings
+          </a>
+        </div>
       </div>
     </div>
   </div>

@@ -2,6 +2,9 @@ from django.urls import path, include
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from . import views, views_admin_messaging, views_finance_messaging
+from django.views.generic.base import RedirectView
+from django.conf import settings
+from django.conf.urls.static import static
 
 from .views import timetable_view
 from . import timetable_urls
@@ -11,9 +14,12 @@ from core.views_teacher_messaging import teacher_messaging
 urlpatterns = [
     path('', include('core.urls_payment_verification')),
     path('mpesa-callback/', views.mpesa_callback, name='mpesa_callback'),
+    # Redirect custom admin-like paths BEFORE django admin catch-all
+    path('admin/period-slots/', RedirectView.as_view(url='/admin_period_slots/', permanent=False)),
     path('admin/', admin.site.urls),
     path('api/', include('core.timetable_urls')),
     path('timetable/', timetable_view, name='timetable_view'),
+    path('timetable/auto-generate/', views.timetable_auto_generate, name='timetable_auto_generate'),
     path('timetable/school-day/', views.school_timetable_day, name='school_timetable_day'),
     # ... other patterns ...
     path('student_messaging/', student_messaging, name='student_messaging'),
@@ -29,6 +35,12 @@ urlpatterns = [
 
     # Admin URLs
     path('admin_overview/', views.admin_overview, name='admin_overview'),
+    # Backward-compat/avoid confusion: redirect old path to new route
+    path('admin/website-settings/', RedirectView.as_view(url='/admin_website_settings/', permanent=False)),
+    path('admin_website_settings/', views.admin_website_settings, name='admin_website_settings'),
+    path('dashboard/website-settings/', views.admin_website_settings, name='admin_website_settings_alt'),
+    path('admin_gallery/', views.admin_gallery, name='admin_gallery'),
+    path('admin_categories/', views.admin_categories, name='admin_categories'),
     path('admin_users/', views.admin_users, name='admin_users'),
     path('admin_users/edit/<int:user_id>/', views.edit_user, name='edit_user'),
     path('admin_users/delete/<int:user_id>/', views.delete_user, name='delete_user'),
@@ -49,6 +61,8 @@ urlpatterns = [
     path('admin_subjects/', views.admin_subjects, name='admin_subjects'),
     path('manage_subject_grading/<int:subject_id>/', views.manage_subject_grading, name='manage_subject_grading'),
     path('admin_academic_years/', views.admin_academic_years, name='admin_academic_years'),
+    # Use a non-admin prefix to avoid being captured by Django admin URLs
+    path('admin_period_slots/', views.admin_period_slots, name='admin_period_slots'),
     path('admin_exams/', views.admin_exams, name='admin_exams'),
     path('admin_exams/delete/<int:exam_id>/', views.delete_exam, name='delete_exam'),
     path('admin_manage_grades/', views.admin_manage_grades_entry, name='admin_manage_grades_entry'),
@@ -63,6 +77,7 @@ urlpatterns = [
     path('api/download-class-students/<int:class_id>/', views.api_download_class_students, name='api_download_class_students'),
     path('admin_exams/json/', views.admin_exams_json, name='admin_exams_json'),
     path('admin_fees/', views.admin_fees, name='admin_fees'),
+    path('admin_fees/history/partial/', views.admin_payment_history_partial, name='admin_payment_history_partial'),
     path('admin_payment/', views.admin_payment, name='admin_payment'),
     path('admin_payment_logs/', views_admin_messaging.admin_payment_logs, name='admin_payment_logs'),
     path('admin_messaging/', views_admin_messaging.admin_messaging, name='admin_messaging'),
@@ -71,6 +86,17 @@ urlpatterns = [
     path('admin_messaging/mark_read/', views_admin_messaging.mark_read, name='admin_mark_read'),
     path('admin_messaging/conversation_action/', views_admin_messaging.conversation_action, name='admin_conversation_action'),
     path('admin_events/', views.admin_events, name='admin_events'),
+    path('downloads/', views.downloads, name='downloads'),
+    # Export/Downloads API (Admin)
+    path('exports/users.csv', views.export_users_csv, name='export_users_csv'),
+    path('exports/teachers.csv', views.export_teachers_csv, name='export_teachers_csv'),
+    path('exports/students.csv', views.export_students_csv, name='export_students_csv'),
+    path('exports/fee-assignments.csv', views.export_fee_assignments_csv, name='export_fee_assignments_csv'),
+    path('exports/fee-payments.csv', views.export_fee_payments_csv, name='export_fee_payments_csv'),
+    path('exports/students-with-arrears.csv', views.export_students_with_arrears_csv, name='export_students_with_arrears_csv'),
+    path('exports/students-without-arrears.csv', views.export_students_without_arrears_csv, name='export_students_without_arrears_csv'),
+    path('exports/result-slip.csv', views.export_result_slip_csv, name='export_result_slip_csv'),
+    path('exports/empty-subject-list.csv', views.export_empty_subject_list_csv, name='export_empty_subject_list_csv'),
     path('admin_send_bulk_arrears_notice/', views_admin_messaging.send_bulk_fee_arrears_notice, name='admin_send_bulk_arrears_notice'),
     path('admin_payment_messages/', views_admin_messaging.admin_payment_messages, name='admin_payment_messages'),
     path('admin_payment_messages/logs/', views_admin_messaging.admin_payment_logs, name='admin_payment_logs'),
@@ -93,6 +119,8 @@ urlpatterns = [
     path('student_profile/<int:student_id>/', views.student_profile, name='student_profile'),
     path('student_dashboard/', views.student_dashboard, name='student_dashboard'),
     path('student_fees/', views.student_fees, name='student_fees'),
+    path('fees/paybill/', views.paybill_start, name='paybill_start'),
+    path('fees/paybill/status/<str:checkout_request_id>/', views.paybill_status, name='paybill_status'),
 
     # API and AJAX URLs
     path('api/exam_events/', views.exam_events_api, name='exam_events_api'),
@@ -106,4 +134,7 @@ urlpatterns = [
     path('dashboard/events/delete/', views.event_delete, name='event_delete'),
     path('dashboard/events/feed/', views.events_feed, name='events_feed'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

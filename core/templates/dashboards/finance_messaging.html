@@ -1,136 +1,222 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="container mt-5">
-    <div class="card shadow-lg">
-        <div class="card-header bg-info text-white">
-            <h3 class="mb-0"><i class="bi bi-cash-coin me-2"></i>Finance Messaging</h3>
-        </div>
-        <div class="card-body">
-    {% if messages %}
+<style>
+  .tabs-card { border-radius: 12px; overflow: hidden; }
+  .nav-tabs .nav-link { font-weight: 600; }
+  .nav-tabs .nav-link.active { color: #0d47a1; }
+  .tab-pane .card { border-radius: 12px; }
+  .help-text { color:#6c757d; font-size:.875rem; }
+  .sticky-actions { position: sticky; bottom: 0; background: #fff; padding-top: .5rem; }
+  .table thead th { font-weight:600; }
+  @media (max-width: 576px){ .btn-group-flex { display:block; } }
+  .subtle { color:#6c757d; }
+  .shadow-soft { box-shadow: 0 6px 18px rgba(0,0,0,.06); }
+  .badge-soft-success { background:#e8f7ef; color:#198754; border:1px solid #bbebce; }
+  .badge-soft-danger { background:#fdecec; color:#dc3545; border:1px solid #f7c2c7; }
+  .badge-soft-secondary { background:#eef2f7; color:#6c757d; border:1px solid #dee2e6; }
+  .form-section-title { font-weight:600; margin-bottom:.5rem; }
+  /* Scrollable history list with sticky header */
+  .history-scroll { max-height: 60vh; overflow-y: auto; }
+  .table-sticky thead th { position: sticky; top: 0; z-index: 2; background: #f8f9fa; }
+  /* Modern section cards */
+  .section-card { border: 1px solid #e9ecef; border-radius: 12px; background: #ffffff; }
+  .section-header { display:flex; align-items:center; gap:.5rem; padding:.75rem 1rem; border-bottom:1px solid #eef2f7; background: linear-gradient(180deg,#f8fbff,#ffffff); border-top-left-radius:12px; border-top-right-radius:12px; }
+  .section-header .title { margin:0; font-weight:700; font-size:1rem; color:#0d47a1; }
+  .section-body { padding:1rem; }
+  .brand-accent { color:#0d47a1; }
+  .btn-primary-gradient { background: linear-gradient(90deg,#0d6efd,#0bb1ff); border:none; }
+  .btn-primary-gradient:hover { filter: brightness(0.98); }
+  .muted { color:#6c757d; }
+  .chip { display:inline-flex; align-items:center; background:#eef7ff; color:#0d47a1; border:1px solid #d6ecff; border-radius:999px; padding:.15rem .5rem; font-size:.75rem; margin-right:.25rem; margin-top:.25rem; }
+  .counter { font-size:.8rem; color:#6c757d; }
+  .collapsible-toggle { margin-left:auto; background:transparent; border:0; color:#0d47a1; }
+  .chevron { transition: transform .2s ease; }
+  .chevron.rotate { transform: rotate(180deg); }
+</style>
+
+<div class="container mt-4">
+  <div class="card tabs-card shadow-soft">
+    <div class="card-header bg-info text-white">
+      <h3 class="mb-0 d-flex align-items-center"><i class="bi bi-cash-coin me-2"></i>Finance Messaging</h3>
+    </div>
+    <div class="card-body">
+      {% if messages %}
         {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
         {% endfor %}
-    {% endif %}
-            <form method="post" id="finance-messaging-form" autocomplete="off">
-    {% csrf_token %}
-    <div id="email-feedback"></div>
-    {% csrf_token %}
-    <div class="row mb-3">
-        <div class="col-md-4">
-            {{ form.min_balance.label_tag }}
-            {{ form.min_balance }}
-        </div>
-        <div class="col-md-4">
-            {{ form.max_balance.label_tag }}
-            {{ form.max_balance }}
-        </div>
-        <div class="col-md-4">
-            {{ form.class_group.label_tag }}
-            {{ form.class_group }}
-        </div>
-    </div>
-    <button type="submit" class="btn btn-secondary mb-3">Apply Filters</button>
-    <button type="button" class="btn btn-outline-secondary mb-3 ms-2" onclick="window.location.href=window.location.pathname">Reset Filters</button>
+      {% endif %}
 
-    {% if show_full_form %}
-    <div class="mb-3">
-        {{ form.recipient.label_tag }}
-        {{ form.recipient }}
-        <small class="form-text text-muted">Hold Ctrl (Windows) or Cmd (Mac) to select multiple students.</small>
-    </div>
-    <div class="mb-3">
-        {{ form.subject.label_tag }}
-        {{ form.subject }}
-    </div>
-    <div class="mb-3">
-        {{ form.message.label_tag }}
-        {{ form.message }}
-        <button type="button" id="regenerate-msg-btn" class="btn btn-outline-info btn-sm ms-2">Regenerate Message</button>
-    </div>
-    <script>
-    // Message templates array
-    const messageTemplates = [
-        `Dear Parent/Guardian,\n\nOur records indicate that {student_name} (Admission No: {admission_no}) has an outstanding fee balance of Ksh. {fee_balance}. Kindly clear the arrears at your earliest convenience.\n\nThank you.\nSchool Administration`,
-        `Attention: Outstanding Fees\n\nThis is to notify you that {student_name} (Admission No: {admission_no}) currently has a fee balance of Ksh. {fee_balance}. Please arrange payment as soon as possible.\n\nRegards,\nFinance Office`,
-        `Dear Parent/Guardian,\n\nPlease note that {student_name} (Admission Number: {admission_no}) has an unpaid balance of Ksh. {fee_balance}. Your prompt action will be appreciated.\n\nThank you.\nAccounts Department`,
-        `Hello,\n\nWe wish to remind you that {student_name} (Admission No: {admission_no}) has a pending fee balance of Ksh. {fee_balance}. Kindly settle this amount at your earliest convenience.\n\nBest regards,\nSchool Management`,
-        `Fee Reminder\n\n{student_name} (Admission No: {admission_no}) has an outstanding balance of Ksh. {fee_balance}. Please clear the balance to avoid any interruptions.\n\nThank you.\nSchool Bursar`
-    ];
-    document.addEventListener('DOMContentLoaded', function() {
-        const regenBtn = document.getElementById('regenerate-msg-btn');
-        const msgBox = document.getElementById('id_message');
-        if (regenBtn && msgBox) {
-            regenBtn.addEventListener('click', function() {
-                const idx = Math.floor(Math.random() * messageTemplates.length);
-                msgBox.value = messageTemplates[idx];
-            });
-        }
-    });
-    </script>
-    <div class="form-check mb-2">
-        {{ form.send_email }} {{ form.send_email.label_tag }}
-    </div>
-    <div class="form-check mb-2">
-        {{ form.send_sms }} {{ form.send_sms.label_tag }}
-    </div>
-    <button type="submit" class="btn btn-primary" id="send-btn">Send Message</button>
-    {% endif %}
-</form>
-        </div>
-    </div>
+      <!-- Tabs -->
+      <ul class="nav nav-tabs mb-3" id="financeTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="send-tab" data-bs-toggle="tab" data-bs-target="#send-pane" type="button" role="tab" aria-controls="send-pane" aria-selected="true">
+            <i class="bi bi-send me-1"></i> Send Messages
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-pane" type="button" role="tab" aria-controls="history-pane" aria-selected="false">
+            <i class="bi bi-clock-history me-1"></i> Message History
+          </button>
+        </li>
+      </ul>
 
-    <!-- Message History Table -->
-    <div class="card mt-4 shadow">
-        <div class="card-header bg-light">
-            <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Finance Message History</h5>
+      <div class="tab-content" id="financeTabsContent">
+        <!-- Send Messages Pane -->
+        <div class="tab-pane fade show active" id="send-pane" role="tabpanel" aria-labelledby="send-tab">
+          <form method="post" id="finance-messaging-form" autocomplete="off">
+            {% csrf_token %}
+            <div id="email-feedback"></div>
+            {% csrf_token %}
+
+            <div class="section-card mb-3">
+              <div class="section-header">
+                <i class="bi bi-funnel-fill brand-accent"></i>
+                <h6 class="title">Filters</h6>
+                <button type="button" class="collapsible-toggle" id="filtersToggle" data-bs-toggle="collapse" data-bs-target="#filtersCollapse" aria-expanded="false" aria-controls="filtersCollapse" title="Collapse/Expand">
+                  <i class="bi bi-chevron-down chevron rotate" id="filtersChevron"></i>
+                </button>
+              </div>
+              <div id="filtersCollapse" class="collapse">
+              <div class="section-body">
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label">Minimum Balance</label>
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="bi bi-currency-exchange"></i></span>
+                      {{ form.min_balance }}
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Maximum Balance</label>
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="bi bi-cash-stack"></i></span>
+                      {{ form.max_balance }}
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Class</label>
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="bi bi-people"></i></span>
+                      {{ form.class_group }}
+                    </div>
+                  </div>
+                </div>
+                <div class="d-flex gap-2 btn-group-flex mt-3">
+                  <button type="submit" class="btn btn-secondary"><i class="bi bi-funnel me-1"></i> Apply Filters</button>
+                  <button type="button" class="btn btn-outline-secondary" onclick="window.location.href=window.location.pathname"><i class="bi bi-x-circle me-1"></i> Reset Filters</button>
+                </div>
+              </div>
+              </div>
+            </div>
+
+            {% if show_full_form %}
+            <div class="section-card">
+              <div class="section-header">
+                <i class="bi bi-pencil-square brand-accent"></i>
+                <h6 class="title">Compose</h6>
+              </div>
+              <div class="section-body">
+                <div class="mb-3">
+                  <label class="form-label">Recipients</label>
+                  {{ form.recipient }}
+                  <div class="d-flex justify-content-between mt-1">
+                    <div class="help-text">Hold Ctrl (Windows) or Cmd (Mac) to select multiple students.</div>
+                    <div class="counter" id="recipients-count"></div>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Subject/Title</label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-type"></i></span>
+                    {{ form.subject }}
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Message</label>
+                  {{ form.message }}
+                  <div class="d-flex justify-content-between mt-1">
+                    <button type="button" id="regenerate-msg-btn" class="btn btn-outline-info btn-sm"><i class="bi bi-magic"></i> Regenerate Message</button>
+                    <div class="counter" id="message-count"></div>
+                  </div>
+                </div>
+                <div class="row g-3 align-items-center mb-2">
+                  <div class="col-auto">
+                    <div class="form-check">
+                      {{ form.send_email }} {{ form.send_email.label_tag }}
+                    </div>
+                  </div>
+                  <div class="col-auto">
+                    <div class="form-check">
+                      {{ form.send_sms }} {{ form.send_sms.label_tag }}
+                    </div>
+                  </div>
+                </div>
+                <div class="sticky-actions pt-2">
+                  <button type="submit" class="btn btn-primary-gradient btn-lg" id="send-btn"><i class="bi bi-envelope-paper me-1"></i> Send Message</button>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+          </form>
         </div>
-        <div class="card-body p-0">
-            {% if message_history and message_history|length > 0 %}
-            <div class="table-responsive">
-                <table class="table table-striped table-hover mb-0">
+
+        <!-- History Pane -->
+        <div class="tab-pane fade" id="history-pane" role="tabpanel" aria-labelledby="history-tab">
+          <div class="card shadow-soft">
+            <div class="card-header bg-light">
+              <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Finance Message History</h5>
+            </div>
+            <div class="card-body p-0">
+              {% if message_history and message_history|length > 0 %}
+                <div class="table-responsive history-scroll">
+                  <table class="table table-striped table-hover mb-0 table-sticky">
                     <thead class="table-light">
-                        <tr>
-                            <th>Recipient</th>
-                            <th>Message Preview</th>
-                            <th>Sent By</th>
-                            <th>Sent At</th>
-                            <th>Type</th>
-                            <th>Status</th>
-                        </tr>
+                      <tr>
+                        <th>Recipient</th>
+                        <th>Message Preview</th>
+                        <th>Sent By</th>
+                        <th>Sent At</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                      </tr>
                     </thead>
                     <tbody>
-                        {% for msg in message_history %}
-                        <tr>
-                            <td>{{ msg.recipient.get_full_name|default:msg.recipient.username }}</td>
-                            <td>
-                                <span title="{{ msg.message_content|linebreaksbr }}">
-                                    {{ msg.message_content|truncatechars:60 }}
-                                </span>
-                            </td>
-                            <td>{{ msg.sent_by.get_full_name|default:msg.sent_by.username }}</td>
-                            <td>{{ msg.sent_at|date:'Y-m-d H:i' }}</td>
-                            <td>{{ msg.delivery_method|upper }}</td>
-                            <td>
-                                {% if msg.status == 'sent' %}
-                                    <span class="badge bg-success">Sent</span>
-                                {% else %}
-                                    <span class="badge bg-danger">Failed</span>
-                                    <div class="small text-danger mt-1">{{ msg.status }}</div>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
+                      {% for msg in message_history %}
+                      <tr>
+                        <td>{{ msg.recipient.get_full_name|default:msg.recipient.username }}</td>
+                        <td>
+                          <span title="{{ msg.message_content|linebreaksbr }}">
+                            {{ msg.message_content|truncatechars:60 }}
+                          </span>
+                        </td>
+                        <td>{{ msg.sent_by.get_full_name|default:msg.sent_by.username }}</td>
+                        <td>{{ msg.sent_at|date:'Y-m-d H:i' }}</td>
+                        <td>{{ msg.delivery_method|upper }}</td>
+                        <td>
+                          {% if msg.status == 'sent' %}
+                            <span class="badge badge-soft-success">Sent</span>
+                          {% else %}
+                            <span class="badge badge-soft-danger">Failed</span>
+                            <div class="small text-danger mt-1">{{ msg.status }}</div>
+                          {% endif %}
+                        </td>
+                      </tr>
+                      {% endfor %}
                     </tbody>
-                </table>
-            </div>
-            {% else %}
+                  </table>
+                </div>
+              {% else %}
                 <div class="alert alert-info m-3 mb-0">No finance messages have been sent yet.</div>
-            {% endif %}
+              {% endif %}
+            </div>
+          </div>
         </div>
+      </div>
     </div>
+  </div>
 </div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -192,6 +278,26 @@ fetch(window.location.pathname, {
 });
 </script>
 <script>
+// Regenerate message templates support
+const messageTemplates = [
+  `Dear Parent/Guardian,\n\nOur records indicate that {student_name} (Admission No: {admission_no}) has an outstanding fee balance of Ksh. {fee_balance}. Kindly clear the arrears at your earliest convenience.\n\nThank you.\nSchool Administration`,
+  `Attention: Outstanding Fees\n\nThis is to notify you that {student_name} (Admission No: {admission_no}) currently has a fee balance of Ksh. {fee_balance}. Please arrange payment as soon as possible.\n\nRegards,\nFinance Office`,
+  `Dear Parent/Guardian,\n\nPlease note that {student_name} (Admission Number: {admission_no}) has an unpaid balance of Ksh. {fee_balance}. Your prompt action will be appreciated.\n\nThank you.\nAccounts Department`,
+  `Hello,\n\nWe wish to remind you that {student_name} (Admission No: {admission_no}) has a pending fee balance of Ksh. {fee_balance}. Kindly settle this amount at your earliest convenience.\n\nBest regards,\nSchool Management`,
+  `Fee Reminder\n\n{student_name} (Admission No: {admission_no}) has an outstanding balance of Ksh. {fee_balance}. Please clear the balance to avoid any interruptions.\n\nThank you.\nSchool Bursar`
+];
+document.addEventListener('DOMContentLoaded', function() {
+  const regenBtn = document.getElementById('regenerate-msg-btn');
+  const msgBox = document.getElementById('id_message');
+  if (regenBtn && msgBox) {
+    regenBtn.addEventListener('click', function() {
+      const idx = Math.floor(Math.random() * messageTemplates.length);
+      msgBox.value = messageTemplates[idx];
+    });
+  }
+});
+</script>
+<script>
 // Display selected students' class/stream dynamically
 const studentSelect = document.getElementById('id_students');
 const classInfoDiv = document.getElementById('student-class-info');
@@ -201,5 +307,64 @@ if (studentSelect) {
         classInfoDiv.innerHTML = selected.length ? '<b>Selected:</b><br>' + selected.join('<br>') : '';
     });
 }
+</script>
+<script>
+// Counters for recipients and message length
+document.addEventListener('DOMContentLoaded', function() {
+  const recipientsSelect = document.getElementById('id_recipient');
+  const recipientsCount = document.getElementById('recipients-count');
+  const messageBox = document.getElementById('id_message');
+  const messageCount = document.getElementById('message-count');
+
+  function updateRecipientsCount() {
+    if (!recipientsSelect || !recipientsCount) return;
+    const count = Array.from(recipientsSelect.selectedOptions || []).length;
+    recipientsCount.textContent = count ? `${count} selected` : '';
+  }
+
+  function updateMessageCount() {
+    if (!messageBox || !messageCount) return;
+    const len = (messageBox.value || '').length;
+    messageCount.textContent = `${len} chars`;
+  }
+
+  if (recipientsSelect) {
+    recipientsSelect.addEventListener('change', updateRecipientsCount);
+    updateRecipientsCount();
+  }
+  if (messageBox) {
+    messageBox.addEventListener('input', updateMessageCount);
+    updateMessageCount();
+  }
+});
+</script>
+<script>
+// Persist Filters collapse state and rotate chevron
+document.addEventListener('DOMContentLoaded', function() {
+  const collapseEl = document.getElementById('filtersCollapse');
+  const toggleBtn = document.getElementById('filtersToggle');
+  const chevron = document.getElementById('filtersChevron');
+  if (!collapseEl || !toggleBtn) return;
+
+  const saved = localStorage.getItem('financeFiltersCollapsed');
+  const wantCollapsed = saved === 'true';
+  if (wantCollapsed) {
+    collapseEl.classList.remove('show');
+    toggleBtn.setAttribute('aria-expanded','false');
+    if (chevron) chevron.classList.add('rotate');
+  }
+
+  // Ensure using Bootstrap Collapse without auto-toggling
+  const instance = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
+
+  collapseEl.addEventListener('hidden.bs.collapse', () => {
+    localStorage.setItem('financeFiltersCollapsed','true');
+    if (chevron) chevron.classList.add('rotate');
+  });
+  collapseEl.addEventListener('shown.bs.collapse', () => {
+    localStorage.setItem('financeFiltersCollapsed','false');
+    if (chevron) chevron.classList.remove('rotate');
+  });
+});
 </script>
 {% endblock %}

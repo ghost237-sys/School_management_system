@@ -2,18 +2,42 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}EduTrack School Manager{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        /*=== Global Blue-Gray Theme ===*/
+        /*=== Global Theme System (Light/Dark) ===*/
         :root {
-            --primary: #0d47a1;      /* deep blue */
-            --secondary: #455a64;    /* blue-gray */
-            --accent: #64b5f6;       /* light blue */
-            --danger: #ef5350;
-            --bg: #f5f7fa;
-            --sidebar-gradient: linear-gradient(160deg, var(--primary) 0%, var(--secondary) 100%);
+            /* Fresh, modern palette */
+            --primary: #1f6feb;           /* brand blue */
+            --secondary: #0ea5e9;         /* cyan */
+            --accent: #22c55e;            /* green accent */
+            --danger: #ef4444;            /* modern red */
+            --bg: #f3f6fb;                /* soft background */
+            --surface: #ffffff;
+            --text: #0f172a;              /* slate-900 */
+            --muted: #64748b;             /* slate-500 */
+            --border: rgba(2, 6, 23, .08);
+            --shadow: 0 6px 22px rgba(15, 23, 42, .08);
+            --sidebar-gradient: linear-gradient(180deg, #153e75 0%, #1f6feb 100%);
+            --sidebar-active: rgba(255,255,255,.18);
+            --sidebar-hover: rgba(255,255,255,.12);
+        }
+        :root[data-theme="dark"] {
+            --primary: #84a9ff;
+            --secondary: #22d3ee;
+            --accent: #4ade80;
+            --danger: #fb7185;
+            --bg: #0b1220;           /* deep navy */
+            --surface: #0f172a;      /* slate-900 */
+            --text: #e5e7eb;         /* gray-200 */
+            --muted: #9ca3af;        /* gray-400 */
+            --border: rgba(255,255,255,.08);
+            --shadow: 0 12px 36px rgba(0,0,0,.55);
+            --sidebar-gradient: linear-gradient(180deg, #0b1220 0%, #111827 100%);
+            --sidebar-active: rgba(255,255,255,.16);
+            --sidebar-hover: rgba(255,255,255,.10);
         }
 
         /* Base layout */
@@ -21,45 +45,107 @@
             font-size: 14px;
             font-family: "Segoe UI", "Roboto", Arial, sans-serif;
             background: var(--bg);
-            color: #1f2937; /* gray-900 */
+            color: var(--text);
+            overflow-x: hidden;
         }
 
         /* Sidebar */
         .sidebar-custom {
             background: var(--sidebar-gradient);
             color: #fff;
-            min-width: 220px;
+            min-width: 240px;
             min-height: 100vh;
-            box-shadow: 2px 0 12px rgba(0,0,0,.12);
+            box-shadow: 2px 0 14px rgba(0,0,0,.15);
         }
-        .sidebar-custom h4 {font-weight:600;font-size:1.45rem;margin-bottom:2rem;color:#fff;text-align:center;}
-        .sidebar-custom .nav-link {color:#e0e7ff!important;border-radius:.5rem;margin-bottom:.25rem;transition:background .18s,color .18s;}
-        .sidebar-custom .nav-link.active,
+        .sidebar-custom h4 {font-weight:700;font-size:1.25rem;margin-bottom:1.25rem;color:#fff;text-align:left;letter-spacing:.2px}
+        .sidebar-custom .nav-link {color:#e2e8f0!important;border-radius:.6rem;margin-bottom:.3rem;transition:background .18s,color .18s, transform .12s; padding:.55rem .75rem;}
+        .sidebar-custom .nav-link .bi {opacity:.95}
+        .sidebar-custom .nav-link.active {background:var(--sidebar-active)!important;color:#fff!important;font-weight:600;}
         .sidebar-custom .nav-link:hover,
-        .sidebar-custom .nav-link:focus {background:rgba(255,255,255,.15)!important;color:#fff!important;font-weight:600;}
+        .sidebar-custom .nav-link:focus {background:var(--sidebar-hover)!important;color:#fff!important;transform: translateX(2px);}        
 
         /* Main card wrapper */
-        .main-content-card {
-            background:#fff;border-radius:12px;box-shadow:0 2px 16px rgba(0,0,0,.06);min-height:100vh;display:flex;flex-direction:column;
-        }
+        .main-content-card { background: var(--surface); border-radius:14px; box-shadow: var(--shadow); min-height:100vh; display:flex; flex-direction:column; border:1px solid var(--border); }
         .main-content-card .card-body{padding:2rem 2rem 1rem;overflow:auto;}
 
         /* Typography */
-        h1, h2, h3, h4, h5, h6 { color: var(--primary); font-weight: 600; }
+        h1, h2, h3, h4, h5, h6 { color: var(--primary); font-weight: 700; letter-spacing:.2px }
+        .card-header { background: color-mix(in srgb, var(--primary) 6%, var(--surface)); border-bottom: 1px solid var(--border); }
+        .card { border:1px solid var(--border); box-shadow: var(--shadow); }
 
         /* Buttons */
-        .btn-primary { background: var(--primary) !important; border: none !important; color: #fff !important; }
-        .btn-primary:hover, .btn-primary:focus { background: var(--secondary) !important; }
+        .btn { border-radius:.6rem; }
+        .btn-primary { background: var(--primary) !important; border: none !important; color: #fff !important; box-shadow: 0 6px 14px rgba(31,111,235,.18); }
+        .btn-primary:hover, .btn-primary:focus { background: color-mix(in srgb, var(--primary) 85%, black); }
         .btn-secondary { background: var(--secondary) !important; border: none !important; color: #fff !important; }
+        .btn-success { background: var(--accent) !important; border: none !important; }
         .btn-danger, .alert-danger { background: var(--danger) !important; border: none !important; color: #fff !important; }
 
         /* Form focus */
-        .form-control:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 .2rem rgba(100,181,246,.25); }
+        .form-control, .form-select, .form-control:disabled { background: var(--surface); color: var(--text); border-color: var(--border); border-radius:.6rem; }
+        .form-control::placeholder { color: var(--muted); }
+        .form-control:focus, .form-select:focus { border-color: var(--secondary); box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--secondary) 26%, transparent); }
+        .input-group-text { background: color-mix(in srgb, var(--surface) 85%, transparent); border-color: var(--border); }
 
         /* Badges */
+        .badge { border-radius:.5rem }
         .badge.bg-primary { background: var(--primary) !important; }
 
+        /* Floating theme toggle bubble */
+        .theme-toggle-bubble {
+            position: fixed; right: 18px; bottom: 18px; z-index: 1055;
+            width: 54px; height: 54px; border-radius: 50%;
+            display: grid; place-items: center;
+            background: color-mix(in srgb, var(--surface) 85%, transparent);
+            backdrop-filter: blur(10px) saturate(130%);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            color: var(--text);
+            cursor: pointer;
+            transition: transform .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+        }
+        .theme-toggle-bubble:hover { transform: translateY(-2px); }
+        .theme-toggle-bubble .bi { font-size: 1.25rem; }
+
+        /* Floating logout bubble */
+        .logout-bubble {
+            position: fixed; right: 18px; bottom: 86px; z-index: 1055; /* stacked above theme toggle */
+            width: 54px; height: 54px; border-radius: 50%;
+            display: grid; place-items: center;
+            background: color-mix(in srgb, var(--surface) 85%, transparent);
+            backdrop-filter: blur(10px) saturate(130%);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            color: var(--text);
+            cursor: pointer;
+            transition: transform .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+        }
+        .logout-bubble:hover { transform: translateY(-2px); }
+        .logout-bubble .bi { font-size: 1.25rem; }
+
+        /* Smooth theme transition */
+        .theme-transition * { transition: background-color .2s ease, color .2s ease, border-color .2s ease, box-shadow .2s ease; }
+
+        /* Table and list polish */
+        .table { border-color: var(--border); }
+        .table thead th { background: color-mix(in srgb, var(--primary) 8%, var(--surface)); color: var(--text); border-bottom-color: var(--border); }
+        .table-striped tbody tr:nth-of-type(odd) { background-color: color-mix(in srgb, var(--bg) 70%, var(--surface)); }
+        .table-hover tbody tr:hover { background: color-mix(in srgb, var(--secondary) 6%, var(--surface)); }
+
+        /* Nav pills look in content areas */
+        .nav-pills .nav-link.active, .nav-tabs .nav-link.active { background: color-mix(in srgb, var(--primary) 16%, var(--surface)); color: var(--text); }
+        .nav-tabs { border-color: var(--border); }
+        .nav-tabs .nav-link { border-color: var(--border); }
+
         @media (max-width: 900px) { html, body { font-size: 12px; } }
+        /* Mobile: ensure no sidebar width is reserved */
+        @media (max-width: 767.98px) {
+            .sidebar-custom { display: none !important; width: 0 !important; min-width: 0 !important; }
+            .main-content-card { border-radius: 0; }
+            .main-content-card .card-body { padding-left: 1rem; padding-right: 1rem; }
+            .d-flex { gap: 0 !important; }
+            .d-flex > .flex-grow-1 { width: 100%; }
+        }
     </style>
     
     
@@ -129,6 +215,11 @@
                         <i class="bi bi-calendar-event me-2"></i> Events
                     </a>
                 </li>
+                <li class="nav-item mb-2">
+                    <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'downloads' %}active{% endif %}" href="{% url 'downloads' %}">
+                        <i class="bi bi-download me-2"></i> Downloads
+                    </a>
+                </li>
                 {% if user.is_authenticated and user.role == 'admin' and user.id %}
                 <li class="nav-item mb-2">
                     <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_messaging' %}active{% endif %}" href="{% url 'admin_messaging' %}">
@@ -161,7 +252,7 @@
             {% include 'dashboards/teacher_sidebar.html' %}
         {% endif %}
         <!-- Main Content -->
-        <div class="flex-grow-1 bg-light d-flex align-items-stretch" style="min-height: 100vh;">
+        <div class="flex-grow-1 d-flex align-items-stretch" style="min-height: 100vh; background: var(--bg);">
             <div class="main-content-card flex-grow-1 d-flex">
                 <div class="card-body h-100 p-4 d-flex flex-column" style="overflow: auto;">
                     {% block content %}{% endblock %}
@@ -173,8 +264,46 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     {% block scripts %}{% endblock %}
 
+    <!-- Floating logout + theme toggle bubbles -->
+    <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="logout-bubble" aria-label="Logout" title="Logout">
+            <i class="bi bi-box-arrow-right"></i>
+        </button>
+    </form>
+    <button id="themeToggle" class="theme-toggle-bubble" aria-label="Toggle theme" title="Toggle theme">
+        <i class="bi bi-moon-stars" id="themeIcon"></i>
+    </button>
+
     {% if user.is_authenticated %}
     <script>
+    // Theme bootstrapping
+    (function() {
+        const root = document.documentElement;
+        const stored = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const initial = stored || (prefersDark ? 'dark' : 'light');
+        root.setAttribute('data-theme', initial);
+        document.addEventListener('DOMContentLoaded', () => {
+            const icon = document.getElementById('themeIcon');
+            const toggleBtn = document.getElementById('themeToggle');
+            const applyIcon = () => {
+                const current = root.getAttribute('data-theme');
+                icon.className = current === 'dark' ? 'bi bi-sun' : 'bi bi-moon-stars';
+                toggleBtn.setAttribute('aria-pressed', current === 'dark');
+            };
+            applyIcon();
+            toggleBtn.addEventListener('click', () => {
+                root.classList.add('theme-transition');
+                const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+                root.setAttribute('data-theme', next);
+                localStorage.setItem('theme', next);
+                applyIcon();
+                window.setTimeout(() => root.classList.remove('theme-transition'), 250);
+            });
+        });
+    })();
+
     document.addEventListener('DOMContentLoaded', function() {
         const notificationCountEl = document.getElementById('notification-count');
         const notificationListEl = document.getElementById('notification-list');

@@ -516,13 +516,109 @@ def upload_attachment(request):
 @login_required
 @user_passes_test(is_admin)
 def admin_payment_logs(request):
-    import os
+    import os, json, re
+    from datetime import datetime
     logs_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'payment_callback_logs.txt')
     logs = ''
+    entries = []
     if os.path.exists(logs_path):
         with open(logs_path, 'r', encoding='utf-8') as f:
             logs = f.read()
-    return render(request, 'dashboards/admin_payment_logs.html', {'logs': logs})
+        # Try to parse as a JSON array first
+        def try_parse_json_array(text):
+            try:
+                data = json.loads(text)
+                if isinstance(data, list):
+                    return data
+            except Exception:
+                return None
+            return None
+        parsed = try_parse_json_array(logs)
+        # If not a valid array, attempt to extract JSON objects heuristically
+        if parsed is None:
+            chunks = []
+            buf = []
+            depth = 0
+            for line in logs.splitlines():
+                # Capture between balanced braces
+                if '{' in line:
+                    cnt = line.count('{')
+                    depth += cnt
+                if depth > 0:
+                    buf.append(line)
+                if '}' in line:
+                    depth -= line.count('}')
+                    if depth <= 0 and buf:
+                        chunks.append('\n'.join(buf))
+                        buf = []
+                        depth = 0
+            arr = []
+            for ch in chunks:
+                try:
+                    arr.append(json.loads(ch))
+                except Exception:
+                    continue
+            parsed = arr
+        # Map parsed objects into friendly entries
+        def get_item(items, name):
+            try:
+                for it in items or []:
+                    if (it.get('Name') or '').lower() == name.lower():
+                        return it.get('Value')
+            except Exception:
+                return None
+            return None
+        for obj in parsed or []:
+            timestamp = obj.get('timestamp')
+            status = obj.get('status') or 'success'
+            details = obj.get('details') or obj
+            body = ((details or {}).get('Body')) or details
+            stk = ((body or {}).get('stkCallback')) or body
+            meta = ((stk or {}).get('CallbackMetadata') or {}).get('Item')
+            merchant_id = (stk or {}).get('MerchantRequestID') or (details or {}).get('MerchantRequestID')
+            checkout_id = (stk or {}).get('CheckoutRequestID') or (details or {}).get('CheckoutRequestID')
+            amount = get_item(meta, 'Amount')
+            receipt = get_item(meta, 'MpesaReceiptNumber') or get_item(meta, 'M-PesaReceiptNumber')
+            phone = get_item(meta, 'PhoneNumber')
+            account_ref = get_item(meta, 'AccountReference') or get_item(meta, 'BillRefNumber')
+            trans_date = get_item(meta, 'TransactionDate')
+            balance = get_item(meta, 'Balance')
+            entries.append({
+                'timestamp': timestamp,
+                'status': status,
+                'amount': amount,
+                'receipt': receipt,
+                'phone': phone,
+                'account_reference': account_ref,
+                'transaction_date': trans_date,
+                'balance': balance,
+                'merchant_request_id': merchant_id,
+                'checkout_request_id': checkout_id,
+            })
+        # Sort entries latest -> oldest
+        def sort_key(e):
+            dt = None
+            # Try ISO-like timestamp first
+            ts = e.get('timestamp')
+            if ts:
+                try:
+                    dt = datetime.fromisoformat(ts.replace('Z','+00:00'))
+                except Exception:
+                    dt = None
+            # Fallback to Mpesa TransactionDate format YYYYMMDDHHMMSS
+            if dt is None:
+                td = e.get('transaction_date')
+                if td and isinstance(td, (str, int)):
+                    s = str(td)
+                    try:
+                        dt = datetime.strptime(s, '%Y%m%d%H%M%S')
+                    except Exception:
+                        dt = None
+            # Fallback to minimal value to push unknowns to the end
+            return dt or datetime.min
+        entries.sort(key=sort_key, reverse=True)
+    context = {'logs': logs, 'entries': entries}
+    return render(request, 'dashboards/admin_payment_logs.html', context)
 
 @login_required
 @user_passes_test(is_admin)

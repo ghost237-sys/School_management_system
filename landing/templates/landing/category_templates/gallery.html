@@ -1,0 +1,20 @@
+{# Category template: Photo Gallery #}
+<div>
+  <div style="font-weight:700;">{{ c.name }}</div>
+  {% if c.description %}<div class="muted" style="margin:6px 0 10px;">{{ c.description }}</div>{% endif %}
+  <div class="grid">
+    {% with has_image=false %}
+    {% for item in c.media.all %}
+      {% if item.kind == 'image' and item.image %}
+        {% if not has_image %}{% with has_image=true %}{% endwith %}{% endif %}
+        <div class="card" style="padding:0; overflow:hidden;">
+          <img src="{{ item.image.url }}" alt="{{ item.caption }}" style="display:block; width:100%; height:auto;" />
+          {% if item.caption %}<div style="padding:10px;" class="muted">{{ item.caption }}</div>{% endif %}
+        </div>
+      {% endif %}
+    {% empty %}
+      <div class="card"><div class="muted">No images yet.</div></div>
+    {% endfor %}
+    {% endwith %}
+  </div>
+</div>

@@ -1,88 +1,175 @@
 {% extends 'base.html' %}
 {% block content %}
+<style>
+  /* Modern finance styling */
+  .finance-hero {background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 60%, #1e40af 100%); color:#fff; border-radius:16px;}
+  .finance-hero .title {font-weight:700; letter-spacing:.3px;}
+  .shadow-soft {box-shadow: 0 8px 24px rgba(2,6,23,.08);} 
+  .kpi-card {border:1px solid #e8eef8; border-radius: 12px;}
+  .kpi-value {font-size:1.25rem; font-weight:700;}
+  .table-finance {border-radius: 12px; overflow:hidden;}
+  .table-finance thead th {background:#0b1220; color:#9fb3c8; border:0; font-weight:600; text-transform:uppercase; font-size:.75rem; letter-spacing:.04em;}
+  .table-finance tbody tr {transition: background .15s ease, transform .05s ease;}
+  .table-finance tbody tr:hover {background:#f8fbff;}
+  .badge-pill {border-radius: 50rem; padding:.35rem .65rem; font-weight:600; font-size:.75rem;}
+  .badge-approve {background:#16a34a1a; color:#16a34a; border:1px solid #16a34a33;}
+  .badge-pending {background:#f59e0b1a; color:#b45309; border:1px solid #f59e0b33;}
+  .badge-reject {background:#ef44441a; color:#b91c1c; border:1px solid #ef444433;}
+  .ref-copy {cursor:pointer; color:#2563eb;}
+  .search-wrap {border:1px solid #e6ecf5; border-radius:12px; padding:.5rem; background:#fff;}
+  .chip {background:#f1f5f9; color:#0f172a; padding:.35rem .6rem; border-radius:16px; font-size:.75rem;}
+  /* Scrollable transactions pane with sticky header */
+  .table-scroll {border-radius:12px; overflow:hidden;}
+  .table-scroll .scroll-body {max-height: 65vh; overflow-y: auto;}
+  .table-sticky thead th {position: sticky; top: 0; z-index: 5;}
+</style>
+
 <div class="container mt-4">
-    <h2>All Payment Messages (M-Pesa Reference Codes)</h2>
-    <div class="mb-3 d-flex justify-content-between align-items-center">
-        <form method="get" class="form-inline mb-0">
-            <input type="text" name="search" class="form-control mr-2" placeholder="Search by student, reference, phone..." value="{{ request.GET.search }}">
-            <button type="submit" class="btn btn-primary">Search</button>
-        </form>
-        <a href="/admin_payment_messages/logs/" class="btn btn-info ml-2" style="white-space:nowrap;">
-            View Transaction Messages
+  <!-- Hero/Header -->
+  <div class="finance-hero p-4 p-md-5 shadow-soft mb-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+      <div>
+        <h3 class="mb-1 title">Payments Inbox</h3>
+        <div class="opacity-75">All payment messages and M-Pesa references in one place.</div>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="/admin_payment_messages/logs/" class="btn btn-light text-primary fw-semibold">
+          <i class="bi bi-receipt"></i> View Transaction Messages
         </a>
+      </div>
     </div>
-        <form method="get" class="form-inline">
-            <input type="text" name="search" class="form-control mr-2" placeholder="Search by student, reference, phone..." value="{{ request.GET.search }}">
-            <button type="submit" class="btn btn-primary">Search</button>
-        </form>
+  </div>
+
+  <!-- Search and quick filters -->
+  <div class="search-wrap shadow-soft mb-3">
+    <form method="get" class="row g-2 align-items-center mb-0">
+      <div class="col-12 col-md-8">
+        <input type="text" name="search" class="form-control form-control-lg" placeholder="Search by student name, admission #, reference, phone…" value="{{ request.GET.search }}">
+      </div>
+      <div class="col-6 col-md-2 d-grid">
+        <button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-search"></i> Search</button>
+      </div>
+      <div class="col-6 col-md-2 d-grid">
+        <a href="?" class="btn btn-outline-secondary btn-lg"><i class="bi bi-x-circle"></i> Clear</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- KPIs -->
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+      <div class="kpi-card p-3 bg-white shadow-soft h-100">
+        <div class="text-muted small">Total Messages</div>
+        <div class="kpi-value">{{ payments|length }}</div>
+      </div>
     </div>
-    <div class="table-responsive">
-        <table class="table table-striped table-bordered">
-            <thead>
-                <tr>
-                    <th>Student</th>
-                    <th>Class</th>
-                    <th>Amount Paid</th>
-                    <th>Payment Date</th>
-                    <th>Payment Method</th>
-                    <th>M-Pesa Reference</th>
-                    <th>Phone Number</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for payment in payments %}
-                <tr>
-                    <td>{{ payment.student.user.get_full_name }} ({{ payment.student.admission_no }})</td>
-                    <td>{{ payment.fee_assignment.class_group }}</td>
-                    <td>Ksh. {{ payment.amount_paid }}</td>
-                    <td>{{ payment.payment_date|date:'Y-m-d H:i' }}</td>
-                    <td>{{ payment.payment_method }}</td>
-                    <td>{{ payment.reference }}</td>
-                    <td>{{ payment.phone_number }}</td>
-                    <td>
-    {{ payment.get_status_display }}
-    {% if payment.status == 'pending' %}
-        <button class="btn btn-success btn-sm verify-btn" data-payment-id="{{ payment.id }}">Verify</button>
-    {% endif %}
-</td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="8">No payment records found.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div class="col-12 col-md-4">
+      <div class="kpi-card p-3 bg-white shadow-soft h-100">
+        <div class="text-muted small">Current Filter</div>
+        <div class="d-flex gap-2 flex-wrap mt-1">
+          {% if request.GET.search %}<span class="chip"><i class="bi bi-funnel"></i> {{ request.GET.search }}</span>{% else %}<span class="chip">None</span>{% endif %}
+        </div>
+      </div>
     </div>
+    <div class="col-12 col-md-4">
+      <div class="kpi-card p-3 bg-white shadow-soft h-100">
+        <div class="text-muted small">Export</div>
+        <div class="mt-1">
+          <button type="button" class="btn btn-outline-primary btn-sm" onclick="window.print()"><i class="bi bi-download"></i> Print/Save PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table (scrollable with sticky header) -->
+  <div class="table-scroll table-finance bg-white shadow-soft">
+    <div class="table-responsive scroll-body">
+      <table class="table mb-0 align-middle table-sticky">
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Class</th>
+          <th class="text-end">Amount</th>
+          <th>Date</th>
+          <th>Method</th>
+          <th>Reference</th>
+          <th>Phone</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for payment in payments %}
+        <tr>
+          <td>
+            <div class="fw-semibold">{{ payment.student.user.get_full_name }}</div>
+            <div class="text-muted small">{{ payment.student.admission_no }}</div>
+          </td>
+          <td>{{ payment.fee_assignment.class_group }}</td>
+          <td class="text-end">Ksh. {{ payment.amount_paid }}</td>
+          <td>
+            <div>{{ payment.payment_date|date:'Y-m-d' }}</div>
+            <div class="text-muted small">{{ payment.payment_date|date:'H:i' }}</div>
+          </td>
+          <td class="text-capitalize">{{ payment.payment_method }}</td>
+          <td>
+            {% if payment.reference %}
+              <span class="font-monospace ref-copy" title="Click to copy" onclick="navigator.clipboard.writeText('{{ payment.reference }}')">{{ payment.reference }}</span>
+            {% else %}-{% endif %}
+          </td>
+          <td class="font-monospace">{{ payment.phone_number }}</td>
+          <td>
+            {% if payment.status == 'approved' %}
+              <span class="badge badge-pill badge-approve">Approved</span>
+            {% elif payment.status == 'pending' %}
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge badge-pill badge-pending">Pending</span>
+                <button class="btn btn-success btn-sm verify-btn" data-payment-id="{{ payment.id }}">Verify</button>
+              </div>
+            {% else %}
+              <span class="badge badge-pill badge-reject">Rejected</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="8" class="text-center text-muted py-4">No payment records found.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      </table>
+    </div>
+  </div>
 </div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.verify-btn').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-            const paymentId = btn.getAttribute('data-payment-id');
-            if (!confirm('Are you sure you want to verify this payment?')) return;
-            btn.disabled = true;
-            fetch(`/verify_payment/${paymentId}/`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': (document.querySelector('[name=csrfmiddlewaretoken]') || {}).value || '',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    btn.parentElement.innerHTML = data.status;
-                } else {
-                    alert(data.error || 'Verification failed.');
-                    btn.disabled = false;
-                }
-            })
-            .catch(() => {
-                alert('An error occurred.');
-                btn.disabled = false;
-            });
-        });
+  document.querySelectorAll('.verify-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const paymentId = btn.getAttribute('data-payment-id');
+      if (!confirm('Verify this payment now?')) return;
+      btn.disabled = true;
+      fetch(`/verify_payment/${paymentId}/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': (document.querySelector('[name=csrfmiddlewaretoken]') || {}).value || '',
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          btn.closest('td').innerHTML = data.status;
+        } else {
+          alert(data.error || 'Verification failed.');
+          btn.disabled = false;
+        }
+      })
+      .catch(() => {
+        alert('An error occurred.');
+        btn.disabled = false;
+      });
     });
+  });
 });
 </script>
 {% endblock %}

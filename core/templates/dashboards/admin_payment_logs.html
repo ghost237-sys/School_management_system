@@ -1,16 +1,110 @@
 {% extends 'base.html' %}
 {% block content %}
+<style>
+  .finance-hero {background: linear-gradient(135deg, #22c55e 0%, #16a34a 50%, #166534 100%); color:#fff; border-radius:16px;}
+  .shadow-soft {box-shadow: 0 8px 24px rgba(2,6,23,.08);} 
+  .code-wrap {border:1px solid #e6ecf5; border-radius:12px; overflow:hidden;}
+  .code-toolbar {background:#0b1220; color:#9fb3c8; padding:.75rem 1rem; display:flex; align-items:center; justify-content:space-between;}
+  .code-toolbar .title {font-weight:600; font-size:.9rem; letter-spacing:.04em; text-transform:uppercase;}
+  .code-pane {background:#0f172a; color:#d1e3ff; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:.9rem; line-height:1.45; max-height: 65vh; overflow:auto; padding:1rem;}
+  .btn-outline-light {border-color:#93c5fd33; color:#e2e8f0;}
+  .btn-outline-light:hover {background:#1e293b; color:#fff;}
+</style>
+
 <div class="container mt-4">
-    <h2>M-Pesa Transaction Message Logs</h2>
-    <a href="/admin_payment_messages/" class="btn btn-secondary mb-3">&larr; Back to Payment Messages</a>
-    <div class="card">
-        <div class="card-body" style="max-height: 600px; overflow-y: auto; font-family: monospace;">
-            {% if logs %}
-                <pre>{{ logs }}</pre>
-            {% else %}
-                <div class="alert alert-info">No transaction logs found.</div>
-            {% endif %}
-        </div>
+  <!-- Hero/Header -->
+  <div class="finance-hero p-4 p-md-5 shadow-soft mb-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+      <div>
+        <h3 class="mb-1 fw-bold">M-Pesa Transaction Message Logs</h3>
+        <div class="opacity-75">Chronological log of callback and transaction messages for audit and troubleshooting.</div>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="/admin_payment_messages/" class="btn btn-light text-success fw-semibold">
+          <i class="bi bi-arrow-left"></i> Back to Payment Messages
+        </a>
+      </div>
     </div>
+  </div>
+
+  <!-- Logs viewer -->
+  <div class="mb-3 d-flex gap-2">
+    <button class="btn btn-primary btn-sm" id="btnParsed"><i class="bi bi-list-task"></i> Parsed View</button>
+    <button class="btn btn-outline-secondary btn-sm" id="btnRaw"><i class="bi bi-code"></i> Raw View</button>
+  </div>
+  <div class="code-wrap shadow-soft" id="rawBlock" style="display:none;">
+    <div class="code-toolbar">
+      <div class="title">Raw Log Stream</div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-light" onclick="window.print()"><i class="bi bi-download"></i> Print/PDF</button>
+        <button class="btn btn-sm btn-outline-light" onclick="copyLogs()"><i class="bi bi-clipboard"></i> Copy All</button>
+      </div>
+    </div>
+    <div id="logPane" class="code-pane">
+      {% if logs %}
+<pre class="mb-0">{{ logs }}</pre>
+      {% else %}
+<div class="text-muted">No transaction logs found.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div id="parsedBlock" style="max-height: 70vh; overflow-y: auto; padding-right: .5rem;">
+    {% if entries and entries|length > 0 %}
+      <div class="row g-3">
+        {% for e in entries %}
+        <div class="col-12">
+          <div class="card shadow-soft">
+            <div class="card-body">
+              <div class="d-flex flex-wrap justify-content-between align-items-center">
+                <div>
+                  <div class="fw-semibold">{{ e.account_reference|default:'Account#—' }}</div>
+                  <div class="text-muted small">{{ e.timestamp|default:'' }}</div>
+                </div>
+                <div class="text-end">
+                  <div class="fs-5 fw-bold">Ksh. {{ e.amount|default:'—' }}</div>
+                  <div class="text-muted small">{{ e.transaction_date|default:'' }}</div>
+                </div>
+              </div>
+              <div class="mt-2 d-flex flex-wrap gap-2">
+                <span class="badge bg-light text-dark border">Receipt: <span class="font-monospace">{{ e.receipt|default:'—' }}</span></span>
+                <span class="badge bg-light text-dark border">Phone: <span class="font-monospace">{{ e.phone|default:'—' }}</span></span>
+                <span class="badge bg-light text-dark border">Checkout: <span class="font-monospace">{{ e.checkout_request_id|default:'—' }}</span></span>
+                <span class="badge bg-light text-dark border">Merchant: <span class="font-monospace">{{ e.merchant_request_id|default:'—' }}</span></span>
+                {% if e.status == 'success' %}
+                  <span class="badge bg-success">Success</span>
+                {% else %}
+                  <span class="badge bg-danger">Failed</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="alert alert-info">No parsed entries available yet.</div>
+    {% endif %}
+  </div>
 </div>
+
+<script>
+function copyLogs(){
+  const el = document.querySelector('#logPane');
+  const text = el ? el.innerText : '';
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(()=>{
+    alert('Logs copied to clipboard');
+  });
+}
+// Toggle Raw/Parsed blocks
+const btnParsed = document.getElementById('btnParsed');
+const btnRaw = document.getElementById('btnRaw');
+const parsedBlock = document.getElementById('parsedBlock');
+const rawBlock = document.getElementById('rawBlock');
+if (btnParsed && btnRaw){
+  btnParsed.addEventListener('click', ()=>{ parsedBlock.style.display='block'; rawBlock.style.display='none'; });
+  btnRaw.addEventListener('click', ()=>{ parsedBlock.style.display='none'; rawBlock.style.display='block'; });
+}
+</script>
 {% endblock %}

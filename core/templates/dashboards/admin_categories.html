@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Categories{% endblock %}
+{% block content %}
+<div class="container mt-3" style="max-width: 900px;">
+  <h3 class="mb-3">Website Categories</h3>
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card p-3 mb-3">
+    <h5 class="mb-2">Add Category</h5>
+    <form method="post" class="row g-3">
+      {% csrf_token %}
+      <div class="col-md-4">
+        <label class="form-label">Name</label>
+        {{ form.name }}
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Link URL</label>
+        {{ form.link_url }}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Order</label>
+        {{ form.order }}
+      </div>
+      <div class="col-md-1 d-flex align-items-end">
+        <div class="form-check">
+          {{ form.is_active }}
+          <label class="form-check-label">Active</label>
+        </div>
+      </div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card p-3">
+    <h5 class="mb-2">All Categories</h5>
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Link</th>
+            <th>Order</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in categories %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ c.name }}</td>
+            <td><a href="{{ c.link_url }}" target="_blank">{{ c.link_url }}</a></td>
+            <td>{{ c.order }}</td>
+            <td>
+              {% if c.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Hidden</span>{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-muted">No categories yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

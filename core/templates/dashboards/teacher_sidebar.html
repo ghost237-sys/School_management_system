@@ -1,4 +1,4 @@
-{# Teacher Sidebar Navigation - Bootstrap Vertical Pills #}
+{# Teacher Sidebar Navigation - Bootstrap Vertical Pills with Mobile Collapse #}
 <style>
   /* Scoped styles for teacher sidebar */
   .sidebar-custom {
@@ -42,8 +42,59 @@
   .sidebar-custom .btn-secondary { background: rgba(255,255,255,0.12); border: none; }
   .sidebar-custom .btn-secondary:hover { background: rgba(255,255,255,0.18); }
   .sidebar-footnote { color: #9ca3af; font-size: .75rem; }
+  /* Mobile floating action button (FAB) to open nav) */
+  .teacher-fab {
+    position: fixed; left: 18px; bottom: 18px; z-index: 1060;
+    width: 54px; height: 54px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: color-mix(in srgb, var(--surface) 85%, transparent);
+    backdrop-filter: blur(10px) saturate(130%);
+    -webkit-backdrop-filter: blur(10px) saturate(130%);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    color: var(--text);
+    cursor: pointer;
+    transition: transform .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+  }
+  .teacher-fab:hover { transform: translateY(-2px); }
 </style>
-<nav class="sidebar-custom p-3 d-flex flex-column justify-content-between">
+{# Mobile: Floating button to open offcanvas (only visible < md) #}
+<button class="teacher-fab" type="button" data-bs-toggle="offcanvas" data-bs-target="#teacherOffcanvas" aria-controls="teacherOffcanvas" aria-label="Open navigation menu">
+  <i class="bi bi-list"></i>
+  <span class="visually-hidden">Open navigation</span>
+</button>
+
+<div class="offcanvas offcanvas-start" tabindex="-1" id="teacherOffcanvas" aria-labelledby="teacherOffcanvasLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="teacherOffcanvasLabel">Teacher Panel</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <ul class="nav flex-column">
+      {% if teacher %}
+      <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}" href="{% url 'teacher_dashboard' teacher_id=teacher.id %}"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a></li>
+      {% endif %}
+      <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'teacher_messaging' %}active{% endif %}" href="{% url 'teacher_messaging' %}"><i class="bi bi-chat-dots me-2"></i>Messaging</a></li>
+      {% if teacher %}
+      <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'gradebook' %}active{% endif %}" href="{% url 'gradebook' teacher_id=teacher.id %}"><i class="bi bi-journal-check me-2"></i>Gradebook</a></li>
+      {% endif %}
+      <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'timetable_view' %}active{% endif %}" href="{% url 'timetable_view' %}"><i class="bi bi-calendar3 me-2"></i>Timetable</a></li>
+      {% if teacher %}
+      <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name in 'manage_grades,input_grades,exam_results' %}active{% endif %}" href="{% url 'manage_grades' teacher_id=teacher.id %}"><i class="bi bi-card-checklist me-2"></i>Exams</a></li>
+      <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'upload_grades' %}active{% endif %}" href="{% url 'upload_grades' teacher_id=teacher.id %}"><i class="bi bi-upload me-2"></i>Upload Grades</a></li>
+      <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'manage_attendance' %}active{% endif %}" href="{% url 'manage_attendance' teacher_id=teacher.id %}"><i class="bi bi-clipboard-check me-2"></i>Attendance</a></li>
+      <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'teacher_profile' %}active{% endif %}" href="{% url 'teacher_profile' teacher_id=teacher.id %}"><i class="bi bi-person-circle me-2"></i>Profile</a></li>
+      {% endif %}
+    </ul>
+    <form method="post" action="{% url 'logout' %}" class="mt-3">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-danger w-100"><i class="bi bi-box-arrow-right me-2"></i>Logout</button>
+    </form>
+  </div>
+</div>
+
+{# Desktop sidebar (hidden < md) #}
+<nav class="sidebar-custom p-3 d-none d-md-flex flex-column justify-content-between">
     <div>
         <div class="brand mb-3">
             <span class="logo"><i class="bi bi-mortarboard"></i></span>

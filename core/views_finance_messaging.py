@@ -44,6 +44,16 @@ def finance_messaging_page(request):
                 sms_count = 0
                 from .models import FinanceMessageHistory
                 from django.conf import settings
+                # Resolve school name
+                school_name = getattr(settings, 'SCHOOL_NAME', 'Your School')
+                try:
+                    from landing.models import SiteSettings
+                    s = SiteSettings.objects.first()
+                    if s and s.school_name:
+                        school_name = s.school_name
+                except Exception:
+                    pass
+                subject_prefix = f"[{school_name}] " if school_name else ""
                 for user in recipient_users:
                     student = Student.objects.filter(user=user).first()
                     if not student:
@@ -56,12 +66,14 @@ def finance_messaging_page(request):
                     if student and student.user:
                         personalized_msg = personalized_msg.replace('{student_name}', student.user.get_full_name() or student.user.username)
                         personalized_msg = personalized_msg.replace('{admission_no}', student.admission_no or '')
+                    # Prefix school name to personalized message
+                    personalized_msg = f"{school_name}: {personalized_msg}" if school_name else personalized_msg
                     # Email
                     email_status = None
                     if send_email and user.email:
                         email_status = 'sent'
                         try:
-                            send_mail(subject, personalized_msg, None, [user.email], fail_silently=False)
+                            send_mail(subject_prefix + subject, personalized_msg, None, [user.email], fail_silently=False)
                             sent_count += 1
                         except Exception as e:
                             email_status = f'error: {str(e)}'
@@ -82,15 +94,18 @@ def finance_messaging_page(request):
                     sms_status = None
                     if send_sms and student.phone:
                         try:
-                            from twilio.rest import Client
-                            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-                            sms = client.messages.create(
-                                body=personalized_msg,
-                                from_=settings.TWILIO_PHONE_NUMBER,
-                                to=student.phone
-                            )
-                            sms_status = 'sent'
-                            sms_count += 1
+                            from .messaging_utils import send_sms as at_send_sms
+                            ok, resp = at_send_sms(student.phone, personalized_msg)
+                            if ok:
+                                sms_status = 'sent'
+                                sms_count += 1
+                            else:
+                                sms_status = f'error: {resp}'
+                                if is_ajax:
+                                    return JsonResponse({'success': False, 'error': f'Failed to send SMS to {student.phone}: {resp}'})
+                                else:
+                                    from django.contrib import messages
+                                    messages.error(request, f'Failed to send SMS to {student.phone}: {resp}')
                         except Exception as e:
                             sms_status = f'error: {str(e)}'
                             if is_ajax:
@@ -106,10 +121,11 @@ def finance_messaging_page(request):
                             delivery_method='sms',
                             status=sms_status
                         )
+                success_msg = f"Email sent: {sent_count}. SMS sent: {sms_count}."
                 if is_ajax:
-                    return JsonResponse({'success': True, 'message': f'Email sent to {sent_count} recipient(s).'})
+                    return JsonResponse({'success': True, 'message': success_msg, 'email_sent': sent_count, 'sms_sent': sms_count})
                 else:
-                    messages.success(request, f'Email sent to {sent_count} recipient(s).')
+                    messages.success(request, success_msg)
             else:
                 if is_ajax:
                     return JsonResponse({'success': False, 'error': 'Form invalid or email not selected.'})

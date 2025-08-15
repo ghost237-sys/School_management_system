@@ -1,0 +1,565 @@
+{% extends 'base.html' %}
+{% block title %}Downloads{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const overlay = document.getElementById('download-overlay');
+  const iframe = document.getElementById('dl_frame');
+  const downloadsContainer = document.querySelector('.downloads');
+  const fallbackMs = parseInt(downloadsContainer?.dataset.timeoutMs || '12000', 10);
+  const showOverlay = () => { if (overlay) overlay.classList.add('show'); };
+  const hideOverlay = () => { if (overlay) overlay.classList.remove('show'); };
+  let hideTimeout = null;
+  const setOverlayText = (text) => {
+    const t = document.getElementById('download-text');
+    if (t) t.textContent = text || 'Preparing your download…';
+  };
+
+  const disableElems = (root) => {
+    (root ? root.querySelectorAll('button, a.btn') : document.querySelectorAll('.downloads button, .downloads a.btn')).forEach(el => {
+      if (el.tagName === 'A') {
+        if (!el.hasAttribute('aria-disabled')) el.setAttribute('data-dl-was-enabled', '1');
+        el.setAttribute('aria-disabled', 'true');
+        el.classList.add('disabled');
+      } else {
+        if (!el.disabled) el.setAttribute('data-dl-was-enabled', '1');
+        el.disabled = true;
+      }
+    });
+  };
+  const enableElems = () => {
+    document.querySelectorAll('.downloads [data-dl-was-enabled]')?.forEach(el => {
+      el.removeAttribute('data-dl-was-enabled');
+      if (el.tagName === 'A') {
+        el.removeAttribute('aria-disabled');
+        el.classList.remove('disabled');
+      } else {
+        el.disabled = false;
+      }
+    });
+  };
+
+  if (iframe) {
+    iframe.addEventListener('load', () => {
+      // Many browsers will still fire load even for attachment responses.
+      if (hideTimeout) clearTimeout(hideTimeout);
+      hideOverlay();
+      enableElems();
+    });
+  }
+
+  // Intercept all forms within downloads container and target iframe
+  document.querySelectorAll('.downloads form').forEach(f => {
+    f.addEventListener('submit', () => {
+      showOverlay();
+      setOverlayText(f.getAttribute('data-dl-text') || 'Preparing your download…');
+      disableElems(f);
+      if (iframe && !f.hasAttribute('target')) {
+        f.setAttribute('target', 'dl_frame');
+      }
+      // Fallback to auto-hide in case load doesn't fire for attachments
+      hideTimeout = setTimeout(() => { hideOverlay(); enableElems(); }, fallbackMs);
+    });
+  });
+
+  // Intercept direct download links
+  document.querySelectorAll('.downloads a.dl-link').forEach(a => {
+    a.addEventListener('click', () => {
+      showOverlay();
+      setOverlayText(a.getAttribute('data-dl-text') || a.textContent.trim() || 'Preparing your download…');
+      disableElems(a.closest('div.card-body') || undefined);
+      if (iframe) a.setAttribute('target', 'dl_frame');
+      hideTimeout = setTimeout(() => { hideOverlay(); enableElems(); }, fallbackMs);
+    });
+  });
+
+  // Delegated handler for any .downloads anchor buttons (fallback if class not present)
+  document.addEventListener('click', (ev) => {
+    const a = ev.target.closest('.downloads a.btn');
+    if (!a) return;
+    const href = a.getAttribute('href') || '';
+    // Only trigger overlay for same-window navigations to files
+    if (href && (href.endsWith('.csv') || href.endsWith('.xlsx') || a.classList.contains('dl-link'))) {
+      showOverlay();
+      setOverlayText(a.getAttribute('data-dl-text') || a.textContent.trim() || 'Preparing your download…');
+      disableElems(a.closest('div.card-body') || undefined);
+      if (iframe) a.setAttribute('target', 'dl_frame');
+      hideTimeout = setTimeout(() => { hideOverlay(); enableElems(); }, fallbackMs);
+    }
+  }, true);
+
+  // Improve class export: stream into iframe instead of navigating window
+  const form = document.getElementById('class-export-form');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const select = document.getElementById('dl-class-id');
+      const cid = select && select.value;
+      if (cid) {
+        const base = form.dataset.baseUrl;
+        const url = base.replace('/0/', '/' + cid + '/');
+        if (iframe) {
+          showOverlay();
+          setOverlayText('Preparing your download…');
+          disableElems(form);
+          iframe.src = url;
+          hideTimeout = setTimeout(() => { hideOverlay(); enableElems(); }, fallbackMs);
+        } else {
+          window.location = url;
+        }
+      }
+    });
+  }
+
+  // Rotate chevrons on expand/collapse
+  document.querySelectorAll('[data-bs-toggle="collapse"][data-bs-target]').forEach(btn => {
+    const targetSel = btn.getAttribute('data-bs-target');
+    const target = targetSel ? document.querySelector(targetSel) : null;
+    if (!target) return;
+    target.addEventListener('show.bs.collapse', () => btn.classList.add('rotated'));
+    target.addEventListener('hide.bs.collapse', () => btn.classList.remove('rotated'));
+  });
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid downloads" data-timeout-ms="12000">
+  <div class="mb-3 d-flex align-items-center justify-content-between">
+    <h1 class="mb-0"><i class="bi bi-download me-2"></i>Downloads</h1>
+  </div>
+  <style>
+    /* Scoped compact styling for Downloads page */
+    .downloads .row.g-4 { --bs-gutter-x: .75rem; --bs-gutter-y: .75rem; }
+    .downloads .card-body { padding: .75rem 1rem; }
+    .downloads .card-title { font-size: .95rem; margin-bottom: .5rem; }
+    .downloads .text-muted { font-size: .85rem; margin-bottom: .5rem; }
+    .downloads .form-select-sm, .downloads .form-control-sm { padding: .25rem .5rem; height: calc(1.5em + .5rem + 2px); }
+    .downloads .btn { padding: .25rem .5rem; font-size: .875rem; }
+    .downloads .section-divider { margin-bottom: .5rem; }
+    .downloads h1.mb-0 { font-size: 1.25rem; }
+    /* Download overlay */
+    .download-overlay { position: fixed; inset: 0; background: rgba(255,255,255,.6); backdrop-filter: blur(2px); z-index: 2000; display: none; align-items: center; justify-content: center; }
+    .download-overlay.show { display: flex; }
+    .download-overlay .box { background: #fff; border: 1px solid #e5e7eb; border-radius: .5rem; padding: .75rem 1rem; box-shadow: 0 8px 24px rgba(0,0,0,.08); display: flex; align-items: center; gap: .5rem; }
+    .download-overlay .text { font-size: .9rem; color: #374151; }
+    .downloads .btn.disabled,[aria-disabled="true"] { pointer-events: none; }
+    .downloads .section-divider .btn.rotated i { transform: rotate(180deg); transition: transform .2s ease-in-out; }
+    .downloads .section-divider .btn i { transition: transform .2s ease-in-out; }
+  </style>
+
+  <!-- Hidden iframe target and overlay for downloads -->
+  <iframe id="dl_frame" name="dl_frame" style="display:none;width:0;height:0;border:0"></iframe>
+  <div id="download-overlay" class="download-overlay" aria-hidden="true">
+    <div class="box">
+      <div class="spinner-border text-primary spinner-border-sm" role="status" aria-hidden="true"></div>
+      <div id="download-text" class="text">Preparing your download…</div>
+    </div>
+    <div class="w-100 mt-3 px-4">
+      <div class="progress" role="progressbar" aria-label="Download progress" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4" id="downloads-accordion">
+    <!-- Administration -->
+    <div class="col-12">
+      <div class="section-divider d-flex align-items-center justify-content-between">
+        <div><span class="divider-icon"><i class="bi bi-gear"></i></span> <span class="divider-title">Administration</span></div>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#admin-group" aria-expanded="false" aria-controls="admin-group">
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </div>
+    </div>
+    <div class="col-12 collapse" id="admin-group" data-bs-parent="#downloads-accordion">
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-people"></i> Users</h5>
+          <p class="text-muted">Download all users and roles.</p>
+          <a class="btn btn-outline-primary dl-link" href="{% url 'export_users_csv' %}" target="dl_frame"><i class="bi bi-download me-1"></i> users.csv</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-card-checklist"></i> Result Slip</h5>
+          <p class="text-muted">Per-student subject scores for a selected exam. Filter by class or level.</p>
+          <form class="row g-2" method="get" action="/exports/result-slip.csv">
+            <div class="col-12">
+              <label class="form-label small mb-1">Exam</label>
+              <select class="form-select form-select-sm" required name="exam_id">
+                <option value="" selected disabled>Select exam…</option>
+                {% for e in exams %}
+                <option value="{{ e.id }}">{{ e.name }} — {{ e.term.name }} ({{ e.term.academic_year.year }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Class</label>
+              <select class="form-select form-select-sm" name="class_id">
+                <option value="">All</option>
+                {% for c in classes %}
+                <option value="{{ c.id }}">{{ c.name }}{% if c.stream %} - {{ c.stream }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Level</label>
+              <select class="form-select form-select-sm" name="level">
+                <option value="">All</option>
+                {% for lv in levels %}
+                <option value="{{ lv }}">{{ lv }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6 d-flex align-items-end">
+              <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-download me-1"></i> Download</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-journal-text"></i> Empty Subject List</h5>
+          <p class="text-muted">CSV with admission numbers, names, and a chosen subject column for a class.</p>
+          <form class="row g-2" method="get" action="/exports/empty-subject-list.csv">
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Class</label>
+              <select class="form-select form-select-sm" name="class_id" required>
+                <option value="" selected disabled>Select class…</option>
+                {% for c in classes %}
+                <option value="{{ c.id }}">{{ c.name }}{% if c.stream %} - {{ c.stream }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Subject</label>
+              <select class="form-select form-select-sm" name="subject_id" required>
+                <option value="" selected disabled>Select subject…</option>
+                {% for s in subjects %}
+                <option value="{{ s.id }}">{{ s.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6 d-flex align-items-end">
+              <button type="submit" class="btn btn-outline-secondary w-100"><i class="bi bi-download me-1"></i> Download</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-mortarboard"></i> Teachers</h5>
+          <p class="text-muted">Export teacher directory (with department/subject filters).</p>
+          <form class="row g-2" method="get" action="{% url 'export_teachers_csv' %}">
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Department</label>
+              <select class="form-select form-select-sm" name="department_id">
+                <option value="">All</option>
+                {% for d in departments %}
+                <option value="{{ d.id }}">{{ d.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Subject</label>
+              <select class="form-select form-select-sm" name="subject_id">
+                <option value="">All</option>
+                {% for s in subjects %}
+                <option value="{{ s.id }}">{{ s.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Order</label>
+              <select class="form-select form-select-sm" name="order">
+                <option value="az">A → Z</option>
+                <option value="za">Z → A</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6 d-flex align-items-end">
+              <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-download me-1"></i> Download</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-people-fill"></i> Students</h5>
+          <p class="text-muted">Export all students (filter by class or level).</p>
+          <form class="row g-2" method="get" action="{% url 'export_students_csv' %}">
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Class</label>
+              <select class="form-select form-select-sm" name="class_id">
+                <option value="">All</option>
+                {% for c in classes %}
+                <option value="{{ c.id }}">{{ c.name }}{% if c.stream %} - {{ c.stream }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Level</label>
+              <select class="form-select form-select-sm" name="level">
+                <option value="">All</option>
+                {% for lvl in levels %}
+                <option value="{{ lvl }}">{{ lvl }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Sort by</label>
+              <select class="form-select form-select-sm" name="sort_by">
+                <option value="name">Name</option>
+                <option value="admission">Admission No</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Order</label>
+              <select class="form-select form-select-sm" name="order">
+                <option value="az">A → Z</option>
+                <option value="za">Z → A</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6 d-flex align-items-end">
+              <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-download me-1"></i> Download</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    </div> <!-- /#admin-group -->
+
+    <!-- Finance -->
+    <div class="col-12 mt-2">
+      <div class="section-divider d-flex align-items-center justify-content-between">
+        <div><span class="divider-icon"><i class="bi bi-cash-coin"></i></span> <span class="divider-title">Finance</span></div>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#finance-group" aria-expanded="false" aria-controls="finance-group">
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </div>
+    </div>
+    <div class="col-12 collapse" id="finance-group" data-bs-parent="#downloads-accordion">
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-list-check"></i> Fee Assignments</h5>
+          <p class="text-muted">All assigned fees per class and term.</p>
+          <a class="btn btn-outline-success dl-link" href="{% url 'export_fee_assignments_csv' %}" target="dl_frame"><i class="bi bi-download me-1"></i> fee-assignments.csv</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-receipt"></i> Fee Payments</h5>
+          <p class="text-muted">Every payment with method/category filters.</p>
+          <form class="row g-2" method="get" action="{% url 'export_fee_payments_csv' %}">
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Method</label>
+              <select class="form-select form-select-sm" name="method">
+                <option value="">All</option>
+                <option value="mpesa">Mpesa</option>
+                <option value="cash">Cash</option>
+                <option value="bank">Bank</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Class</label>
+              <select class="form-select form-select-sm" name="class_id">
+                <option value="">All</option>
+                {% for c in classes %}
+                <option value="{{ c.id }}">{{ c.name }}{% if c.stream %} - {{ c.stream }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Category</label>
+              <select class="form-select form-select-sm" name="category_id">
+                <option value="">All</option>
+                {% for cat in fee_categories %}
+                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Term</label>
+              <select class="form-select form-select-sm" name="term_id">
+                <option value="">All</option>
+                {% for t in terms %}
+                <option value="{{ t.id }}">{{ t.name }} - {{ t.academic_year.year }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6 d-flex align-items-end">
+              <button type="submit" class="btn btn-outline-success w-100"><i class="bi bi-download me-1"></i> Download</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-arrow-down-circle"></i> Students with Arrears</h5>
+          <p class="text-muted">Download by class/term with sort by balance, name, or admission.</p>
+          <form class="row g-2" method="get" action="{% url 'export_students_with_arrears_csv' %}">
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Class</label>
+              <select class="form-select form-select-sm" name="class_id">
+                <option value="">All</option>
+                {% for c in classes %}
+                <option value="{{ c.id }}">{{ c.name }}{% if c.stream %} - {{ c.stream }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Term</label>
+              <select class="form-select form-select-sm" name="term_id">
+                <option value="">All</option>
+                {% for t in terms %}
+                <option value="{{ t.id }}">{{ t.name }} - {{ t.academic_year.year }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Sort by</label>
+              <select class="form-select form-select-sm" name="sort_by">
+                <option value="balance">Balance</option>
+                <option value="name">Name</option>
+                <option value="admission">Admission No</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label small mb-1">Min balance</label>
+              <input type="number" class="form-control form-control-sm" name="min_balance" step="0.01" placeholder="0" />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label small mb-1">Max balance</label>
+              <input type="number" class="form-control form-control-sm" name="max_balance" step="0.01" placeholder="" />
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Order</label>
+              <select class="form-select form-select-sm" name="order">
+                <option value="desc">Largest → Smallest</option>
+                <option value="asc">Smallest → Largest</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6 d-flex align-items-end">
+              <button type="submit" class="btn btn-outline-danger w-100"><i class="bi bi-download me-1"></i> Download</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-arrow-up-circle"></i> Students without Arrears</h5>
+          <p class="text-muted">Download by class/term with sort options.</p>
+          <form class="row g-2" method="get" action="{% url 'export_students_without_arrears_csv' %}">
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Class</label>
+              <select class="form-select form-select-sm" name="class_id">
+                <option value="">All</option>
+                {% for c in classes %}
+                <option value="{{ c.id }}">{{ c.name }}{% if c.stream %} - {{ c.stream }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Term</label>
+              <select class="form-select form-select-sm" name="term_id">
+                <option value="">All</option>
+                {% for t in terms %}
+                <option value="{{ t.id }}">{{ t.name }} - {{ t.academic_year.year }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Sort by</label>
+              <select class="form-select form-select-sm" name="sort_by">
+                <option value="name">Name</option>
+                <option value="admission">Admission No</option>
+                <option value="balance">Balance</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label small mb-1">Min balance</label>
+              <input type="number" class="form-control form-control-sm" name="min_balance" step="0.01" placeholder="" />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label small mb-1">Max balance</label>
+              <input type="number" class="form-control form-control-sm" name="max_balance" step="0.01" placeholder="" />
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Order</label>
+              <select class="form-select form-select-sm" name="order">
+                <option value="asc">Smallest → Largest</option>
+                <option value="desc">Largest → Smallest</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6 d-flex align-items-end">
+              <button type="submit" class="btn btn-outline-success w-100"><i class="bi bi-download me-1"></i> Download</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    </div> <!-- /#finance-group -->
+
+    <!-- Academics -->
+    <div class="col-12 mt-2">
+      <div class="section-divider d-flex align-items-center justify-content-between">
+        <div><span class="divider-icon"><i class="bi bi-journal-bookmark"></i></span> <span class="divider-title">Academics</span></div>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#academics-group" aria-expanded="false" aria-controls="academics-group">
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </div>
+    </div>
+    <div class="col-12 collapse" id="academics-group" data-bs-parent="#downloads-accordion">
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-filetype-xlsx"></i> Grade Upload Template</h5>
+          <p class="text-muted">Download the latest Excel template for bulk grade uploads.</p>
+          <a class="btn btn-outline-primary dl-link" href="{% url 'api_download_grade_template' %}" target="dl_frame"><i class="bi bi-cloud-arrow-down me-1"></i> grade_template.xlsx</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-people"></i> Class Students Export</h5>
+          <p class="text-muted">Export students list for a selected class as CSV.</p>
+          <form id="class-export-form" method="get" data-base-url="{% url 'api_download_class_students' 0 %}">
+            <div class="d-flex gap-2">
+              <select id="dl-class-id" class="form-select" required>
+                <option value="" selected disabled>Select class…</option>
+                {% for c in classes %}
+                <option value="{{ c.id }}">{{ c.name }}{% if c.stream %} - {{ c.stream }}{% endif %}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn btn-secondary"><i class="bi bi-download"></i></button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
