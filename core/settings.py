@@ -9,14 +9,16 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     '8c31c7ea20f2.ngrok-free.app',
     '08d4e7a36369.ngrok-free.app',  # <-- Added new ngrok domain
-    '469684394867.ngrok-free.app',  # <-- Current ngrok domain
+    '469684394867.ngrok-free.app',  # <-- Previous ngrok domain
+    '0e225c51e670.ngrok-free.app',  # <-- Current ngrok domain
     '.ngrok-free.app',  # <-- Allow any ngrok subdomain
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     'https://8c31c7ea20f2.ngrok-free.app',
     'https://08d4e7a36369.ngrok-free.app',  # <-- Added new ngrok domain
-    'https://469684394867.ngrok-free.app',  # <-- Current ngrok domain
+    'https://469684394867.ngrok-free.app',  # <-- Previous ngrok domain
+    'https://0e225c51e670.ngrok-free.app',  # <-- Current ngrok domain
     'https://*.ngrok-free.app',  # <-- Trust any ngrok subdomain for CSRF
 ]
 
@@ -32,7 +34,7 @@ MPESA_ENVIRONMENT = 'sandbox'  # or 'production' for live
 
 # Public callback URL used by Safaricom for STK push callbacks
 # Ensure this matches your active tunnel/domain
-MPESA_CALLBACK_URL = 'https://469684394867.ngrok-free.app/mpesa-callback/'
+MPESA_CALLBACK_URL = 'https://0e225c51e670.ngrok-free.app/mpesa-callback/'
 
 INSTALLED_APPS = [
     'django.contrib.admin',

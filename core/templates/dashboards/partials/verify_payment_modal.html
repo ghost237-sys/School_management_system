@@ -7,7 +7,8 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <form id="verifyPaymentForm" autocomplete="off">
+        <form id="verifyPaymentForm" method="post" autocomplete="off">
+          {% csrf_token %}
           <div class="mb-3">
             <label for="verifyReference" class="form-label">Payment Reference Code</label>
             <input type="text" class="form-control" id="verifyReference" name="verifyReference" required placeholder="Enter M-PESA reference code">
@@ -60,18 +61,39 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       try {
+        const csrfInput = document.querySelector('#verifyPaymentForm input[name="csrfmiddlewaretoken"]');
+        const csrfToken = csrfInput ? csrfInput.value : null;
+        if (!csrfToken) {
+          if (verifyResult) {
+            verifyResult.textContent = 'Security token missing. Please refresh the page and try again.';
+            verifyResult.classList.remove('d-none', 'alert-success');
+            verifyResult.classList.add('alert', 'alert-danger');
+          }
+          verifyBtn.disabled = false;
+          verifyBtnText.textContent = 'Verify';
+          verifySpinner.classList.add('d-none');
+          return;
+        }
+        const headers = {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        };
+        headers['X-CSRFToken'] = csrfToken;
         const res = await fetch('/verify_payment/by-reference/', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-            'X-CSRFToken': getCookie('csrftoken')
-          },
-          body: new URLSearchParams({ reference })
+          headers,
+          credentials: 'same-origin',
+          body: new URLSearchParams({ reference, csrfmiddlewaretoken: csrfToken })
         });
 
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          const msg = data?.error || 'Verification failed';
+        let data = null; let msg = '';
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          try { data = await res.json(); } catch (e) { data = null; }
+        } else {
+          try { msg = await res.text(); } catch (e) { msg = ''; }
+        }
+        if (!res.ok || !(data && data.success)) {
+          msg = (data && data.error) || msg || 'Verification failed';
           if (verifyResult) {
             verifyResult.textContent = msg;
             verifyResult.classList.remove('d-none', 'alert-success');

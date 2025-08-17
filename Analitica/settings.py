@@ -12,7 +12,6 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import os
-import re
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -31,15 +30,10 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'true').lower() == 'true'
 
-# Comma-separated hostnames/IPs in env; safe defaults for local dev
+# Comma-separated hostnames/IPs in env; safe defaults for local dev incl. ngrok
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get(
-    'DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,::1'
+    'DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,::1,.ngrok-free.app'
 ).split(',') if h.strip()]
-
-# During local development, also allow ngrok subdomains automatically
-if DEBUG:
-    # Allows any subdomain of ngrok-free.app, e.g. 0e225c...ngrok-free.app
-    ALLOWED_HOSTS += ['.ngrok-free.app']
 
 
 # Application definition
@@ -103,56 +97,6 @@ DATABASES = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
-}
-
-
-# --- Logging: redact PII/payment details in logs ---
-class RedactFilter:
-    """Filter that redacts common PII patterns like Kenyan phone numbers and M-Pesa receipts."""
-    phone_re = re.compile(r"(?:\+?254|0)?7\d{8}")
-    receipt_re = re.compile(r"\b[A-Z0-9]{10,12}\b")
-    account_ref_re = re.compile(r"Account#\w+")
-
-    def filter(self, record):
-        try:
-            msg = str(record.getMessage())
-            redacted = self.phone_re.sub("[PHONE]", msg)
-            redacted = self.receipt_re.sub("[MPESA_RECEIPT]", redacted)
-            redacted = self.account_ref_re.sub("Account#[REDACTED]", redacted)
-            # Update record message safely
-            record.msg = redacted
-            record.args = ()
-        except Exception:
-            pass
-        return True
-
-
-LOG_LEVEL = os.environ.get('DJANGO_LOG_LEVEL', 'INFO')
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'filters': {
-        'redact': {
-            '()': RedactFilter,
-        },
-    },
-    'formatters': {
-        'standard': {
-            'format': '[%(levelname)s] %(asctime)s %(name)s: %(message)s'
-        },
-    },
-    'handlers': {
-        'console': {
-            'level': LOG_LEVEL,
-            'class': 'logging.StreamHandler',
-            'filters': ['redact'],
-            'formatter': 'standard',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': LOG_LEVEL,
-    },
 }
 
 
@@ -222,13 +166,17 @@ SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
 SECURE_REFERRER_POLICY = os.environ.get('SECURE_REFERRER_POLICY', 'strict-origin-when-cross-origin')
 
-# CSRF trusted origins (comma-separated)
+# CSRF trusted origins (comma-separated). Include ngrok by default for dev.
 _csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
 if _csrf_origins:
     CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
-elif DEBUG:
-    # Fallback for local dev when using ngrok and no env var is set
-    CSRF_TRUSTED_ORIGINS = ['https://*.ngrok-free.app']
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        'https://0e225c51e670.ngrok-free.app',
+        'https://*.ngrok-free.app',
+        'http://localhost',
+        'http://127.0.0.1',
+    ]
 
 # Email backend
 # For development, print emails to console. Configure SMTP below for production.
@@ -255,17 +203,20 @@ TIMETABLE_NOTIFY_COOLDOWN = int(os.environ.get('TIMETABLE_NOTIFY_COOLDOWN', '120
 
 # M-Pesa (Daraja) configuration
 MPESA_ENVIRONMENT = os.environ.get('MPESA_ENVIRONMENT', 'sandbox')  # 'sandbox' or 'production'
-MPESA_CONSUMER_KEY = os.environ.get('MPESA_CONSUMER_KEY', '')
-MPESA_CONSUMER_SECRET = os.environ.get('MPESA_CONSUMER_SECRET', '')
-MPESA_SHORTCODE = os.environ.get('MPESA_SHORTCODE', '')  # PayBill/Till number
-MPESA_PASSKEY = os.environ.get('MPESA_PASSKEY', '')      # For STK push password
+# Use provided env vars if set; otherwise fall back to values present in core/settings.py
+MPESA_CONSUMER_KEY = os.environ.get('MPESA_CONSUMER_KEY', 'EXGFqWiPKTmwUrCGfKmHbUzj43Ikge7ekz5GVSbdzAk37L0j')
+MPESA_CONSUMER_SECRET = os.environ.get('MPESA_CONSUMER_SECRET', 'lOjIKLlnhiHXxFRDkfkv9m8pm80ZJhNGQpcuuq3ktdyx9GAKk8pP8Aw4VlLRVnU1')
+MPESA_SHORTCODE = os.environ.get('MPESA_SHORTCODE', '174379')  # PayBill/Till number
+MPESA_PASSKEY = os.environ.get('MPESA_PASSKEY', 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919')      # For STK push password
 # Public HTTPS URL for callbacks; must be reachable by Safaricom in production
-MPESA_CALLBACK_URL = os.environ.get('MPESA_CALLBACK_URL', '')
+MPESA_CALLBACK_URL = os.environ.get('MPESA_CALLBACK_URL', 'https://0e225c51e670.ngrok-free.app/mpesa-callback/')
 # Optional: C2B Validation and Confirmation URLs (non-STK PayBill flows)
 MPESA_C2B_VALIDATION_URL = os.environ.get('MPESA_C2B_VALIDATION_URL', '')
 MPESA_C2B_CONFIRMATION_URL = os.environ.get('MPESA_C2B_CONFIRMATION_URL', '')
 # Optional: Shared secret header for callback authentication (X-Mpesa-Secret)
 MPESA_CALLBACK_SECRET = os.environ.get('MPESA_CALLBACK_SECRET', '')
+# Auto-approve successful callbacks without waiting for STK Query (can be disabled via env)
+MPESA_AUTO_APPROVE_ON_CALLBACK = os.environ.get('MPESA_AUTO_APPROVE_ON_CALLBACK', 'true').lower() == 'true'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

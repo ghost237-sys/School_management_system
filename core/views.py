@@ -17,7 +17,7 @@ from django.views.decorators.csrf import csrf_protect, csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils.dateparse import parse_datetime
 from django.db import transaction
-from .messaging_utils import _normalize_msisdn
+from .messaging_utils import _normalize_msisdn, send_sms
 from .mpesa_utils import initiate_stk_push, query_stk_status
 
 import datetime
@@ -1502,45 +1502,6 @@ def student_profile(request, student_id):
     points_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1}
     total_points = sum(points_map.get(g.grade_letter, 0) for g in grades if getattr(g, 'grade_letter', None))
 
-    # --- Attendance (summary + recent records, with optional term filter) ---
-    attendance_terms = list(Term.objects.all().order_by('-start_date'))
-    att_term_id = request.GET.get('att_term')
-    att_term = None
-    if att_term_id:
-        try:
-            att_term = Term.objects.get(id=att_term_id)
-        except Term.DoesNotExist:
-            att_term = current_term
-    else:
-        att_term = current_term
-
-    attendance_qs = Attendance.objects.filter(student=student)
-    if att_term and att_term.start_date and att_term.end_date:
-        attendance_qs = attendance_qs.filter(date__gte=att_term.start_date, date__lte=att_term.end_date)
-
-    # Compute summary counts
-    from django.db.models import Count
-    status_counts = attendance_qs.values('status').annotate(c=Count('id'))
-    status_map = {row['status']: row['c'] for row in status_counts}
-    total_lessons = sum(status_map.values()) if status_map else 0
-    present = status_map.get('present', 0)
-    absent = status_map.get('absent', 0)
-    late = status_map.get('late', 0)
-    excused = status_map.get('excused', 0)
-    attendance_rate = round((present / total_lessons) * 100, 1) if total_lessons else 0.0
-
-    attendance_summary = {
-        'total': total_lessons,
-        'present': present,
-        'absent': absent,
-        'late': late,
-        'excused': excused,
-        'rate': attendance_rate,
-    }
-
-    # Recent attendance records (limit for page)
-    attendance_records = attendance_qs.select_related('subject', 'teacher__user').order_by('-date', '-timestamp')[:100]
-
     # Handle contact info update POST
     if request.method == 'POST' and 'update_contact' in request.POST:
         contact_form = StudentContactUpdateForm(request.POST, instance=student, user_instance=student.user)
@@ -1573,11 +1534,6 @@ def student_profile(request, student_id):
         'fee_payments': FeePayment.objects.filter(student=student, fee_assignment__in=fee_assignments),
         'total_points': total_points,
         'contact_form': contact_form,
-        # Attendance context
-        'attendance_summary': attendance_summary,
-        'attendance_records': attendance_records,
-        'attendance_terms': attendance_terms,
-        'attendance_current_term_id': att_term.id if att_term else None,
     }
     return render(request, 'dashboards/student_profile.html', context)
 
@@ -1695,12 +1651,7 @@ def teacher_dashboard(request, teacher_id):
     # Prepare class_cards for dashboard cards (one per class+subject assignment)
     class_cards = []
     notifications = []
-    # Greeting should use the teacher's first name (fallback to full_name or username)
-    try:
-        first_name = (teacher.user.first_name or teacher.user.get_full_name() or teacher.user.username) or ''
-        greeting_name = (first_name.split()[0] if first_name else 'Teacher')
-    except Exception:
-        greeting_name = teacher.user.username
+    greeting_name = f"Mr. {teacher.user.last_name}" if teacher.user.last_name else teacher.user.get_full_name() or teacher.user.username
     teacher_subjects = list(teacher.subjects.values_list('name', flat=True))
     # We'll collect classes from both assignments and class_teacher role, avoiding duplicates
     for assign in assignments:
@@ -2559,23 +2510,8 @@ def admin_graduated_students(request):
 
 @login_required(login_url='login')
 def class_profile(request, class_id):
-    from django.http import HttpResponseForbidden, Http404
-    from .models import Class, Student, TeacherClassAssignment, Subject, FeeAssignment, FeePayment, Teacher
-    try:
-        class_obj = Class.objects.select_related('class_teacher').get(id=class_id)
-    except Class.DoesNotExist:
-        raise Http404("Class not found")
-
-    # Permission: only admin/staff or the assigned class teacher may view
-    teacher = None
-    try:
-        teacher = getattr(request.user, 'teacher', None) or Teacher.objects.filter(user=request.user).first()
-    except Exception:
-        teacher = None
-    is_admin = request.user.is_superuser or request.user.is_staff
-    is_class_teacher = bool(teacher and class_obj.class_teacher_id == teacher.id)
-    if not (is_admin or is_class_teacher):
-        return HttpResponseForbidden("You do not have permission to view this class.")
+    from .models import Class, Student, TeacherClassAssignment, Subject, FeeAssignment, FeePayment
+    class_obj = Class.objects.select_related('class_teacher').get(id=class_id)
     students = Student.objects.filter(class_group=class_obj).select_related('user')
     assignments = TeacherClassAssignment.objects.filter(class_group=class_obj).select_related('teacher__user', 'subject')
     subjects_and_teachers = []
@@ -2588,7 +2524,7 @@ def class_profile(request, class_id):
     # --- Level Ranking Table for This Class's Level ---
     from django.db.models import Avg, Sum
     from django.utils import timezone
-    from .models import Exam, Term, Grade
+    from .models import Exam
     level_students = Student.objects.filter(class_group__level=class_obj.level)
     today = timezone.now().date()
     current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
@@ -6006,40 +5942,13 @@ def mpesa_callback(request):
         merchant_request_id = stk_callback.get('MerchantRequestID')
         checkout_request_id = stk_callback.get('CheckoutRequestID')
         logger.info(f"[M-PESA CALLBACK] Received: {data}")
-        # Log callback to file for admin viewing (with PII redaction)
+        # Log callback to file for admin viewing
         import os
         from datetime import datetime
         log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'payment_callback_logs.txt')
         try:
             # Ensure the log file exists and append safely
             os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            # Redaction helpers (avoid importing re at top-level here)
-            import re as _re
-            phone_re = _re.compile(r'(?:\+?254|0)?7\d{8}')
-            receipt_re = _re.compile(r"\b[A-Z0-9]{10,12}\b")
-            account_ref_re = _re.compile(r"Account#\w+")
-
-            def _mask(s: str) -> str:
-                try:
-                    s = phone_re.sub('[PHONE]', s)
-                    s = account_ref_re.sub('Account#[REDACTED]', s)
-                    s = receipt_re.sub('[MPESA_RECEIPT]', s)
-                except Exception:
-                    pass
-                return s
-
-            def _redact_payload(obj):
-                try:
-                    if isinstance(obj, dict):
-                        return {k: _redact_payload(v) for k, v in obj.items()}
-                    if isinstance(obj, list):
-                        return [_redact_payload(v) for v in obj]
-                    if isinstance(obj, str):
-                        return _mask(obj)
-                    return obj
-                except Exception:
-                    return obj
-
             with open(log_path, 'a+') as logf:
                 logf.seek(0)
                 try:
@@ -6049,7 +5958,7 @@ def mpesa_callback(request):
                 logs.append({
                     'timestamp': datetime.now().isoformat(),
                     'status': 'success' if result_code == 0 else 'failed',
-                    'details': _redact_payload(data)
+                    'details': data
                 })
                 json.dump(logs, logf, indent=2)
                 logf.truncate()
@@ -6114,10 +6023,10 @@ def mpesa_callback(request):
                             'timestamp': datetime.now().isoformat(),
                             'status': 'unmatched',
                             'details': {
-                                'phone': '[PHONE]' if phone else None,
+                                'phone': phone,
                                 'amount': amount,
-                                'reference': '[MPESA_RECEIPT]' if mpesa_receipt else None,
-                                'raw': _redact_payload(data)
+                                'reference': mpesa_receipt,
+                                'raw': data
                             }
                         })
                         json.dump(logs, logf, indent=2)
@@ -6175,11 +6084,21 @@ def mpesa_callback(request):
                     tx.raw_callback = data
                     tx.save(update_fields=['status','result_code','result_desc','mpesa_receipt','raw_callback','updated_at'])
                 return JsonResponse({"ResultCode": 0, "ResultDesc": "Duplicate payment ignored"})
-            # Verify with Daraja STK Query before approving
+            # Verify with Daraja STK Query before approving unless auto-approve is enabled
+            auto_approve = getattr(settings, 'MPESA_AUTO_APPROVE_ON_CALLBACK', False)
+            logger.info(f"[M-PESA CALLBACK] Auto-approve setting: {auto_approve}")
             verified_ok = False
-            query_resp = query_stk_status(checkout_request_id) if checkout_request_id else {"error": "missing CheckoutRequestID"}
-            if isinstance(query_resp, dict) and not query_resp.get('error') and str(query_resp.get('ResultCode')) == '0':
+            query_resp = None
+            if auto_approve:
                 verified_ok = True
+                query_resp = {"auto_approve": True}
+                logger.info("[M-PESA CALLBACK] Auto-approving payment without STK query.")
+            else:
+                query_resp = query_stk_status(checkout_request_id) if checkout_request_id else {"error": "missing CheckoutRequestID"}
+                if isinstance(query_resp, dict) and not query_resp.get('error') and str(query_resp.get('ResultCode')) == '0':
+                    verified_ok = True
+                else:
+                    logger.warning(f"[M-PESA CALLBACK] STK query did not confirm success: {query_resp}")
             if not verified_ok:
                 # Mark transaction pending and create a visible pending FeePayment (idempotent)
                 if tx:
@@ -6262,6 +6181,29 @@ def mpesa_callback(request):
                 logger.error(f"[M-PESA CALLBACK] Invalid payment: missing MpesaReceiptNumber for phone {phone}, amount {amount}")
                 return JsonResponse({"ResultCode": 0, "ResultDesc": "Invalid payment: missing reference number"})
             logger.info(f"[M-PESA CALLBACK] Payment recorded for student {student} amount {amount} assignment {outstanding_assignment} (pending verification)")
+            # Send confirmation SMS to payer and student (best-effort)
+            try:
+                school_name = getattr(settings, 'SCHOOL_NAME', 'Your School')
+                amt_txt = str(amount)
+                stud_name = getattr(student, 'name', None) or f"Adm {getattr(student, 'admission_no', '')}"
+                receipt_txt = mpesa_receipt or checkout_request_id or ''
+                msg = f"{school_name}: Payment received KES {amt_txt} for {stud_name}. Receipt {receipt_txt}. Thank you."
+                # SMS to payer (from callback metadata)
+                if phone:
+                    try:
+                        send_sms(phone, msg)
+                    except Exception:
+                        pass
+                # SMS to student's registered number if different
+                student_phone = getattr(student, 'phone', None)
+                if student_phone and (not phone or str(student_phone).strip() != str(phone).strip()):
+                    try:
+                        send_sms(student_phone, msg)
+                    except Exception:
+                        pass
+            except Exception:
+                # Never fail the callback because of SMS issues
+                pass
         else:
             # Extract phone, amount, receipt if present
             metadata = stk_callback.get('CallbackMetadata', {}).get('Item', [])
@@ -6573,6 +6515,26 @@ def mpesa_c2b_confirmation(request):
                 status='approved',
                 mpesa_transaction=tx
             )
+            # Send confirmation SMS to payer and student (best-effort)
+            try:
+                school_name = getattr(settings, 'SCHOOL_NAME', 'Your School')
+                amt_txt = str(amount or 0)
+                stud_name = getattr(student, 'name', None) or f"Adm {getattr(student, 'admission_no', '')}"
+                receipt_txt = trans_id
+                msg = f"{school_name}: Payment received KES {amt_txt} for {stud_name}. Receipt {receipt_txt}. Thank you."
+                if phone:
+                    try:
+                        send_sms(phone, msg)
+                    except Exception:
+                        pass
+                student_phone = getattr(student, 'phone', None)
+                if student_phone and (not phone or str(student_phone).strip() != str(phone).strip()):
+                    try:
+                        send_sms(student_phone, msg)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
         else:
             # If no student resolved, record as pending without student link (optional policy)
             logger.warning(f"[C2B CONFIRMATION] No student matched for BillRef={bill_ref} phone={phone}")

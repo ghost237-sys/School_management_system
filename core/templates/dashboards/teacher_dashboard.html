@@ -152,9 +152,6 @@
                         <div class="mt-auto d-flex tdb-actions">
                             <a href="{% url 'manage_grades' teacher_id=teacher.id %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-clipboard2-check"></i> Manage Grades</a>
                             <a href="{% url 'teacher_class_result_slip' class_id=card.class.id %}" class="btn btn-primary btn-sm ms-2"><i class="bi bi-file-earmark-text"></i> Result Slip</a>
-                            {% if card.class.class_teacher and card.class.class_teacher.id == teacher.id %}
-                            <a href="{% url 'class_profile' class_id=card.class.id %}" class="btn btn-outline-secondary btn-sm ms-2"><i class="bi bi-people"></i> Class Profile</a>
-                            {% endif %}
                         </div>
                     </div>
                 </div>
