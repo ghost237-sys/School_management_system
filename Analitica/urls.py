@@ -21,10 +21,14 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    # Include core URLs first so any custom admin-like routes defined there
+    # (e.g., 'admin/fees/mpesa/reconcile/') are matched BEFORE Django admin's catch-all
+    path('', include('core.urls')),
+    # Include with explicit namespace so {% url 'assistant:...' %} resolves
+    path('assistant/', include(('assistant.urls', 'assistant'), namespace='assistant')),
     # Direct mapping to ensure availability even if includes are stale
     path('timetable/auto-generate/', core_views.timetable_auto_generate, name='timetable_auto_generate'),
-    path('', include('core.urls')),
+    path('admin/', admin.site.urls),
 ]
 
 # Serve media files during development

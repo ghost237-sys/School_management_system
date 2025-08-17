@@ -19,19 +19,31 @@ def student_messaging(request):
     class_teacher_user = None
     if getattr(student, 'class_group', None) and getattr(student.class_group, 'class_teacher', None):
         class_teacher_user = student.class_group.class_teacher.user
+    # Find clerks (finance desk)
+    clerk_users = User.objects.filter(role='clerk')
     # Recipients list
     recipients = []
     if admin_user:
         recipients.append({'id': admin_user.id, 'name': admin_user.get_full_name() or admin_user.username, 'role': 'admin'})
     if class_teacher_user:
         recipients.append({'id': class_teacher_user.id, 'name': class_teacher_user.get_full_name() or class_teacher_user.username, 'role': 'class teacher'})
+    for c in clerk_users:
+        recipients.append({'id': c.id, 'name': c.get_full_name() or c.username, 'role': 'clerk'})
     # Determine selected recipient
     recipient_id = request.GET.get('recipient')
+    recipient_role = (request.GET.get('recipient_role') or '').strip().lower()
     selected_user = None
+    # Prefer explicit id selection
     for r in recipients:
-        if str(r['id']) == str(recipient_id):
+        if recipient_id and str(r['id']) == str(recipient_id):
             selected_user = r
             break
+    # If role hint provided and no explicit id match, pick first by role
+    if not selected_user and recipient_role:
+        for r in recipients:
+            if r.get('role','').lower() == recipient_role:
+                selected_user = r
+                break
     # Load chat history
     chat_history = []
     if selected_user:

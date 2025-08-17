@@ -2,30 +2,44 @@
 <link rel="icon" type="image/x-icon" href="/static/dashboards/favicon.ico">
 {% block content %}
 
-{% if current_term %}
-<div class="alert alert-success mb-3">
-  <strong>Current Term:</strong> {{ current_term.name }} ({{ current_term.start_date|date:"M d, Y" }} to {{ current_term.end_date|date:"M d, Y" }}) in Academic Year {{ current_term.academic_year.year }}
-</div>
-{% endif %}
-<h1>Analytics</h1>
+<style>
+  /* Classic finance analytics look */
+  .finance-analytics { background: #fff; padding: 8px 8px 24px 8px; border-radius: 8px; }
+  .finance-analytics h1 { font-weight: 600; color: #2c3e50; display: flex; align-items: center; gap: .5rem; }
+  .finance-analytics h1 .icon { display: inline-flex; width: 34px; height: 34px; border-radius: 50%; align-items: center; justify-content: center; background: #e9ecef; color: #0d6efd; }
+  .analytic-card { border: 1px solid #e5e7eb; border-radius: .5rem; box-shadow: none; }
+  .analytic-card .card-header { border-bottom: 1px solid #e5e7eb; background: #f8f9fa; }
+  .analytic-stat { text-align: center; }
+  .analytic-stat .label { color: #6c757d; font-size: .9rem; }
+  .analytic-stat .value { font-size: 1.25rem; font-weight: 700; color: #2c3e50; }
+  .chart-title { font-weight: 600; color: #2c3e50; }
+</style>
+
+<div class="finance-analytics">
+  {% if current_term %}
+  <div class="alert alert-success mb-3">
+    <strong>Current Term:</strong> {{ current_term.name }} ({{ current_term.start_date|date:"M d, Y" }} to {{ current_term.end_date|date:"M d, Y" }}) in Academic Year {{ current_term.academic_year.year }}
+  </div>
+  {% endif %}
+  <h1><span class="icon"><i class="bi bi-graph-up"></i></span> Analytics</h1>
 
 <ul class="nav nav-tabs mb-4" id="analyticsTabs" role="tablist">
   <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance" type="button" role="tab" aria-controls="performance" aria-selected="true">
+    <button class="nav-link" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance" type="button" role="tab" aria-controls="performance" aria-selected="false">
       Performance
     </button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="fees-tab" data-bs-toggle="tab" data-bs-target="#fees" type="button" role="tab" aria-controls="fees" aria-selected="false">
+    <button class="nav-link active" id="fees-tab" data-bs-toggle="tab" data-bs-target="#fees" type="button" role="tab" aria-controls="fees" aria-selected="true">
       Fees
     </button>
   </li>
 </ul>
 <div class="tab-content" id="analyticsTabsContent">
-  <div class="tab-pane fade show active" id="performance" role="tabpanel" aria-labelledby="performance-tab">
+  <div class="tab-pane fade" id="performance" role="tabpanel" aria-labelledby="performance-tab">
     <!-- Performance Analytics Content -->
   <div class="col-lg-8">
-    <div class="card">
+    <div class="card analytic-card">
       <div class="card-header bg-info text-white">
         <h5 class="mb-0">Average Performance per Subject</h5>
       </div>
@@ -35,7 +49,7 @@
     </div>
   </div>
   <div class="col-lg-4">
-    <div class="card">
+    <div class="card analytic-card">
       <div class="card-header bg-light">
         <h6 class="mb-0">Table View</h6>
       </div>
@@ -61,9 +75,9 @@
 </div>
 
   </div>
-  <div class="tab-pane fade" id="fees" role="tabpanel" aria-labelledby="fees-tab">
+  <div class="tab-pane fade show active" id="fees" role="tabpanel" aria-labelledby="fees-tab">
     <!-- Fees Analytics Content -->
-    <div class="card">
+    <div class="card analytic-card">
       <div class="card-header bg-light">
         <h5 class="mb-0">Fee Analytics</h5>
       </div>
@@ -71,32 +85,51 @@
       <div class="card-body">
         <div class="row">
           <div class="col-md-4">
-            <div class="card mb-3">
-              <div class="card-body text-center">
-                <h6 class="mb-2">Total Fees Assigned</h6>
-                <div style="font-size:1.3rem;font-weight:bold;">Ksh. {{ total_assigned|floatformat:2 }}</div>
+            <div class="card mb-3 analytic-card">
+              <div class="card-body analytic-stat">
+                <div class="label mb-1">Total Fees Assigned</div>
+                <div class="value">Ksh. {{ total_assigned|floatformat:2 }}</div>
                 <hr>
-                <h6 class="mb-2">Total Paid</h6>
-                <div style="font-size:1.3rem;font-weight:bold; color: #16a085;">Ksh. {{ total_paid|floatformat:2 }}</div>
+                <div class="label mb-1">Total Paid</div>
+                <div class="value" style="color:#16a085">Ksh. {{ total_paid|floatformat:2 }}</div>
                 <hr>
-                <h6 class="mb-2">Payment Percentage</h6>
-                <div style="font-size:1.5rem;font-weight:bold;">{{ payment_percentage }}%</div>
+                <div class="label mb-1">Payment Percentage</div>
+                <div class="value">{{ payment_percentage }}%</div>
               </div>
             </div>
           </div>
           <div class="col-md-4">
-            <div class="card mb-3">
+            <div class="card mb-3 analytic-card">
               <div class="card-body">
-                <h6 class="mb-2">Paid vs Unpaid</h6>
+                <h6 class="mb-2 chart-title">Paid vs Unpaid</h6>
                 <canvas id="feePieChart" height="180"></canvas>
               </div>
             </div>
           </div>
           <div class="col-md-4">
-            <div class="card mb-3">
+            <div class="card mb-3 analytic-card">
               <div class="card-body">
-                <h6 class="mb-2">Payments Over Time</h6>
+                <h6 class="mb-2 chart-title">Payments Over Time</h6>
                 <canvas id="feeBarChart" height="180"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Extra analytics row -->
+        <div class="row">
+          <div class="col-md-6">
+            <div class="card mb-3 analytic-card">
+              <div class="card-body">
+                <h6 class="mb-2 chart-title">Payments by Method</h6>
+                <canvas id="paymentMethodChart" height="200"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card mb-3 analytic-card">
+              <div class="card-body">
+                <h6 class="mb-2 chart-title">Outstanding by Class (Top 10)</h6>
+                <canvas id="classOutstandingChart" height="200"></canvas>
               </div>
             </div>
           </div>
@@ -116,8 +149,16 @@
 <script id="pieData" type="application/json">{{ pie_data|safe }}</script>
 <script id="barLabels" type="application/json">{{ bar_labels|safe }}</script>
 <script id="barData" type="application/json">{{ bar_data|safe }}</script>
+<script id="methodLabels" type="application/json">{{ method_labels|safe }}</script>
+<script id="methodData" type="application/json">{{ method_data|safe }}</script>
+<script id="classOutLabels" type="application/json">{{ class_out_labels|safe }}</script>
+<script id="classOutData" type="application/json">{{ class_out_data|safe }}</script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
+    // Global chart defaults (classic)
+    Chart.defaults.font.family = 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+    Chart.defaults.color = '#2c3e50';
+
     // Subject Performance Chart
     const ctx = document.getElementById('subjectPerformanceChart').getContext('2d');
     const subjectLabels = JSON.parse(document.getElementById('subjectLabels').textContent);
@@ -127,8 +168,8 @@
       datasets: [{
         label: 'Average Score',
         data: avgScores,
-        backgroundColor: 'rgba(54, 162, 235, 0.6)',
-        borderColor: 'rgba(54, 162, 235, 1)',
+        backgroundColor: 'rgba(13, 110, 253, .2)',
+        borderColor: 'rgba(13, 110, 253, 1)',
         borderWidth: 1
       }]
     };
@@ -158,7 +199,7 @@
     // Pie Chart (Paid vs Unpaid)
     const pieLabels = JSON.parse(document.getElementById('pieLabels').textContent);
     const pieData = JSON.parse(document.getElementById('pieData').textContent);
-    const pieColors = ['#16a085', '#e74c3c'];
+    const pieColors = ['#0d6efd', '#6c757d'];
     const feePieCtx = document.getElementById('feePieChart').getContext('2d');
     new Chart(feePieCtx, {
       type: 'pie',
@@ -189,19 +230,30 @@
         datasets: [{
           label: 'Total Paid',
           data: barData,
-          backgroundColor: '#16a085',
+          backgroundColor: 'rgba(13, 110, 253, .6)',
+          borderColor: 'rgba(13, 110, 253, 1)',
+          borderWidth: 1,
         }]
       },
       options: {
         responsive: true,
         plugins: {
           legend: { display: false },
-          title: { display: false }
+          title: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const v = ctx.parsed.y ?? ctx.parsed;
+                return ' Ksh ' + new Intl.NumberFormat('en-KE').format(v);
+              }
+            }
+          }
         },
         scales: {
           y: {
             beginAtZero: true,
-            title: { display: true, text: 'Amount Paid' }
+            title: { display: true, text: 'Amount Paid (Ksh)' },
+            ticks: { callback: (v) => new Intl.NumberFormat('en-KE').format(v) }
           },
           x: {
             title: { display: true, text: 'Month' }
@@ -209,6 +261,70 @@
         }
       }
     });
+
+    // Payments by Method (doughnut)
+    const methodLabels = JSON.parse(document.getElementById('methodLabels').textContent || '[]');
+    const methodData = JSON.parse(document.getElementById('methodData').textContent || '[]');
+    const methodCtx = document.getElementById('paymentMethodChart').getContext('2d');
+    new Chart(methodCtx, {
+      type: 'doughnut',
+      data: {
+        labels: methodLabels,
+        datasets: [{
+          data: methodData,
+          backgroundColor: ['#0d6efd', '#198754', '#6c757d', '#0dcaf0', '#ffc107', '#dc3545']
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const v = ctx.parsed ?? 0;
+                return ctx.label + ': Ksh ' + new Intl.NumberFormat('en-KE').format(v);
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Outstanding by Class (Top 10)
+    const classOutLabels = JSON.parse(document.getElementById('classOutLabels').textContent || '[]');
+    const classOutData = JSON.parse(document.getElementById('classOutData').textContent || '[]');
+    const classOutCtx = document.getElementById('classOutstandingChart').getContext('2d');
+    new Chart(classOutCtx, {
+      type: 'bar',
+      data: {
+        labels: classOutLabels,
+        datasets: [{
+          label: 'Outstanding',
+          data: classOutData,
+          backgroundColor: 'rgba(220, 53, 69, .7)',
+          borderColor: 'rgba(220, 53, 69, 1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ' Ksh ' + new Intl.NumberFormat('en-KE').format(ctx.parsed.y)
+            }
+          }
+        },
+        scales: {
+          y: { beginAtZero: true, title: { display: true, text: 'Ksh' }, ticks: { callback: (v) => new Intl.NumberFormat('en-KE').format(v) } },
+          x: { title: { display: true, text: 'Class' } }
+        }
+      }
+    });
   });
 </script>
+
+</div> <!-- /.finance-analytics -->
 {% endblock %}

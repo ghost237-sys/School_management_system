@@ -88,13 +88,62 @@
             </div>
         </div>
     </div>
+    <!-- Ranking Widgets -->
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-md-4">
+        <div class="card border-0" style="background:#f8f9fa;">
+          <div class="card-body d-flex align-items-center">
+            <div class="metric-icon me-3" style="font-size:1.5rem;"><i class="fa fa-trophy text-warning"></i></div>
+            <div>
+              <div class="metric-title">Class Rank</div>
+              <div class="metric-value">
+                {% if class_rank %} {{ class_rank }} <small class="text-muted">/ {{ class_total }}</small>{% else %} N/A {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card border-0" style="background:#f8f9fa;">
+          <div class="card-body d-flex align-items-center">
+            <div class="metric-icon me-3" style="font-size:1.5rem;"><i class="fa fa-sitemap text-primary"></i></div>
+            <div>
+              <div class="metric-title">Stream Rank</div>
+              <div class="metric-value">
+                {% if stream_rank %} {{ stream_rank }} <small class="text-muted">/ {{ stream_total }}</small>{% else %} N/A {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card border-0" style="background:#f8f9fa;">
+          <div class="card-body d-flex align-items-center">
+            <div class="metric-icon me-3" style="font-size:1.5rem;"><i class="fa fa-globe text-success"></i></div>
+            <div>
+              <div class="metric-title">Overall Level Rank</div>
+              <div class="metric-value">
+                {% if overall_level_rank %} {{ overall_level_rank }} <small class="text-muted">/ {{ overall_level_total }}</small>{% else %} N/A {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- Profile and Info Section -->
     <div class="row">
         <div class="col-lg-4 mb-4">
             <div class="card">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
     <strong>User Profile</strong>
-    <a href="{% url 'student_messaging' %}" class="btn btn-outline-success btn-sm">Message Admin/Class Teacher</a>
+    <div class="d-flex gap-2">
+        <a href="{% url 'student_messaging' %}" class="btn btn-outline-success btn-sm">
+            Message Admin/Class Teacher
+        </a>
+        <a href="{% url 'student_messaging' %}?recipient_role=clerk" class="btn btn-outline-primary btn-sm">
+            Message Clerk
+        </a>
+    </div>
                     <button class="btn btn-sm btn-outline-secondary float-end" title="Close" onclick="this.closest('.card').remove();">&times;</button>
                 </div>
                 <div class="card-body text-center">
@@ -211,6 +260,94 @@
           <button type="submit" name="update_contact" class="btn btn-primary">Save Changes</button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- Attendance Section -->
+<div class="card mb-4" id="attendance-section">
+  <div class="card-header bg-light d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+    <strong class="me-md-3">Attendance</strong>
+    <form method="get" class="ms-md-auto d-flex align-items-center gap-2">
+      <label for="att_term" class="form-label mb-0">Term</label>
+      <select name="att_term" id="att_term" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for t in attendance_terms %}
+          <option value="{{ t.id }}" {% if attendance_current_term_id == t.id %}selected{% endif %}>
+            {{ t.name }} - {{ t.academic_year.year }}
+          </option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  <div class="card-body">
+    <div class="row g-2 mb-3">
+      <div class="col-6 col-md-2">
+        <div class="border rounded p-2 text-center">
+          <div class="text-muted" style="font-size: .85rem;">Total Lessons</div>
+          <div class="fw-bold">{{ attendance_summary.total }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="border rounded p-2 text-center">
+          <div class="text-muted" style="font-size: .85rem;">Present</div>
+          <div class="fw-bold text-success">{{ attendance_summary.present }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="border rounded p-2 text-center">
+          <div class="text-muted" style="font-size: .85rem;">Absent</div>
+          <div class="fw-bold text-danger">{{ attendance_summary.absent }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="border rounded p-2 text-center">
+          <div class="text-muted" style="font-size: .85rem;">Late</div>
+          <div class="fw-bold text-warning">{{ attendance_summary.late }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="border rounded p-2 text-center">
+          <div class="text-muted" style="font-size: .85rem;">Excused</div>
+          <div class="fw-bold text-info">{{ attendance_summary.excused }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="border rounded p-2 text-center">
+          <div class="text-muted" style="font-size: .85rem;">Attendance Rate</div>
+          <div class="fw-bold">{{ attendance_summary.rate }}%</div>
+        </div>
+      </div>
+    </div>
+    <div class="table-responsive-mobile">
+      <table class="table table-sm table-striped align-middle">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Subject</th>
+            <th>Status</th>
+            <th>Teacher</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for att in attendance_records %}
+            <tr>
+              <td>{{ att.date|date:'Y-m-d' }}</td>
+              <td>{{ att.subject.name }}</td>
+              <td>
+                {% if att.status == 'present' %}<span class="badge bg-success">Present</span>
+                {% elif att.status == 'absent' %}<span class="badge bg-danger">Absent</span>
+                {% elif att.status == 'late' %}<span class="badge bg-warning text-dark">Late</span>
+                {% elif att.status == 'excused' %}<span class="badge bg-info text-dark">Excused</span>
+                {% else %}{{ att.status|title }}{% endif %}
+              </td>
+              <td>{{ att.teacher.user.get_full_name|default:att.teacher.user.username }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="text-center">No attendance records found for the selected term.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -440,6 +577,24 @@ if (actionChooseModal) {
     }
   });
 }
+
+// Auto-activate tabs from URL param: ?tab=performance
+document.addEventListener('DOMContentLoaded', function(){
+  const params = new URLSearchParams(window.location.search || '');
+  const tab = params.get('tab');
+  if (!tab) return;
+  try {
+    const tabBtn = document.getElementById(`${tab}-tab`);
+    if (tabBtn) {
+      const t = new bootstrap.Tab(tabBtn);
+      t.show();
+      // Optionally scroll into view
+      setTimeout(() => {
+        document.getElementById(tab)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    }
+  } catch(e) { /* ignore */ }
+});
 
 // Download the same sections as PDF
 function downloadSection(sectionId, title) {

@@ -2,56 +2,70 @@
 {% block title %}Subjects{% endblock %}
 {% block content %}
 
-<h1 class="mb-4">Subjects</h1>
-<!-- Departments List Placeholder -->
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+  <h1 class="mb-0">Subjects</h1>
+  <div class="d-flex gap-2">
+    <a href="{% url 'admin_subject_components' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-diagram-2 me-1"></i> Manage Components
+    </a>
+    <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#addSubjectFormCollapse" aria-expanded="false" aria-controls="addSubjectFormCollapse">
+      <i class="bi bi-plus-circle me-1"></i> Add Subject
+    </button>
+  </div>
+  
+  <div class="ms-auto mt-3 w-100" style="max-width: 420px;">
+    <input id="subjectFilter" class="form-control" type="search" placeholder="Search subjects, departments, teachers..." aria-label="Search">
+  </div>
+</div>
+
 {% if departments %}
   <div class="mb-3">
     <strong>Departments:</strong>
     {% for dept in departments %}
-      <span class="badge bg-secondary">{{ dept }}</span>
+      <span class="badge bg-secondary me-1">{{ dept }}</span>
     {% endfor %}
   </div>
 {% endif %}
-<!-- Add Subject Button & Form -->
-<div class="mb-4">
-  <button class="btn btn-primary mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#addSubjectFormCollapse" aria-expanded="false" aria-controls="addSubjectFormCollapse">
-    <i class="bi bi-plus-circle me-1"></i> Add Subject
-  </button>
-  <div class="collapse" id="addSubjectFormCollapse">
-    <div class="card card-body">
-      <form method="post" action="" class="row g-3">
-        {% csrf_token %}
-        <input type="hidden" name="add_subject" value="1">
-        <div class="col-md-6">
-          <label for="id_name" class="form-label">Subject Name</label>
-          {{ add_subject_form.name }}
-          {% if add_subject_form.name.errors %}
-            <div class="text-danger small">{{ add_subject_form.name.errors.0 }}</div>
-          {% endif %}
-        </div>
-        <div class="col-md-6">
-          <label for="id_department" class="form-label">Department</label>
-          {{ add_subject_form.department }}
-          {% if add_subject_form.department.errors %}
-            <div class="text-danger small">{{ add_subject_form.department.errors.0 }}</div>
-          {% endif %}
-        </div>
-        <div class="col-12">
-          <button type="submit" class="btn btn-success">Add Subject</button>
-        </div>
-      </form>
-    </div>
+
+<!-- Add Subject Form -->
+<div class="collapse" id="addSubjectFormCollapse">
+  <div class="card card-body mb-4">
+    <form method="post" action="" class="row g-3">
+      {% csrf_token %}
+      <input type="hidden" name="add_subject" value="1">
+      <div class="col-md-6">
+        <label for="id_name" class="form-label">Subject Name</label>
+        {{ add_subject_form.name }}
+        {% if add_subject_form.name.errors %}
+          <div class="text-danger small">{{ add_subject_form.name.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-md-6">
+        <label for="id_department" class="form-label">Department</label>
+        {{ add_subject_form.department }}
+        {% if add_subject_form.department.errors %}
+          <div class="text-danger small">{{ add_subject_form.department.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-success">Add Subject</button>
+      </div>
+    </form>
   </div>
+  
 </div>
+
 <!-- Subjects Table -->
 <div class="card">
   <div class="card-body">
     <div class="table-responsive">
-      <table class="table table-striped table-bordered align-middle mb-0">
+      <table id="subjectsTable" class="table table-striped table-bordered align-middle mb-0">
         <thead class="table-dark">
           <tr>
             <th>Subject</th>
             <th>Department</th>
+            <th>Type</th>
+            <th>Components</th>
             <th>Assigned Teachers</th>
             <th>Actions</th>
           </tr>
@@ -59,29 +73,70 @@
         <tbody>
           {% for subject in subjects %}
           <tr>
-            <td>{{ subject.name }}</td>
+            <td>
+              {{ subject.name }}
+            </td>
             <td>{{ subject.department.name|default:'—' }}</td>
+            <td>
+              {% if subject.is_composite %}
+                <span class="badge bg-warning text-dark">Composite</span>
+              {% elif subject.is_child %}
+                <span class="badge bg-light text-dark border">Component</span>
+              {% else %}
+                <span class="badge bg-success">Atomic</span>
+              {% endif %}
+            </td>
+            <td>
+              {% with subject.subject_components.count as comp_count %}
+                {% if comp_count %}
+                  <span class="badge bg-primary">{{ comp_count }} child{{ comp_count|pluralize }}</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              {% endwith %}
+            </td>
             <td>
               {% if subject.teachers %}
                 {% for teacher in subject.teachers %}
-                  <span class="badge bg-info text-dark">{{ teacher.user.get_full_name|default:teacher.user.username }}</span>
+                  <span class="badge rounded-pill bg-info text-dark me-1 mb-1">{{ teacher.user.get_full_name|default:teacher.user.username }}</span>
                 {% endfor %}
               {% else %}
                 <span class="text-muted">No teachers assigned</span>
               {% endif %}
             </td>
-            <td>
-              <a href="{% url 'manage_subject_grading' subject.id %}" class="btn btn-outline-primary btn-sm">
-                <i class="bi bi-pencil-square"></i> Manage Grading
+            <td class="text-nowrap">
+              <a href="{% url 'manage_subject_grading' subject.id %}" class="btn btn-outline-primary btn-sm me-1 mb-1">
+                <i class="bi bi-sliders"></i> Manage Grading
+              </a>
+              <a href="{% url 'admin_subject_components' %}?parent={{ subject.id }}" class="btn btn-outline-secondary btn-sm mb-1">
+                <i class="bi bi-diagram-2"></i> Components
               </a>
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="4">No subjects available.</td></tr>
+          <tr><td colspan="6">No subjects available.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
 </div>
+
+<script>
+  // Simple client-side filter for the subjects table
+  (function() {
+    const input = document.getElementById('subjectFilter');
+    if (!input) return;
+    const table = document.getElementById('subjectsTable');
+    const rows = () => Array.from(table.querySelectorAll('tbody tr'));
+    input.addEventListener('input', function() {
+      const q = this.value.toLowerCase();
+      rows().forEach(tr => {
+        const text = tr.innerText.toLowerCase();
+        tr.style.display = text.includes(q) ? '' : 'none';
+      });
+    });
+  })();
+</script>
+
 {% endblock %}

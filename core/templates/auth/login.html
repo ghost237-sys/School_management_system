@@ -1,53 +1,498 @@
 {% extends 'base.html' %}
 
 {% block title %}Analitica - Login{% endblock %}
+{% load static %}
+
+{% block extra_head %}
+<style>
+  /* Hero gradient backdrop */
+  .auth-hero {
+    min-height: 100vh;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 85%, #fff) 0%, var(--bg) 100%);
+    display: grid; place-items: center; padding: 2rem; overflow: hidden;
+  }
+
+  /* Glass card */
+  .glass-card {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 420px;
+    border-radius: 14px; border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: 0 8px 24px rgba(15,23,42,.06);
+    backdrop-filter: blur(10px) saturate(140%);
+    opacity: 0; transform: translateY(8px);
+    animation: enter .35s ease forwards;
+  }
+  @keyframes enter { to { opacity: 1; transform: translateY(0) } }
+  .brand-title { font-weight: 800; letter-spacing: .4px; }
+  .subtitle { color: var(--muted); font-size: .95rem }
+
+  /* Inputs with icons */
+  .input-icon .input-group-text { border-right: 0; }
+  .input-icon .form-control { border-left: 0; }
+  .input-icon .form-control:focus { z-index: 2; }
+
+  /* Primary gradient button */
+  .btn-gradient {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 92%, black) 0%, var(--secondary) 100%);
+    border: none; color: #fff; box-shadow: 0 8px 20px rgba(31,111,235,.22);
+  }
+  .btn-gradient:hover { filter: brightness(.96); }
+
+  /* Small links */
+  .muted-link { color: var(--muted); text-decoration: none; }
+  .muted-link:hover { color: var(--text); text-decoration: underline; }
+
+  @media (max-width: 480px) { .glass-card { border-radius: 14px } }
+
+  /* CapsLock indicator */
+  .caps-indicator { display:none; font-size:.8rem; color: var(--danger); }
+
+  /* (simplified) */
+
+  /* Two-column layout with a big robot */
+  .auth-wrap { display:grid; grid-template-columns: minmax(320px, 540px) 420px; gap: 2rem; align-items: center; }
+  @media (max-width: 992px) { .auth-wrap { grid-template-columns: 1fr; } }
+
+  .bot-stage { display:flex; align-items:center; gap:1rem; justify-content:space-between; flex-direction: row-reverse; position: relative; z-index: 3; }
+  .big-bot { position: relative; width: 360px; max-width: 42vw; aspect-ratio: 1/1; z-index: 3; margin-right: 0; cursor: pointer; }
+  @media (max-width: 1200px) { .big-bot { width: 300px } }
+  @media (max-width: 992px) { .bot-stage { justify-content:center } .big-bot { margin-right: 0 } }
+  .big-bot svg { width:100%; height:100%; filter: drop-shadow(0 10px 28px rgba(15,23,42,.12)); }
+  .big-bot .hand-right { transform-origin: 78% 58%; transform-box: fill-box; animation: hand-wave 3s ease-in-out infinite; transition: transform .28s ease; }
+  .big-bot .hand-left { transform-origin: 22% 58%; transform-box: fill-box; transition: transform .28s ease; }
+  .big-bot .bot-head { transform-origin: 50% 38%; transform-box: fill-box; transition: transform .28s ease; }
+  @keyframes hand-wave { 0%,100%{ transform: rotate(0deg) } 50%{ transform: rotate(-8deg) } }
+
+  /* (pointer removed per request) */
+
+  .bot-chat { max-width: 360px; margin-left: 0; margin-right: 12px; }
+  .bot-speech { position: relative; background: var(--surface); border:1px solid var(--border); border-radius: .75rem; padding:.75rem .9rem; box-shadow: 0 10px 22px rgba(15,23,42,.10); transition: opacity .28s ease, transform .28s ease, box-shadow .2s ease, border-color .2s ease; }
+  /* Comic bubble during guide */
+  .bot-speech.speak { border: 2px solid #ef4444; box-shadow: 0 8px 20px rgba(239,68,68,.08); }
+  .bot-speech.speak::before { content:""; position: absolute; right: -14px; top: 36px; width: 0; height: 0; border-left: 16px solid #ef4444; border-top: 10px solid transparent; border-bottom: 10px solid transparent; }
+  .bot-speech.speak::after { content:""; position: absolute; right: -12px; top: 37px; width: 0; height: 0; border-left: 14px solid var(--surface); border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
+  /* Show speech bubble by default */
+  #botSpeech { display:block }
+  .bot-speech.hidden { opacity: 0; transform: translateY(6px) scale(.985); pointer-events: none; }
+  #botSay { color: var(--muted); font-size:.9rem; }
+
+  /* Bored pose when help is hidden */
+  .big-bot.bored .hand-right { animation: none; transform: rotate(65deg) translateY(6px); transition: transform .25s ease; }
+  .big-bot.bored .hand-left { transform: rotate(-65deg) translateY(6px); transition: transform .25s ease; }
+  .big-bot.bored .bot-head { transform: rotate(20deg) translateX(12px) translateY(2px); transition: transform .25s ease; }
+
+  /* Collapsible help panel */
+  #helpPanel { display:none; border:1px solid var(--border); border-radius:.8rem; padding: .75rem; background: color-mix(in srgb, var(--surface) 96%, transparent); }
+  .steps { list-style:none; padding-left:0; margin:0 }
+  .steps li { display:flex; align-items:flex-start; gap:.6rem; padding:.4rem 0 }
+  .steps .num { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-weight:600; font-size:.8rem; color:#fff; background: var(--primary) }
+  .steps .txt { color: var(--muted); font-size:.92rem }
+
+  /* Glow highlight for guided steps (soft blue aura) */
+  .highlight {
+    position: relative; z-index: 2; outline: none;
+    /* outer glow rings to simulate margin glow */
+    box-shadow:
+      0 0 0 4px rgba(59,130,246,.28),
+      0 0 0 10px rgba(59,130,246,.12),
+      0 6px 18px rgba(15,23,42,.08);
+    transition: box-shadow .2s ease;
+    animation: glow-breathe 1.8s ease-in-out infinite;
+  }
+  @keyframes glow-breathe { 0%, 100% { box-shadow:
+      0 0 0 4px rgba(59,130,246,.28),
+      0 0 0 10px rgba(59,130,246,.12),
+      0 6px 18px rgba(15,23,42,.08); }
+    50% { box-shadow:
+      0 0 0 6px rgba(59,130,246,.24),
+      0 0 0 14px rgba(59,130,246,.10),
+      0 8px 22px rgba(15,23,42,.10); }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container vh-100 d-flex justify-content-center align-items-center">
-    <div class="col-md-5">
-        <div class="card p-4 shadow-lg border-0">
-            <div class="card-body">
-                <h2 class="card-title text-center mb-4 text-primary">Analitica Login</h2>
-
-                {% if form.errors %}
-                    <div class="alert alert-danger">
-                        Your username, password, or role was incorrect. Please try again.
-                    </div>
-                {% endif %}
-
-                {% if messages %}
-                    {% for message in messages %}
-                        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-
-                <form method="post" action="{% url 'login' %}">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="id_username" class="form-label">Username</label>
-                        <input type="text" name="username" class="form-control" id="id_username" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="id_password" class="form-label">Password</label>
-                        <input type="password" name="password" class="form-control" id="id_password" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="id_role" class="form-label">Role</label>
-                        <select name="role" class="form-select" id="id_role" required>
-                            <option value="" disabled selected>Select Role</option>
-                            <option value="admin">Admin</option>
-                            <option value="teacher">Teacher</option>
-                            <option value="student">Student</option>
-                        </select>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">Login</button>
-                    </div>
-                    <input type="hidden" name="next" value="{{ request.GET.next }}">
-                </form>
-
+<section class="auth-hero">
+  <div class="auth-wrap">
+    <div class="bot-stage">
+      <div class="big-bot">
+        <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- Shadow -->
+          <ellipse cx="200" cy="370" rx="90" ry="14" fill="#000" opacity="0.08"/>
+          <!-- Body -->
+          <g>
+            <rect x="120" y="190" width="160" height="130" rx="60" fill="#EEF3F9" stroke="#D7DFEA"/>
+            <!-- Left hand (chat side) -->
+            <g class="hand-left" fill="#EEF3F9" stroke="#D7DFEA">
+              <rect x="60" y="230" width="60" height="24" rx="12"/>
+              <circle cx="60" cy="242" r="14"/>
+            </g>
+            <!-- Right hand (HTML overlay will extend from the palm) -->
+            <g class="hand-right" fill="#EEF3F9" stroke="#D7DFEA">
+              <!-- Shoulder + palm -->
+              <rect x="280" y="230" width="60" height="24" rx="12"/>
+              <circle cx="340" cy="242" r="14"/>
+            </g>
+          </g>
+          <!-- Head -->
+          <g class="bot-head">
+            <rect x="100" y="100" width="200" height="120" rx="60" fill="#FFFFFF" stroke="#D7DFEA"/>
+            <rect x="120" y="115" width="160" height="90" rx="36" fill="#0F172A"/>
+            <!-- School logo inside face -->
+            <clipPath id="faceClip"><rect x="120" y="115" width="160" height="90" rx="36"/></clipPath>
+            <image href="{% static 'branding/logo.png' %}" x="145" y="125" width="110" height="70" preserveAspectRatio="xMidYMid meet" clip-path="url(#faceClip)" onerror="this.setAttribute('href','/media/branding/favicon.jpg')"/>
+          </g>
+          <!-- Small lights -->
+          <circle cx="220" cy="92" r="10" fill="var(--primary)"/>
+          <rect x="195" y="88" width="10" height="20" rx="5" fill="var(--primary)"/>
+        </svg>
+        
+        
+      </div>
+      <div class="bot-chat">
+        <div id="botSpeech" class="bot-speech speak">
+          <div id="botSay" role="status" aria-live="polite">Tip: Enter your username to get started.</div>
+          <div id="helpPanel" class="mt-2">
+            <ul class="steps mb-2">
+              <li><span class="num">1</span><span class="txt">Type your <strong>Username</strong> exactly as provided.</span></li>
+              <li><span class="num">2</span><span class="txt">Enter your <strong>Password</strong>. Use the eye icon to peek.</span></li>
+              <li><span class="num">3</span><span class="txt">Choose your <strong>Role</strong> (Admin, Teacher, Student, or Clerk).</span></li>
+              <li><span class="num">4</span><span class="txt">Click <strong>Login</strong>. If it’s disabled, complete required fields.</span></li>
+            </ul>
+            <div class="d-flex gap-2">
+              <button id="startGuide" class="btn btn-secondary btn-sm"><i class="bi bi-play-circle me-1"></i>Start guide</button>
+              <button id="stopGuide" class="btn btn-outline-secondary btn-sm" disabled><i class="bi bi-stop-circle me-1"></i>Stop</button>
+              <button id="toggleHelp" class="btn btn-light btn-sm"><i class="bi bi-chat-dots me-1"></i>Hide</button>
             </div>
+          </div>
         </div>
+      </div>
     </div>
-</div>
+    <div class="glass-card p-4 p-md-5">
+    <div class="text-center mb-3">
+      <div class="mb-2">
+        <i class="bi bi-shield-lock" style="font-size:2rem;color:var(--primary);"></i>
+      </div>
+      <h2 class="brand-title mb-1">Analitica Login</h2>
+      <div class="subtitle">Welcome back. Please sign in to continue.</div>
+    </div>
+
+    <!-- Bot moves outside; helper content removed from inside card -->
+
+    {% if form.errors %}
+      <div class="alert alert-danger" role="alert">
+        Your username, password, or role was incorrect. Please try again.
+      </div>
+    {% endif %}
+
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}" role="alert">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post" action="{% url 'login' %}" autocomplete="on">
+      {% csrf_token %}
+
+      <div class="mb-3 input-icon">
+        <label for="id_username" class="form-label">Username</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-person"></i></span>
+          <input type="text" name="username" class="form-control highlight" id="id_username" placeholder="e.g. johndoe" required>
+        </div>
+      </div>
+
+      <div class="mb-3 input-icon">
+        <div class="d-flex justify-content-between align-items-center">
+          <label for="id_password" class="form-label mb-0">Password</label>
+          <a href="#" class="muted-link small" tabindex="-1">Forgot password?</a>
+        </div>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-lock"></i></span>
+          <input type="password" name="password" class="form-control" id="id_password" placeholder="Your secure password" required autocomplete="current-password">
+          <button class="btn btn-outline-secondary" type="button" id="togglePassword" aria-label="Show password"><i class="bi bi-eye"></i></button>
+        </div>
+        <div id="capsIndicator" class="caps-indicator mt-1"><i class="bi bi-exclamation-triangle me-1"></i>Caps Lock is on</div>
+      </div>
+
+      <div class="mb-4">
+        <label for="id_role" class="form-label">Role</label>
+        <select name="role" class="form-select" id="id_role" required>
+          <option value="" disabled selected>Select Role</option>
+          <option value="admin">Admin</option>
+          <option value="teacher">Teacher</option>
+          <option value="student">Student</option>
+          <option value="clerk">Clerk</option>
+        </select>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" value="1" id="rememberMe" name="remember">
+          <label class="form-check-label" for="rememberMe">Keep me signed in</label>
+        </div>
+        <span></span>
+      </div>
+
+      <div class="d-grid gap-2">
+        <button id="submitBtn" type="submit" class="btn btn-primary py-2" disabled>
+          <span class="btn-label">Login</span>
+          <span class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true"></span>
+        </button>
+      </div>
+      <input type="hidden" name="next" value="{{ request.GET.next }}">
+    </form>
+
+    <div class="text-center mt-4">
+      <span class="small text-muted">Tip: You can switch to dark mode anytime using the moon button.</span>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    const toggle = document.getElementById('togglePassword');
+    const input = document.getElementById('id_password');
+    const caps = document.getElementById('capsIndicator');
+    const roleSelect = document.getElementById('id_role');
+    const username = document.getElementById('id_username');
+    const submitBtn = document.getElementById('submitBtn');
+    const spinner = submitBtn.querySelector('.spinner-border');
+    const btnLabel = submitBtn.querySelector('.btn-label');
+    const rememberMe = document.getElementById('rememberMe');
+    const botSay = document.getElementById('botSay');
+    const toggleHelp = document.getElementById('toggleHelp');
+    const helpPanel = document.getElementById('helpPanel');
+    const botSpeech = document.getElementById('botSpeech');
+    const startGuide = document.getElementById('startGuide');
+    const stopGuide = document.getElementById('stopGuide');
+    const stepsList = helpPanel ? helpPanel.querySelector('.steps') : null;
+    const bigBot = document.querySelector('.big-bot');
+
+    if (toggle && input) {
+      toggle.addEventListener('click', function(){
+        const isPw = input.getAttribute('type') === 'password';
+        input.setAttribute('type', isPw ? 'text' : 'password');
+        this.querySelector('i').className = isPw ? 'bi bi-eye-slash' : 'bi bi-eye';
+        this.setAttribute('aria-label', isPw ? 'Hide password' : 'Show password');
+      });
+
+      // Press-and-hold peek
+      const show = () => { input.setAttribute('type', 'text'); toggle.querySelector('i').className = 'bi bi-eye-slash'; };
+      const hide = () => { input.setAttribute('type', 'password'); toggle.querySelector('i').className = 'bi bi-eye'; };
+      toggle.addEventListener('mousedown', show);
+      toggle.addEventListener('mouseup', hide);
+      toggle.addEventListener('mouseleave', hide);
+      toggle.addEventListener('touchstart', e => { e.preventDefault(); show(); }, {passive:false});
+      toggle.addEventListener('touchend', hide);
+    }
+
+    // CapsLock indicator
+    const capCheck = (e) => {
+      if (!caps) return;
+      const on = e.getModifierState && e.getModifierState('CapsLock');
+      caps.style.display = on ? 'block' : 'none';
+    };
+    input.addEventListener('keyup', capCheck);
+    input.addEventListener('keydown', capCheck);
+
+    // (strength meter removed for a simpler UI)
+
+    // Enable submit when valid
+    function validate(){
+      const ok = username.value.trim() && input.value.trim() && roleSelect.value;
+      submitBtn.disabled = !ok;
+    }
+    ['input','change','keyup'].forEach(evt => {
+      username.addEventListener(evt, validate);
+      input.addEventListener(evt, validate);
+      roleSelect.addEventListener(evt, validate);
+    });
+    validate();
+
+    // Loading state on submit
+    const form = document.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', function(){
+        submitBtn.disabled = true;
+        spinner.classList.remove('d-none');
+        btnLabel.textContent = 'Signing in...';
+      });
+    }
+
+    // Remember username/role using localStorage (not password)
+    try {
+      const savedUser = localStorage.getItem('login_username');
+      const savedRole = localStorage.getItem('login_role');
+      if (savedUser) username.value = savedUser;
+      if (savedRole) { roleSelect.value = savedRole; }
+      validate();
+
+      rememberMe.addEventListener('change', function(){
+        if (this.checked) {
+          localStorage.setItem('login_username', username.value.trim());
+          localStorage.setItem('login_role', roleSelect.value);
+        } else {
+          localStorage.removeItem('login_username');
+          localStorage.removeItem('login_role');
+        }
+      });
+      // Update stored username/role if user edits while checked
+      ['input','change'].forEach(evt => {
+        username.addEventListener(evt, () => { if (rememberMe.checked) localStorage.setItem('login_username', username.value.trim()); });
+      });
+    } catch(e) { /* storage may be blocked; ignore */ }
+
+    // Helper: typewriter tips
+    const tips = [
+      'Tip: Enter your username to get started.',
+      'Tip: Click the eye icon to check your password.',
+      'Tip: Pick the correct role before logging in.',
+      'Secure: Avoid using public devices to save credentials.'
+    ];
+    let tipIdx = 0, typing;
+    function typeLine(text){
+      if (!botSay) return;
+      botSay.textContent = '';
+      let i = 0;
+      clearInterval(typing);
+      typing = setInterval(() => {
+        botSay.textContent = text.slice(0, ++i);
+        if (i >= text.length) clearInterval(typing);
+      }, 18);
+    }
+    function cycleTips(){ tipIdx = (tipIdx + 1) % tips.length; typeLine(tips[tipIdx]); }
+    setInterval(cycleTips, 5000);
+    typeLine(tips[0]);
+
+    // Ensure speech bubble and first highlight are visible on load
+    try {
+      botSpeech.style.display = 'block';
+      helpPanel.style.display = 'block';
+      botSpeech.classList.add('speak');
+      // Default focus/highlight on username
+      username?.focus();
+      username?.classList.add('highlight');
+    } catch(e) {}
+
+    // Toggle help speech bubble (smooth animation via class)
+    toggleHelp.addEventListener('click', () => {
+      const hiddenNow = botSpeech.classList.contains('hidden');
+      if (hiddenNow) {
+        // Show bubble
+        botSpeech.classList.remove('hidden');
+        helpPanel.style.display = 'block';
+        botSpeech.classList.add('speak');
+        if (bigBot) bigBot.classList.remove('bored');
+        // Auto-resume if it was guiding before hide
+        if (wasGuiding) { resumeGuidedCycle(); }
+        else if (!isGuiding && stepsList) { stepsList.style.display = 'block'; }
+      } else {
+        // Hide bubble: stop guide and clear highlight
+        botSpeech.classList.add('hidden');
+        if (bigBot) bigBot.classList.add('bored');
+        wasGuiding = isGuiding; // remember state
+        clearInterval(guideTimer);
+        isGuiding = false;
+        clearHighlight();
+        startGuide.disabled = false; stopGuide.disabled = true;
+        if (stepsList) stepsList.style.display = 'block';
+      }
+    });
+
+    // Tap the bot to toggle bubble (hide/unhide)
+    if (bigBot) {
+      bigBot.addEventListener('click', () => {
+        const hiddenNow = botSpeech.classList.contains('hidden');
+        if (hiddenNow) {
+          // Show bubble and auto-resume if it was running
+          botSpeech.classList.remove('hidden');
+          helpPanel.style.display = 'block';
+          botSpeech.classList.add('speak');
+          bigBot.classList.remove('bored');
+          if (wasGuiding) { resumeGuidedCycle(); }
+          else if (!isGuiding && stepsList) { stepsList.style.display = 'block'; }
+        } else {
+          // Hide bubble and pause guide/highlights
+          botSpeech.classList.add('hidden');
+          bigBot.classList.add('bored');
+          wasGuiding = isGuiding; // remember if we should auto-resume
+          clearInterval(guideTimer);
+          isGuiding = false;
+          clearHighlight();
+          startGuide.disabled = false; stopGuide.disabled = true;
+          if (stepsList) stepsList.style.display = 'block';
+        }
+      });
+    }
+
+    // Guided highlight (strong red outline)
+    const steps = [
+      { el: username, say: 'Step 1: Enter your username.' },
+      { el: input, say: 'Step 2: Enter your password. Use the eye to peek.' },
+      { el: roleSelect, say: 'Step 3: Select your role.' },
+      { el: submitBtn, say: 'Step 4: Click Login to continue.' }
+    ];
+    let guideTimer = null, guideIndex = 0, isGuiding = false, wasGuiding = false;
+    const GUIDE_INTERVAL = 3000; // slower, smoother pacing
+    function clearHighlight(){ steps.forEach(s => s.el.classList.remove('highlight')); }
+    function runStep(){
+      clearHighlight();
+      const s = steps[guideIndex];
+      if (!s) return;
+      s.el.classList.add('highlight');
+      if (s.el.focus) s.el.focus();
+      typeLine(`Step ${guideIndex + 1}: ${s.say.replace(/^Step\s*\d+:\s*/i, '')}`);
+      guideIndex = (guideIndex + 1) % steps.length;
+    }
+    function resumeGuidedCycle(){
+      // Continue from current guideIndex without resetting
+      startGuide.disabled = true; stopGuide.disabled = false;
+      botSpeech.classList.add('speak');
+      if (stepsList) stepsList.style.display = 'none';
+      if (bigBot) bigBot.classList.remove('bored');
+      runStep();
+      clearInterval(guideTimer);
+      guideTimer = setInterval(runStep, GUIDE_INTERVAL);
+      isGuiding = true; wasGuiding = false;
+    }
+    function startGuidedCycle(){
+      startGuide.disabled = true; stopGuide.disabled = false;
+      botSpeech.classList.remove('hidden');
+      helpPanel.style.display = 'block';
+      botSpeech.classList.add('speak');
+      if (stepsList) stepsList.style.display = 'none'; // show only one step at a time
+      if (bigBot) bigBot.classList.remove('bored');
+      guideIndex = 0; runStep();
+      guideTimer = setInterval(runStep, GUIDE_INTERVAL);
+      isGuiding = true;
+    }
+    startGuide.addEventListener('click', () => {
+      startGuidedCycle();
+    });
+    stopGuide.addEventListener('click', () => {
+      startGuide.disabled = false; stopGuide.disabled = true;
+      clearInterval(guideTimer); clearHighlight();
+      typeLine(tips[tipIdx]);
+      botSpeech.classList.remove('speak');
+      if (stepsList) stepsList.style.display = 'block';
+      isGuiding = false;
+    });
+
+    // If the user manually focuses a field, keep the highlight consistent
+    ;[username, input, roleSelect, submitBtn].forEach(el => {
+      el.addEventListener('focus', () => {
+        clearHighlight(); el.classList.add('highlight');
+      });
+    });
+
+    // Autostart guide every time
+    setTimeout(() => {
+      startGuidedCycle();
+    }, 150);
+  });
+</script>
 {% endblock %}

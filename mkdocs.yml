@@ -1,0 +1,50 @@
+site_name: School Management System
+site_description: Documentation for the School Management System (Django)
+site_url: 
+repo_url: 
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - content.code.copy
+    - toc.integrate
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+  # Place your branding assets under docs/assets/branding/
+  # If logo is missing, the site will show the title instead.
+  logo: assets/branding/logo.png
+  favicon: assets/branding/favicon.jpg
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - User Guide:
+      - Admin: user-guide/admin.md
+      - Teacher: user-guide/teacher.md
+  - Developer Guide:
+      - Overview: developer-guide/overview.md
+  - Integrations:
+      - M-Pesa (Daraja): integrations/mpesa.md
+  - Troubleshooting: troubleshooting.md
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+  - def_list
+  - attr_list
+  - pymdownx.details
+  - pymdownx.superfences
+
+plugins:
+  - search
+
+extra:
+  social: []

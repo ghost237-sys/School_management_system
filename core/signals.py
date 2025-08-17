@@ -149,3 +149,84 @@ def notify_teachers_on_timetable_update(sender, instance: DefaultTimetable, **kw
             logger.info("Timetable email notices sent to %d teacher(s)", len(teacher_emails))
         except Exception as e:
             logger.error("Timetable email send failed: %s", e)
+
+
+# --- Limit admin to 2 concurrent devices/sessions ---
+from django.contrib.auth.signals import user_logged_in
+from django.contrib.sessions.models import Session
+
+
+@receiver(user_logged_in)
+def limit_role_concurrent_sessions(sender, user, request, **kwargs):
+    """
+    Keep at most 2 active sessions for admin users.
+    Strategy: on every successful login, set a login timestamp in the current session,
+    then enumerate all sessions and prune the oldest ones for this user beyond the limit.
+    """
+    try:
+        # Enforce per-role session limits
+        if not isinstance(user, User):
+            return
+        role = getattr(user, 'role', None) or 'user'
+        limits = getattr(settings, 'ROLE_SESSION_LIMITS', {})
+        limit = int(limits.get(role, limits.get('default', 2)))
+        # Ensure at least 1
+        if limit < 1:
+            limit = 1
+
+        # Mark current session with a login timestamp for ordering
+        try:
+            if request and hasattr(request, 'session'):
+                request.session['login_ts'] = timezone.now().isoformat()
+                request.session.modified = True
+        except Exception:
+            pass
+
+        # Gather all sessions that belong to this user
+        sessions = []
+        for s in Session.objects.filter(expire_date__gt=timezone.now()):
+            try:
+                data = s.get_decoded()
+                uid = data.get('_auth_user_id')
+                if uid and str(uid) == str(user.pk):
+                    login_ts = data.get('login_ts')
+                    sessions.append((s, login_ts))
+            except Exception:
+                # Skip corrupt/undecodable sessions
+                continue
+
+        # If within limit, nothing to do
+        if len(sessions) <= limit:
+            return
+
+        # Sort by login_ts (newest first); fall back to expire_date then session_key
+        def sort_key(item):
+            s, ts = item
+            # parse ts to datetime if possible
+            dt = None
+            if ts:
+                try:
+                    dt = timezone.datetime.fromisoformat(ts)
+                    if timezone.is_naive(dt):
+                        dt = timezone.make_aware(dt, timezone.get_current_timezone())
+                except Exception:
+                    dt = None
+            return (
+                0 if dt else 1,  # prefer those with timestamp
+                -(dt.timestamp()) if dt else 0,
+                s.expire_date or timezone.now(),
+                s.session_key,
+            )
+
+        sessions.sort(key=sort_key)
+
+        # Keep top 'limit' sessions, delete the rest
+        to_delete = sessions[limit:]
+        for s, _ in to_delete:
+            try:
+                s.delete()
+            except Exception:
+                continue
+    except Exception as e:
+        # Never break login flow due to pruning issues
+        logger.error("Admin session limit enforcement failed: %s", e)

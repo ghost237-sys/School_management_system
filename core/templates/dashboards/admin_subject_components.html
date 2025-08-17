@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Manage Composite Subjects</h3>
+    <div>
+      <a href="{% url 'admin_subjects' %}" class="btn btn-outline-secondary btn-sm">Back to Subjects</a>
+    </div>
+  </div>
+
+  {# Subject selector #}
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-md-6">
+      <select name="subject_id" class="form-select" required>
+        <option value="">-- Select Parent Subject --</option>
+        {% for s in subjects %}
+          <option value="{{ s.id }}" {% if selected_subject and s.id == selected_subject.id %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary">Load</button>
+    </div>
+  </form>
+
+  {% if selected_subject %}
+    <div class="card">
+      <div class="card-header">
+        <strong>Parent:</strong> {{ selected_subject.name }}
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="subject_id" value="{{ selected_subject.id }}">
+
+          {{ formset.management_form }}
+
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th style="width:60%">Child Subject</th>
+                  <th style="width:20%">Weight</th>
+                  <th style="width:20%">Delete</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for form in formset.forms %}
+                  <tr>
+                    <td>{{ form.child }}</td>
+                    <td>{{ form.weight }}</td>
+                    <td>
+                      {% if form.instance.pk %}
+                        {{ form.DELETE }}
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% if form.non_field_errors %}
+                    <tr><td colspan="3" class="text-danger small">{{ form.non_field_errors }}</td></tr>
+                  {% endif %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success">Save Components</button>
+            <a class="btn btn-outline-secondary" href="{% url 'admin_subject_components' %}?subject_id={{ selected_subject.id }}">Reset</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="alert alert-info mt-3">
+      <div class="fw-bold">Notes</div>
+      <ul class="mb-0">
+        <li>Composite (parent) subject totals are computed by summing child subject scores multiplied by their weights.</li>
+        <li>Child-only subjects are hidden on result slips to avoid double counting.</li>
+      </ul>
+    </div>
+  {% else %}
+    <div class="alert alert-secondary">Select a parent subject above to manage its child components.</div>
+  {% endif %}
+</div>
+{% endblock %}

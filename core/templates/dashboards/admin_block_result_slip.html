@@ -1,0 +1,384 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+{% load dict_extras %}
+{% block title %}Block Result Slip{% endblock %}
+{% block content %}
+<div class="container py-3 compact-page">
+  <style>
+    /* Screen styles */
+    .rs-table-wrap { max-height: 70vh; overflow: auto; border: 1px solid #cfcfcf; border-radius: .25rem; background: #fff; padding-right: 12px; margin-right: 8px; }
+    /* Make table width scale with number of subjects so horizontal scroll fits all */
+    .rs-table { min-width: calc(700px + var(--subject-count, 8) * 110px); font-size: .95rem; }
+    /* Tighter rows on screen */
+    .rs-table th, .rs-table td { padding: .35rem .5rem; white-space: nowrap; line-height: 1.05; border: 1px solid #c9c9c9; }
+    .rs-table thead th { background: #f2f2f2; border-bottom: 2px solid #bdbdbd; }
+    /* Remove bootstrap stripes/hover to match print */
+    .table-striped>tbody>tr:nth-of-type(odd) { --bs-table-accent-bg: transparent; background-color: #fff !important; }
+    .table-hover>tbody>tr:hover { --bs-table-accent-bg: transparent; background-color: #fff !important; }
+    /* Cell alignment like print */
+    .rs-table td.subject-col { text-align: center; }
+    .rs-table td.col-total, .rs-table td.col-total-points, .rs-table th.col-total, .rs-table th.col-total-points { text-align: right; font-weight: 600; }
+    /* Keep sticky columns with visible separators */
+    .sticky-rank, .sticky-student, .sticky-class { box-shadow: 2px 0 0 #d0d0d0; }
+    /* Wider subject columns on screen */
+    .rs-table th.subject-col, .rs-table td.subject-col { min-width: 110px; text-align: center; }
+    .rs-table thead th { position: sticky; top: 0; z-index: 4; background: #f8fafc; }
+    .sticky-rank, .sticky-student, .sticky-class, .sticky-right, .sticky-right-2 { position: sticky; background: #fff; z-index: 3; }
+    .sticky-rank { left: 0; width: 4rem; text-align: center; }
+    .sticky-student { left: 4rem; width: 260px; }
+    /* Shift class column to start after the Student column (nudged right more) */
+    .sticky-class { left: calc(4rem + 260px + 24px); width: 140px; }
+    .sticky-right { right: 12px; }
+    .sticky-right-2 { right: calc(12px + 5.5rem); }
+    .col-total, .col-total-points { width: 5.5rem; text-align: right; }
+
+    /* Print styles */
+    @media print {
+      @page { size: landscape; margin: 0.25in; }
+      html, body { width: 100% !important; height: auto !important; }
+      body { font-size: 12pt !important; }
+      .d-print-none, .navbar, .sidebar, .toolbar, .slip { display: none !important; }
+      /* Only print the consolidated block results section */
+      body * { visibility: hidden !important; }
+      .print-root, .print-root * { visibility: visible !important; }
+      .print-root { position: absolute !important; inset: 0 !important; margin: 0 !important; padding: 0 !important; transform: none !important; }
+      .container, .compact-page { padding: 0 !important; margin: 0 !important; box-shadow: none !important; max-width: none !important; width: 100% !important; }
+      .rs-table-wrap { max-height: none !important; overflow: visible !important; border: 0 !important; width: 100% !important; }
+      .rs-table { width: 100% !important; min-width: 0 !important; table-layout: fixed !important; border-collapse: collapse !important; }
+      /* Tighter rows on print */
+      .rs-table th, .rs-table td { border: 1px solid #ccc !important; padding: 3.5pt 5pt !important; line-height: 1.1 !important; white-space: normal !important; text-align: left !important; background: #fff !important; color: #000 !important; }
+      /* Wider subject columns on print */
+      .rs-table th.subject-col, .rs-table td.subject-col { min-width: 90pt; text-align: center !important; }
+      .rs-table thead th { background-color: #f2f2f2 !important; font-weight: 600; }
+      .rs-table th { vertical-align: middle !important; }
+      .rs-table tfoot th { background-color: #f2f2f2 !important; font-weight: 600 !important; }
+      .badge { display: none !important; }
+      .sticky-rank, .sticky-student, .sticky-class, .sticky-right, .sticky-right-2 { position: static !important; }
+      th.sticky-rank, td.sticky-rank { width: 4%; text-align: center !important; }
+      th.sticky-student, td.sticky-student { width: 30%; }
+      th.sticky-class, td.sticky-class { width: 12%; }
+      th.col-total, td.col-total, th.col-total-points, td.col-total-points { width: 6%; text-align: right !important; }
+      /* Reduce header bottom margin to save space */
+      .print-root .d-print-block.mb-4 { margin-bottom: 6pt !important; }
+    }
+  </style>
+
+  <div class="row g-2 align-items-center mb-2 toolbar">
+    <div class="col-12 col-lg-auto">
+      <h2 class="mb-0">Block Result Slips</h2>
+      <small class="text-muted d-block">Level {{ class_obj.level|default:level }} · Term: {{ selected_term.name }} · Exam: {{ selected_exam.name }}</small>
+    </div>
+    <div class="col-12 col-lg d-flex justify-content-start">
+      <div class="d-flex align-items-center gap-2 search-bar w-100" style="max-width:520px;">
+        <input id="blockSearchInput" type="text" class="form-control form-control-sm" placeholder="Search student name or ADM..." aria-label="Search student">
+        <button id="blockSearchBtn" type="button" class="btn btn-primary btn-sm">Search</button>
+        <button id="blockPrevBtn" type="button" class="btn btn-outline-secondary btn-sm">Prev</button>
+        <button id="blockNextBtn" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+        <span id="blockSearchStatus" class="text-muted small" aria-live="polite"></span>
+      </div>
+    </div>
+  </div>
+  <div class="d-flex justify-content-start mb-2 d-print-none">
+    <button class="btn btn-outline-primary btn-print" onclick="window.print()">Print All</button>
+  </div>
+
+  {# Empty-state banner when no done exam is available/selected #}
+  {% if not selected_exam %}
+    <div class="alert alert-warning d-print-none" role="alert">
+      No done exams are available for the selected term/level, or none has been selected. Results will appear once an exam is done.
+    </div>
+  {% endif %}
+
+  {% if all_students_ranked %}
+    {# Level-wide consolidated list (like class result list) #}
+    <div class="print-root">
+      <div class="d-none d-print-block text-center mb-4">
+      <h4 class="mb-1">EduTrack School Manager</h4>
+      <h5 class="mb-1">Block Result Slip</h5>
+      <p class="mb-0 text-muted">Level {{ class_obj.level|default:level }} · Term: {{ selected_term.name }} · Exam: {{ selected_exam.name }}</p>
+      </div>
+      <div class="rs-table-wrap" style="--subject-count: {{ subjects|length }};">
+      <table id="blockResultsTable" class="table table-striped table-hover align-middle rs-table" data-subject-count="{{ subjects|length }}">
+        <thead class="table-light">
+          <tr>
+            <th class="sticky-rank">Rank</th>
+            <th class="sticky-student">Student</th>
+            <th class="sticky-class">Class</th>
+            {% for subject in subjects %}
+              <th class="text-center subject-col" style="vertical-align: middle; padding-bottom: .25rem;">
+                <span class="d-print-none">{{ subject.name }}</span>
+                <span class="d-none d-print-block">{{ subject.name }}</span>
+              </th>
+            {% endfor %}
+            <th class="sticky-right-2 col-total">Total</th>
+            <th class="sticky-right col-total-points">Total Points</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for student in all_students_ranked %}
+          <tr class="result-row" data-name="{{ student.user.get_full_name|default:student.user.username }}" data-adm="{% firstof student.admission_number student.admission_no student.adm_no %}">
+            <td class="sticky-rank fw-semibold">{{ ranks|get_item:student.id }}</td>
+            <td class="sticky-student fw-semibold">{{ student.user.get_full_name|default:student.user.username }}</td>
+            <td class="sticky-class">{{ student.class_group.name }}</td>
+            {% for subject in subjects %}
+              <td class="subject-col">
+                {% with grade=grades|dict_get:student.id|dict_get:subject.id %}
+                  {% if grade %}
+                    {{ grade.score|floatformat:1 }}{% if grade.grade_letter %} <span class="badge bg-info text-dark badge-grade">{{ grade.grade_letter }}</span>{% endif %}
+                  {% else %}
+                    <span class="text-muted"></span>
+                  {% endif %}
+                {% endwith %}
+              </td>
+            {% endfor %}
+            <td class="fw-semibold text-end sticky-right-2 col-total">{{ totals|get_item:student.id|default:0|floatformat:1 }}</td>
+            <td class="fw-semibold text-end sticky-right col-total-points">{{ points_dict|get_item:student.id|default:0 }}</td>
+          </tr>
+          {% empty %}
+            <tr><td colspan="100%">No students found.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="table-light">
+            <th class="sticky-rank"></th>
+            <th class="sticky-student">Mean</th>
+            <th class="sticky-class"></th>
+            {% for subject in subjects %}
+              <th class="text-center subject-col mean-subj" data-subj-index="{{ forloop.counter0 }}">—</th>
+            {% endfor %}
+            <th class="sticky-right-2 col-total mean-total">—</th>
+            <th class="sticky-right col-total-points mean-points">—</th>
+          </tr>
+        </tfoot>
+      </table>
+      </div>
+    </div>
+  {% endif %}
+
+  {# Individual student slips (for screen view only) #}
+  <div class="slips-container d-none d-print-none">
+    {% if classes %}
+      {# Multiple classes at same level #}
+      {% for c in classes %}
+        <h5 class="mt-4 mb-2">Class: {{ c.name }}</h5>
+        {% with student_list=students_by_class|get_item:c.id %}
+          {% if student_list %}
+            {% for student in student_list %}
+              <section class="slip mb-4" data-name="{{ student.user.get_full_name|default:student.user.username }}" data-adm="{% firstof student.admission_number student.admission_no student.adm_no %}">
+                <div class="slip-header d-flex justify-content-between align-items-end">
+                  <div>
+                    <h4 class="mb-1">{{ student.user.get_full_name|default:student.user.username }}</h4>
+                    <div class="text-muted small">ADM: {% firstof student.admission_number student.admission_no student.adm_no %} · Rank: {{ ranks|get_item:student.id }}</div>
+                  </div>
+                  <div class="text-end small text-muted">
+                    <div>Class: {{ c.name }}</div>
+                    <div>Term: {{ selected_term.name }} ({{ selected_term.academic_year.year }})</div>
+                    <div>Exam: {{ selected_exam.name }}</div>
+                  </div>
+                </div>
+                <div class="table-responsive mt-3">
+                  <table class="table table-sm table-striped align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="min-width:180px">Subject</th>
+                        <th class="text-center" style="width:110px">Score</th>
+                        <th class="text-center" style="width:110px">Grade</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for subject in subjects %}
+                        {% with grade=grades|dict_get:student.id|dict_get:subject.id %}
+                          <tr>
+                            <td>
+                              <div class="d-print-none">
+                                {% for char in subject.name %}
+                                  <div style="line-height:1.1; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg);">{{ char }}</div>
+                                {% endfor %}
+                              </div>
+                              <span class="d-none d-print-block">{{ subject.name }}</span>
+                              <small class="text-muted d-block">({% if subject.code == 'TELAG_NLC_A' or subject.code == 'SC_TELAG_NLC_A' %}INT-SCI{% else %}{{ subject.code }}{% endif %})</small>
+                            </td>
+                            <td class="text-center">{% if grade %}{{ grade.score|floatformat:1 }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                            <td class="text-center">{% if grade and grade.grade_letter %}<span class="badge bg-info text-dark fw-semibold">{{ grade.grade_letter }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                          </tr>
+                        {% endwith %}
+                      {% endfor %}
+                    </tbody>
+                    <tfoot>
+                      <tr class="table-light">
+                        <th>Summary</th>
+                        <th class="text-center">Avg: {{ averages|get_item:student.id|floatformat:1 }}</th>
+                        <th class="text-center">Pts: {{ points_sums|get_item:student.id }}</th>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </section>
+            {% endfor %}
+          {% else %}
+            <div class="alert alert-light">No students in {{ c.name }}.</div>
+          {% endif %}
+        {% endwith %}
+      {% endfor %}
+  {% elif students %}
+    {# Fallback: single class provided #}
+    {% for student in students %}
+      <section class="slip mb-4" data-name="{{ student.user.get_full_name|default:student.user.username }}" data-adm="{% firstof student.admission_number student.admission_no student.adm_no %}">
+        <div class="slip-header d-flex justify-content-between align-items-end">
+          <div>
+            <h4 class="mb-1">{{ student.user.get_full_name|default:student.user.username }}</h4>
+            <div class="text-muted small">ADM: {% firstof student.admission_number student.admission_no student.adm_no %} · Rank: {{ ranks|get_item:student.id }}</div>
+          </div>
+          <div class="text-end small text-muted">
+            <div>Class: {{ class_obj.name }}</div>
+            <div>Term: {{ selected_term.name }} ({{ selected_term.academic_year.year }})</div>
+            <div>Exam: {{ selected_exam.name }}</div>
+          </div>
+        </div>
+
+        <div class="table-responsive mt-3">
+          <table class="table table-sm table-striped align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="min-width:180px">Subject</th>
+                <th class="text-center" style="width:110px">Score</th>
+                <th class="text-center" style="width:110px">Grade</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for subject in subjects %}
+                {% with grade=grades|dict_get:student.id|dict_get:subject.id %}
+                  <tr>
+                    <td>
+                      {% if subject.code == 'TELAG_NLC_A' or subject.code == 'SC_TELAG_NLC_A' %}INT-SCI{% else %}{{ subject.name }}{% endif %}
+                      <small class="text-muted d-block">({% if subject.code == 'TELAG_NLC_A' or subject.code == 'SC_TELAG_NLC_A' %}INT-SCI{% else %}{{ subject.code }}{% endif %})</small>
+                    </td>
+                    <td class="text-center">{% if grade %}{{ grade.score|floatformat:1 }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                    <td class="text-center">{% if grade and grade.grade_letter %}<span class="badge bg-info text-dark fw-semibold">{{ grade.grade_letter }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                  </tr>
+                {% endwith %}
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr class="table-light">
+                <th>Summary</th>
+                <th class="text-center">Avg: {{ averages|get_item:student.id|floatformat:1 }}</th>
+                <th class="text-center">Pts: {{ points_sums|get_item:student.id }}</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+    {% endfor %}
+  {% else %}
+    <div class="alert alert-info">No students found for this selection.</div>
+  {% endif %}
+</div>
+
+<script>
+// Block results search with auto-search and Prev/Next navigation (works for flat table rows)
+(function(){
+  const input = document.getElementById('blockSearchInput');
+  const btn = document.getElementById('blockSearchBtn');
+  const prevBtn = document.getElementById('blockPrevBtn');
+  const nextBtn = document.getElementById('blockNextBtn');
+  const statusEl = document.getElementById('blockSearchStatus');
+  if (!input || !btn) return;
+  function rowNodes(){
+    const rows = Array.from(document.querySelectorAll('tr.result-row'));
+    if (rows.length) return rows;
+    // fallback to slip sections when present
+    return Array.from(document.querySelectorAll('.slip'));
+  }
+  function norm(s){ return (s||'').toString().toLowerCase().trim(); }
+  let matches = []; let idx = -1;
+  function collect(q){
+    const out = [];
+    for (const el of rowNodes()) {
+      const name = norm(el.getAttribute('data-name'));
+      const adm = norm(el.getAttribute('data-adm'));
+      if ((name && name.includes(q)) || (adm && adm.includes(q))) out.push(el);
+    }
+    return out;
+  }
+  function clear(){ document.querySelectorAll('.search-hit').forEach(el=>el.classList.remove('search-hit','search-current')); }
+  function apply(){
+    clear();
+    if (!matches.length){ if(statusEl) statusEl.textContent = input.value? 'No match':''; setNav(); return; }
+    matches.forEach(s=>s.classList.add('search-hit'));
+    if (idx<0 || idx>=matches.length) idx = 0;
+    const cur = matches[idx];
+    cur.classList.add('search-current');
+    cur.scrollIntoView({behavior:'smooth', block:'center'});
+    if (statusEl) statusEl.textContent = (idx+1)+' / '+matches.length;
+    setNav();
+  }
+  function setNav(){ const dis = !matches.length; if(prevBtn) prevBtn.disabled=dis; if(nextBtn) nextBtn.disabled=dis; }
+  function run(focusFirst=true){ const q = norm(input.value); matches = q? collect(q):[]; idx = matches.length? (focusFirst?0:Math.min(idx, matches.length-1)):-1; apply(); }
+  function go(d){ if(!matches.length) return; idx=(idx+d+matches.length)%matches.length; apply(); }
+  btn.addEventListener('click', ()=>run(true));
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); run(true);} });
+  let t; input.addEventListener('input', ()=>{ clearTimeout(t); t=setTimeout(()=>run(false), 250); });
+  if(prevBtn) prevBtn.addEventListener('click', ()=>go(-1));
+  if(nextBtn) nextBtn.addEventListener('click', ()=>go(1));
+})();
+</script>
+<script>
+// Compute mean scores per subject and totals and fill the footer row
+(function(){
+  function toNum(text){
+    const n = parseFloat(String(text).replace(/[^0-9.\-]/g,'').trim());
+    return isNaN(n) ? null : n;
+  }
+  function computeMeans(){
+    const table = document.getElementById('blockResultsTable');
+    if(!table) return;
+    const subjCount = parseInt(table.getAttribute('data-subject-count')||'0',10);
+    const rows = Array.from(table.querySelectorAll('tbody tr.result-row'));
+    if(!rows.length || !subjCount) return;
+
+    const sums = new Array(subjCount).fill(0);
+    const counts = new Array(subjCount).fill(0);
+    let totalSum = 0, totalCnt = 0;
+    let pointsSum = 0, pointsCnt = 0;
+
+    rows.forEach(tr => {
+      const cells = Array.from(tr.querySelectorAll('td.subject-col'));
+      cells.forEach((td, i) => {
+        const num = toNum(td.textContent);
+        if(num !== null){ sums[i]+=num; counts[i]++; }
+      });
+      const totalCell = tr.querySelector('td.col-total');
+      const pointsCell = tr.querySelector('td.col-total-points');
+      const tnum = totalCell ? toNum(totalCell.textContent) : null;
+      const pnum = pointsCell ? toNum(pointsCell.textContent) : null;
+      if(tnum !== null){ totalSum += tnum; totalCnt++; }
+      if(pnum !== null){ pointsSum += pnum; pointsCnt++; }
+    });
+
+    const meanCells = Array.from(table.querySelectorAll('tfoot .mean-subj'));
+    meanCells.forEach((th,i)=>{
+      const mean = counts[i] ? (sums[i]/counts[i]) : null;
+      th.textContent = mean !== null ? mean.toFixed(1) : '—';
+    });
+    const meanTotalCell = table.querySelector('tfoot .mean-total');
+    const meanPointsCell = table.querySelector('tfoot .mean-points');
+    if(meanTotalCell) meanTotalCell.textContent = totalCnt ? (totalSum/totalCnt).toFixed(1) : '—';
+    if(meanPointsCell) meanPointsCell.textContent = pointsCnt ? Math.round(pointsSum/pointsCnt) : '—';
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', computeMeans);
+  } else {
+    computeMeans();
+  }
+  // expose for print hooks
+  window.__computeBlockMeans = computeMeans;
+})();
+</script>
+<script>
+// Recompute means right before printing to ensure values are up-to-date in preview
+window.addEventListener('beforeprint', function(){
+  if(window.__computeBlockMeans) try{ window.__computeBlockMeans(); }catch(e){}
+});
+</script>
+{% endblock %}

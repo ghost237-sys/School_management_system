@@ -50,6 +50,11 @@
         <option value="Mpesa Paybill">Mpesa Paybill</option>
     </select>
 </div>
+<div class="mb-3" id="reference_group">
+    <label for="reference" class="form-label">Reference / Receipt No.</label>
+    <input type="text" class="form-control" id="reference" name="reference" placeholder="e.g. Cash Receipt #123 or Bank Txn ABC123" maxlength="100">
+    <div class="form-text">Recommended for Bank deposits; optional for Cash.</div>
+</div>
 <div class="mb-3 d-none" id="phone_group">
     <label for="phone_number" class="form-label">Phone Number (for STK Push)</label>
     <input type="text" class="form-control" id="phone_number" name="phone_number" placeholder="e.g. 0712345678" pattern="^0[7][0-9]{8}$" maxlength="10" minlength="10" inputmode="numeric" aria-describedby="phoneHelp">
@@ -113,6 +118,7 @@
 window.addEventListener('DOMContentLoaded', function() {
     const paymentMethod = document.getElementById('payment_method');
     const phoneGroup = document.getElementById('phone_group');
+    const referenceGroup = document.getElementById('reference_group');
     const submitBtnText = document.getElementById('submitBtnText');
     const submitBtn = document.getElementById('submitBtn');
     const submitSpinner = document.getElementById('submitSpinner');
@@ -126,11 +132,19 @@ window.addEventListener('DOMContentLoaded', function() {
             document.getElementById('phone_number').required = true;
             if (submitBtnText) submitBtnText.textContent = 'Initiate Payment';
             console.log('Set button text to Initiate Payment');
+            if (referenceGroup) referenceGroup.classList.add('d-none');
+            const refInput = document.getElementById('reference');
+            if (refInput) refInput.required = false;
         } else if (paymentMethod && phoneGroup) {
             phoneGroup.classList.add('d-none');
             document.getElementById('phone_number').required = false;
             if (submitBtnText) submitBtnText.textContent = 'Record Payment';
             console.log('Set button text to Record Payment');
+            if (referenceGroup) referenceGroup.classList.remove('d-none');
+            const refInput = document.getElementById('reference');
+            if (refInput) {
+                refInput.required = (paymentMethod.value === 'Bank');
+            }
         }
     }
     if (paymentMethod && phoneGroup) {

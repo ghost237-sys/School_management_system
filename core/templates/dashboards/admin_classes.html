@@ -2,20 +2,36 @@
 {% block title %}Admin Classes{% endblock %}
 {% block content %}
 
-<h1 class="mb-4">Classes</h1>
-<!-- Add New Class Button & Form -->
+<h1 class="mb-4">Classes <span class="fs-5 text-muted">({{ class_list|length }})</span></h1>
+<style>
+  /* Page tweaks for readability */
+  .class-card .card-header { padding: .6rem .9rem; }
+  .class-card .card-body { padding: .9rem; }
+  .badge + .badge { margin-left: .35rem; }
+  .tiny-chart { max-height: 180px; }
+  .tab-content { padding-top: .75rem; }
+  .table-sm td, .table-sm th { padding: .35rem .5rem; }
+  .toolbar { position: sticky; top: .5rem; z-index: 2; background: var(--bs-body-bg); padding-bottom: .4rem; }
+  /* Scroll area for classes */
+  .classes-scroll { max-height: 70vh; overflow: auto; scroll-behavior: smooth; padding-right: .25rem; }
+  .classes-scroll::-webkit-scrollbar { width: .55rem; }
+  .classes-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,.2); border-radius: .5rem; }
+  .classes-scroll:hover::-webkit-scrollbar-thumb { background: rgba(0,0,0,.35); }
+</style>
+<!-- Add New Class Form (collapse target remains; trigger moved to toolbar) -->
 <div class="mb-4">
-  <button class="btn btn-primary mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#addClassFormCollapse" aria-expanded="false" aria-controls="addClassFormCollapse">
-    <i class="bi bi-plus-circle me-1"></i> Add New Class
-  </button>
   <div class="collapse" id="addClassFormCollapse">
-    <div class="card card-body">
+    <div class="card card-body border-0 shadow-sm rounded-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0">Add New Class</h6>
+        <span class="badge text-bg-light">Quick setup</span>
+      </div>
       <form method="post" action="" class="row g-3">
         {% csrf_token %}
         <input type="hidden" name="add_class" value="1">
         <div class="col-md-6">
-          <label for="id_level" class="form-label">Level</label>
-          <select class="form-select" name="level" required>
+          <label for="level_select" class="form-label">Level</label>
+          <select class="form-select" id="level_select" name="level" required>
             {% for i in "123456789" %}
               <option value="{{ i }}">{{ i }}</option>
             {% endfor %}
@@ -48,70 +64,85 @@
           <button type="submit" class="btn btn-success">Add Class</button>
         </div>
       </form>
+      <script>
+      // Sync Level and Year/Level selects both ways
+      document.addEventListener('DOMContentLoaded', function() {
+        const levelA = document.getElementById('level_select'); // manual Level
+        const levelB = document.getElementById('id_level');      // Year/Level from Django form
+        if (!levelA || !levelB) return;
+        // Initialize B from A if B is empty or different
+        try {
+          if (levelA.value && levelB.value !== levelA.value) levelB.value = levelA.value;
+        } catch(e){}
+        levelA.addEventListener('change', function(){ levelB.value = this.value; });
+        levelB.addEventListener('change', function(){ levelA.value = this.value; });
+      });
+      </script>
     </div>
   </div>
 </div>
-<!-- Quick Filter Buttons -->
-<div class="mb-3">
-  <div class="small text-muted mb-2">Quick Filters</div>
-  <div class="d-flex flex-wrap gap-3 align-items-center">
-    <div>
-      <span class="me-2">Level:</span>
-      <div class="btn-group btn-group-sm" role="group" aria-label="Level">
-        <button type="button" class="btn btn-outline-primary" data-level-filter="">All</button>
-        {% for i in "123456789" %}
-          <button type="button" class="btn btn-outline-primary" data-level-filter="{{ i }}">{{ i }}</button>
-        {% endfor %}
+<!-- Quick Filter Buttons + Add Button on one line -->
+<div class="mb-3 toolbar">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div class="d-flex flex-wrap gap-3 align-items-center">
+      <div>
+        <span class="me-2">Level:</span>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Level">
+          <button type="button" class="btn btn-outline-primary" data-level-filter="">All</button>
+          {% for i in "123456789" %}
+            <button type="button" class="btn btn-outline-primary" data-level-filter="{{ i }}">{{ i }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <span class="me-2">Stream:</span>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Stream">
+          <button type="button" class="btn btn-outline-success" data-stream-filter="">All</button>
+          <button type="button" class="btn btn-outline-success" data-stream-filter="east">East</button>
+          <button type="button" class="btn btn-outline-success" data-stream-filter="west">West</button>
+          <button type="button" class="btn btn-outline-success" data-stream-filter="north">North</button>
+          <button type="button" class="btn btn-outline-success" data-stream-filter="south">South</button>
+        </div>
       </div>
     </div>
-    <div>
-      <span class="me-2">Stream:</span>
-      <div class="btn-group btn-group-sm" role="group" aria-label="Stream">
-        <button type="button" class="btn btn-outline-success" data-stream-filter="">All</button>
-        <button type="button" class="btn btn-outline-success" data-stream-filter="east">East</button>
-        <button type="button" class="btn btn-outline-success" data-stream-filter="west">West</button>
-        <button type="button" class="btn btn-outline-success" data-stream-filter="north">North</button>
-        <button type="button" class="btn btn-outline-success" data-stream-filter="south">South</button>
-      </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'admin_graduated_students' %}">
+        <i class="bi bi-mortarboard"></i> Graduated Students
+      </a>
+      <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#addClassFormCollapse" aria-expanded="false" aria-controls="addClassFormCollapse">
+        <i class="bi bi-plus-circle me-1"></i> Add New Class
+      </button>
     </div>
   </div>
-  <div class="form-text">Filters apply instantly on the cards below.</div>
+  <div class="form-text mt-2">Filters apply instantly on the cards below.</div>
   <hr class="mt-2 mb-0"/>
 </div>
 <div class="card mb-4">
     <div class="card-header bg-secondary text-white">
-        <h5 class="mb-0">All Classes</h5>
+        <h5 class="mb-0">All Classes <span class="fw-normal">({{ class_list|length }})</span></h5>
     </div>
     <div class="card-body">
-        <div id="classesGrid" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mt-2">
+        <div class="classes-scroll">
+        <div id="classesGrid" class="row row-cols-1 row-cols-md-2 row-cols-lg-2 row-cols-xl-3 g-4 mt-2">
             {% for class in class_list %}
             <div class="col class-card" data-level="{{ class.level }}" data-stream="{{ class.name|lower }}">
                 <div class="card h-100 shadow-sm">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0">{{ class.name }} (Level {{ class.level }})</h5>
+                    <div class="card-header bg-light text-dark border-top border-primary border-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <h5 class="mb-0 fw-semibold">{{ class.name }} <span class="fw-normal text-muted">(Level {{ class.level }})</span></h5>
+                          <div class="d-none d-md-flex gap-1">
+                            <span class="badge bg-secondary">Total {{ class.total_students }}</span>
+                            <span class="badge bg-primary">Boys {{ class.boys_count }}</span>
+                            <span class="badge bg-danger">Girls {{ class.girls_count }}</span>
+                          </div>
+                        </div>
                     </div>
                     <div class="card-body">
-                        <div class="mb-2">
-                            <span class="badge bg-secondary me-1">Total: {{ class.total_students }}</span>
-                            <span class="badge bg-primary me-1">Boys: {{ class.boys_count }}</span>
-                            <span class="badge bg-danger">Girls: {{ class.girls_count }}</span>
-                        </div>
-                        <div class="mb-2 d-flex gap-2">
-                            <a href="{% url 'class_profile' class.id %}" class="btn btn-sm btn-info">View</a>
+                        <div class="d-flex flex-wrap gap-2 mb-2">
+                            <a href="{% url 'class_profile' class.id %}" class="btn btn-sm btn-outline-info">View</a>
                             <a href="{% url 'admin_class_result_slip' class.id %}" class="btn btn-sm btn-success">Result Slip</a>
-                            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editClassModal{{ class.id }}">Edit</button>
-                            <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteClassModal{{ class.id }}" {% if class.students or class.subjects_and_teachers|length > 0 %}disabled{% endif %}>Delete</button>
-                        </div>
-                        <div class="mb-2">
-                            <strong>Class Teacher:</strong>
-                            <span class="ms-2">{{ class.class_teacher|default:'Not assigned' }}</span>
-                        </div>
-                        <div class="mb-3">
-                            <div class="tiny-chart-container">
-  <canvas class="class-subject-chart tiny-chart" id="chart-{{ class.id }}" width="150" height="60"
-    data-chart='{"labels": [{% for sp in class.subject_performance %}{% if not forloop.first %}, {% endif %}{{ sp.subject|safe|json_script }}{% endfor %}], "scores": [{% for sp in class.subject_performance %}{% if not forloop.first %}, {% endif %}{{ sp.avg_score|default:0 }}{% endfor %}] }'>
-  </canvas>
-</div>
+                            <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#editClassModal{{ class.id }}">Edit</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteClassModal{{ class.id }}" {% if class.students or class.subjects_and_teachers|length > 0 %}disabled{% endif %}>Delete</button>
                         </div>
                         <!-- Edit Class Modal -->
                         <div class="modal fade" id="editClassModal{{ class.id }}" tabindex="-1" aria-labelledby="editClassModalLabel{{ class.id }}" aria-hidden="true">
@@ -183,67 +214,75 @@
                                 <button type="submit" class="btn btn-sm btn-success">Save</button>
                             </form>
                         </div>
-
-                        <h6>Assigned Teachers & Their Subjects:</h6>
-                        <table class="table table-bordered table-sm align-middle">
-                            <thead>
-                                <tr>
-                                    <th>Teacher</th>
-                                    <th>Subjects</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for st in class.subjects_and_teachers %}
-                                <tr>
-                                    <td>
-                                        {{ st.teacher.user.get_full_name|default:st.teacher.user.username }}
-                                    </td>
-                                    <td>
-                                        {% for subj in st.subjects %}
-                                            {{ subj.name }}{% if not forloop.last %}, {% endif %}
-                                        {% endfor %}
-                                    </td>
-                                    <td>
-                                        {% for subj in st.subjects %}
-                                        <button type="button" class="btn btn-sm btn-outline-primary ms-2 mb-1" data-bs-toggle="modal" data-bs-target="#assignSubjectTeacherModal{{ class.id }}{{ st.teacher.id }}{{ subj.id }}">Reassign</button>
-                                        <!-- Assign Subject Teacher Modal -->
-                                        <div class="modal fade" id="assignSubjectTeacherModal{{ class.id }}{{ st.teacher.id }}{{ subj.id }}" tabindex="-1" aria-labelledby="assignSubjectTeacherModalLabel{{ class.id }}{{ st.teacher.id }}{{ subj.id }}" aria-hidden="true">
-                                          <div class="modal-dialog">
-                                            <div class="modal-content">
-                                              <form method="post" action="">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="assign_teacher" value="1">
-                                                <input type="hidden" name="class_id" value="{{ class.id }}">
-                                                <input type="hidden" name="subject_id" value="{{ subj.id }}">
-                                                <div class="modal-header">
-                                                  <h5 class="modal-title" id="assignSubjectTeacherModalLabel{{ class.id }}{{ st.teacher.id }}{{ subj.id }}">Reassign Teacher for {{ subj.name }}</h5>
-                                                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <!-- Assignments (collapsible) -->
+                        <div class="d-flex align-items-center justify-content-between">
+                          <h6 class="mb-2">Assigned Teachers & Subjects</h6>
+                          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#assignmentsCollapse{{ class.id }}" aria-expanded="false" aria-controls="assignmentsCollapse{{ class.id }}">
+                            Assignments ▾
+                          </button>
+                        </div>
+                        <div class="collapse" id="assignmentsCollapse{{ class.id }}">
+                          <div class="table-responsive">
+                            <table class="table table-bordered table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Teacher</th>
+                                        <th>Subjects</th>
+                                        <th style="width: 160px;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for st in class.subjects_and_teachers %}
+                                    <tr>
+                                        <td>{{ st.teacher.user.get_full_name|default:st.teacher.user.username }}</td>
+                                        <td>
+                                            {% for subj in st.subjects %}
+                                                <span class="badge text-bg-light border mb-1">{{ subj.name }}</span>
+                                            {% endfor %}
+                                        </td>
+                                        <td>
+                                            {% for subj in st.subjects %}
+                                            <button type="button" class="btn btn-sm btn-outline-primary me-1 mb-1" data-bs-toggle="modal" data-bs-target="#assignSubjectTeacherModal{{ class.id }}{{ st.teacher.id }}{{ subj.id }}">Reassign</button>
+                                            <!-- Assign Subject Teacher Modal -->
+                                            <div class="modal fade" id="assignSubjectTeacherModal{{ class.id }}{{ st.teacher.id }}{{ subj.id }}" tabindex="-1" aria-labelledby="assignSubjectTeacherModalLabel{{ class.id }}{{ st.teacher.id }}{{ subj.id }}" aria-hidden="true">
+                                              <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                  <form method="post" action="">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="assign_teacher" value="1">
+                                                    <input type="hidden" name="class_id" value="{{ class.id }}">
+                                                    <input type="hidden" name="subject_id" value="{{ subj.id }}">
+                                                    <div class="modal-header">
+                                                      <h5 class="modal-title" id="assignSubjectTeacherModalLabel{{ class.id }}{{ st.teacher.id }}{{ subj.id }}">Reassign Teacher for {{ subj.name }}</h5>
+                                                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                      <select name="teacher_id" class="form-select teacher-fixed-subject" data-subject-id="{{ subj.id }}">
+                                                        <option value="">-- Leave blank to unassign --</option>
+                                                        {% for teacher in all_teachers %}
+                                                          <option value="{{ teacher.id }}" data-subjects="{% for s in teacher.subjects.all %}{{ s.id }}{% if not forloop.last %},{% endif %}{% endfor %}">
+                                                            {{ teacher.user.get_full_name|default:teacher.user.username }}
+                                                          </option>
+                                                        {% endfor %}
+                                                      </select>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                      <button type="submit" class="btn btn-primary">Assign</button>
+                                                    </div>
+                                                  </form>
                                                 </div>
-                                                <div class="modal-body">
-                                                  <select name="teacher_id" class="form-select" required>
-                                                    <option value="">-- Select Teacher --</option>
-                                                    {% for teacher in all_teachers %}
-                                                      <option value="{{ teacher.id }}">{{ teacher.user.get_full_name|default:teacher.user.username }}</option>
-                                                    {% endfor %}
-                                                  </select>
-                                                </div>
-                                                <div class="modal-footer">
-                                                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                  <button type="submit" class="btn btn-primary">Assign</button>
-                                                </div>
-                                              </form>
+                                              </div>
                                             </div>
-                                          </div>
-                                        </div>
-                                        {% endfor %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                        <!-- Button to assign a new teacher-subject pair -->
-                        <button type="button" class="btn btn-sm btn-outline-success mt-2" data-bs-toggle="modal" data-bs-target="#assignNewTeacherSubjectModal{{ class.id }}">Assign New Teacher & Subject</button>
+                                            {% endfor %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                          </div>
+                          <button type="button" class="btn btn-sm btn-outline-success mt-2" data-bs-toggle="modal" data-bs-target="#assignNewTeacherSubjectModal{{ class.id }}">Assign New Teacher & Subject</button>
+                        </div>
                         <div class="modal fade" id="assignNewTeacherSubjectModal{{ class.id }}" tabindex="-1" aria-labelledby="assignNewTeacherSubjectModalLabel{{ class.id }}" aria-hidden="true">
                           <div class="modal-dialog">
                             <div class="modal-content">
@@ -260,7 +299,7 @@
                                     <label for="subject_id_{{ class.id }}" class="form-label">Subject</label>
                                     <select name="subject_id" id="subject_id_{{ class.id }}" class="form-select" required>
                                       <option value="">-- Select Subject --</option>
-                                      {% for subject in all_subjects %}
+                                      {% for subject in class.available_subjects %}
                                         <option value="{{ subject.id }}">{{ subject.name }}</option>
                                       {% endfor %}
                                     </select>
@@ -270,7 +309,9 @@
                                     <select name="teacher_id" id="teacher_id_{{ class.id }}" class="form-select" required>
                                       <option value="">-- Select Teacher --</option>
                                       {% for teacher in all_teachers %}
-                                        <option value="{{ teacher.id }}">{{ teacher.user.get_full_name|default:teacher.user.username }}</option>
+                                        <option value="{{ teacher.id }}" data-subjects="{% for s in teacher.subjects.all %}{{ s.id }}{% if not forloop.last %},{% endif %}{% endfor %}">
+                                          {{ teacher.user.get_full_name|default:teacher.user.username }}
+                                        </option>
                                       {% endfor %}
                                     </select>
                                   </div>
@@ -283,16 +324,65 @@
                             </div>
                           </div>
                         </div>
-
-                            </tbody>
-                        </table>
                         <div class="mb-3"></div>
 
-                        <h6>Subject Performance:</h6>
-                        <canvas id="subjectPerformancePie-{{ class.id }}" height="180"></canvas>
-                        <script type="application/json" id="subjectPerformancePieData-{{ class.id }}">
-                            {"labels": [{% for perf in class.subject_performance %}{% if not forloop.first %}, {% endif %}"{{ perf.subject }}"{% endfor %}], "scores": [{% for perf in class.subject_performance %}{% if not forloop.first %}, {% endif %}{{ perf.avg_score|default:0 }}{% endfor %}]}
-                        </script>
+<script>
+// Filter teacher options based on selected subject in each "Assign New Teacher & Subject" modal
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('select[id^="subject_id_"]').forEach(function(subjSel) {
+    const classId = subjSel.id.replace('subject_id_', '');
+    const teacherSel = document.getElementById('teacher_id_' + classId);
+    if (!teacherSel) return;
+
+    // Cache original options
+    const originalOptions = Array.from(teacherSel.options);
+
+    function filterTeachers() {
+      const subjId = subjSel.value;
+      // Reset selection
+      teacherSel.value = '';
+      // Rebuild options: keep placeholder and those whose data-subjects includes subjId
+      teacherSel.innerHTML = '';
+      // Always add placeholder
+      const placeholder = originalOptions.find(o => o.value === '');
+      if (placeholder) teacherSel.appendChild(placeholder.cloneNode(true));
+
+      if (!subjId) {
+        // If no subject selected, show all teachers
+        originalOptions.forEach(function(opt) {
+          if (opt.value !== '') teacherSel.appendChild(opt.cloneNode(true));
+        });
+        return;
+      }
+
+      originalOptions.forEach(function(opt) {
+        if (opt.value === '') return;
+        const teaches = (opt.getAttribute('data-subjects') || '').split(',').filter(Boolean);
+        if (teaches.includes(subjId)) {
+          teacherSel.appendChild(opt.cloneNode(true));
+        }
+      });
+    }
+
+    subjSel.addEventListener('change', filterTeachers);
+    // Optionally filter on modal show if subject already selected
+    filterTeachers();
+  });
+  // Filter teacher selects that have a fixed subject via data-subject-id (Reassign modals)
+  document.querySelectorAll('select.teacher-fixed-subject[data-subject-id]').forEach(function(sel){
+    const subjId = sel.getAttribute('data-subject-id');
+    const originalOptions = Array.from(sel.options);
+    sel.innerHTML = '';
+    const placeholder = originalOptions.find(o => o.value === '');
+    if (placeholder) sel.appendChild(placeholder.cloneNode(true));
+    originalOptions.forEach(function(opt){
+      if (opt.value === '') return;
+      const teaches = (opt.getAttribute('data-subjects') || '').split(',').filter(Boolean);
+      if (teaches.includes(subjId)) sel.appendChild(opt.cloneNode(true));
+    });
+  });
+});
+</script>
                     </div>
                 </div>
             </div>
@@ -303,35 +393,7 @@
         </div>
     </div>
 </div>
-
-<!-- Chart.js CDN -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('canvas[id^="subjectPerformancePie-"]').forEach(function(canvas) {
-        var classId = canvas.id.split('-')[1];
-        var dataTag = document.getElementById('subjectPerformancePieData-' + classId);
-        if (dataTag) {
-            var data = JSON.parse(dataTag.textContent);
-            new Chart(canvas, {
-                type: 'pie',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        data: data.scores,
-                        backgroundColor: [
-                            '#4e73df','#1cc88a','#36b9cc','#f6c23e','#e74a3b','#858796','#5a5c69','#fd7e14','#20c997','#6610f2','#6f42c1','#e83e8c','#fdc506','#17a2b8','#b7b9cc','#007bff','#6c757d','#28a745','#dc3545','#ffc107'
-                        ],
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { position: 'bottom' } }
-                }
-            });
-        }
-    });
-});
 // Client-side class filters
 document.addEventListener('DOMContentLoaded', function() {
   let currentLevel = '';
@@ -371,35 +433,5 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
-
-<div class="card mt-5">
-    <div class="card-header bg-danger text-white">
-        <h5 class="mb-0">Graduated Students</h5>
-    </div>
-    <div class="card-body">
-        {% if graduated_students and graduated_students|length > 0 %}
-        <table class="table table-bordered table-sm align-middle">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Admission No.</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for info in graduated_info %}
-                <tr>
-                    <td>{{ info.student.user.get_full_name|default:info.student.user.username }}</td>
-                    <td>{{ info.student.admission_no }}</td>
-                    <td>{{ info.status }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-            <p>No graduated students.</p>
-        {% endif %}
-    </div>
-</div>
 
 {% endblock %}

@@ -8,6 +8,7 @@ class User(AbstractUser):
         ('admin', 'Admin'),
         ('teacher', 'Teacher'),
         ('student', 'Student'),
+        ('clerk', 'Clerk'),
     ]
     email = models.EmailField(blank=True, null=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
@@ -27,10 +28,24 @@ class Subject(models.Model):
     def __str__(self):
         return f"{self.name} ({self.department})" if self.department else self.name
 
+    @property
+    def is_composite(self):
+        """Returns True if this subject is defined as a parent with component subjects."""
+        return self.subject_components.exists()
+
+    @property
+    def is_child(self):
+        """Returns True if this subject is a component of another subject."""
+        return self.part_of.exists()
+
+    def get_components(self):
+        """List of (child_subject, weight) tuples for this parent subject."""
+        return [(sc.child, sc.weight) for sc in self.subject_components.select_related('child')]
+
 class Class(models.Model):
     name = models.CharField(max_length=100)
     level = models.CharField(max_length=50)
-    class_teacher = models.ForeignKey('Teacher', null=True, blank=True, on_delete=models.SET_NULL)
+    class_teacher = models.OneToOneField('Teacher', null=True, blank=True, on_delete=models.SET_NULL)
     subjects = models.ManyToManyField('Subject', blank=True, related_name='classes')
 
     def __str__(self):
@@ -114,9 +129,25 @@ class Exam(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     type = models.CharField(max_length=10, choices=EXAM_TYPE_CHOICES, default='others')
+    # Results publication flags
+    results_published = models.BooleanField(default=False)
+    published_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.name} - {self.term.name}"
+
+    @property
+    def is_done(self):
+        """Exam considered done if end_date is today or earlier."""
+        # timezone imported elsewhere in this module (used by other models)
+        from django.utils import timezone
+        today = timezone.now().date()
+        return bool(self.end_date and self.end_date <= today)
+
+    @property
+    def can_publish(self):
+        """Convenience: can publish only after it's done and not already published."""
+        return self.is_done and not self.results_published
 
 class Grade(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
@@ -142,6 +173,23 @@ class SubjectGradingScheme(models.Model):
 
     def __str__(self):
         return f"Grading Scheme for {self.subject.name}"
+
+class SubjectComponent(models.Model):
+    """
+    Defines a composite relationship: parent subject is computed from one or more child subjects.
+    By default, parent's score is the sum of its children's scores (optionally weighted).
+    """
+    parent = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='subject_components')
+    child = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='part_of')
+    weight = models.FloatField(default=1.0, help_text='Optional weight multiplier for this child when aggregating to parent')
+
+    class Meta:
+        unique_together = ('parent', 'child')
+        verbose_name = 'Subject Component'
+        verbose_name_plural = 'Subject Components'
+
+    def __str__(self):
+        return f"{self.parent.name} <= {self.child.name} (w={self.weight})"
 
 # --- Fee Management Models ---
 

@@ -12,6 +12,11 @@ function printSection(sectionId, title) {
     var styles = Array.from(document.querySelectorAll('link[rel=stylesheet], style')).map(node => node.outerHTML).join('');
     printWindow.document.write(styles);
     printWindow.document.write('</head><body>');
+    // Prepend global print header if present
+    var headerEl = document.getElementById('globalPrintHeader');
+    if (headerEl) {
+        printWindow.document.write(headerEl.innerHTML);
+    }
     printWindow.document.write(content.innerHTML);
     printWindow.document.write('</body></html>');
     printWindow.document.close();

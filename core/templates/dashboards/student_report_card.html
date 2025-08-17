@@ -87,10 +87,52 @@
                     </div>
                 </div>
             </div>
+            {# Subject Summary and Per-Subject Trend #}
+            <div class="mt-4">
+              <div class="row g-3">
+                <div class="col-12 col-lg-6">
+                  <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                      <strong>Subjects Summary</strong>
+                    </div>
+                    <div class="card-body">
+                      <div class="table-responsive">
+                        <table class="table table-sm table-striped" id="subjectSummaryTbl">
+                          <thead>
+                            <tr>
+                              <th>Subject</th>
+                              <th class="text-end">Exams Taken</th>
+                              <th class="text-end">Average Score</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <!-- Filled by JS from the Subject Performance table -->
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-12 col-lg-6">
+                  <div class="card">
+                    <div class="card-header bg-secondary text-white d-flex align-items-center gap-2">
+                      <strong class="me-auto">Subject Trend</strong>
+                      <select id="subjectTrendSelect" class="form-select form-select-sm" style="max-width: 260px;"></select>
+                    </div>
+                    <div class="card-body">
+                      <canvas id="subjectTrendChart" height="120"></canvas>
+                      <img id="subjectTrendImg" alt="Subject Trend" style="display:none; max-width:100%; height:auto;" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <style>
               @media print {
                 #reportCardPerformanceChart { display: none !important; }
                 #rcPerfImg { display: block !important; }
+                #subjectTrendChart { display: none !important; }
+                #subjectTrendImg { display: block !important; }
               }
             </style>
             <script>
@@ -164,6 +206,88 @@
                   document.addEventListener('DOMContentLoaded', ensureChartJsThenMount);
                 } else {
                   ensureChartJsThenMount();
+                }
+
+                // Build Subject Summary + Subject Trend from the Subject Performance table above
+                const buildSubjectAnalytics = () => {
+                  const table = document.querySelector('table.table.table-bordered');
+                  if (!table) return;
+                  const rows = Array.from(table.querySelectorAll('tbody tr'));
+                  // Map: subject -> { scores: [{exam, date, score}], avg, count }
+                  const subjMap = new Map();
+                  rows.forEach(tr => {
+                    const tds = tr.querySelectorAll('td');
+                    if (!tds || tds.length < 5) return;
+                    const subject = (tds[0].textContent || '').trim();
+                    const exam = (tds[1].textContent || '').trim();
+                    const scoreStr = (tds[2].textContent || '').trim();
+                    const score = parseFloat(scoreStr);
+                    if (!subject || isNaN(score)) return;
+                    if (!subjMap.has(subject)) subjMap.set(subject, { scores: [], sum: 0, count: 0 });
+                    const rec = subjMap.get(subject);
+                    rec.scores.push({ exam, score });
+                    rec.sum += score; rec.count += 1;
+                  });
+
+                  // Fill summary table
+                  const tbody = document.querySelector('#subjectSummaryTbl tbody');
+                  if (tbody) {
+                    tbody.innerHTML = '';
+                    Array.from(subjMap.keys()).sort().forEach(subject => {
+                      const r = subjMap.get(subject);
+                      const avg = r.count ? (r.sum / r.count) : 0;
+                      const tr = document.createElement('tr');
+                      tr.innerHTML = `<td>${subject}</td><td class="text-end">${r.count}</td><td class="text-end">${avg.toFixed(2)}</td>`;
+                      tbody.appendChild(tr);
+                    });
+                  }
+
+                  // Populate subject selector
+                  const select = document.getElementById('subjectTrendSelect');
+                  const canvas = document.getElementById('subjectTrendChart');
+                  const imgEl = document.getElementById('subjectTrendImg');
+                  if (!select || !canvas) return;
+                  select.innerHTML = '';
+                  Array.from(subjMap.keys()).sort().forEach(subject => {
+                    const opt = document.createElement('option');
+                    opt.value = subject; opt.textContent = subject; select.appendChild(opt);
+                  });
+                  if (!select.value && select.options.length) select.value = select.options[0].value;
+
+                  let trendChart = null;
+                  const updateTrend = () => {
+                    const subject = select.value;
+                    const r = subjMap.get(subject);
+                    if (!r) return;
+                    const labels = r.scores.map(s => s.exam);
+                    const data = r.scores.map(s => s.score);
+                    const ctx = canvas.getContext('2d');
+                    if (trendChart) { trendChart.destroy(); }
+                    trendChart = new Chart(ctx, {
+                      type: 'line',
+                      data: { labels, datasets: [{ label: subject, data, borderColor: 'rgba(255, 159, 64, 1)', backgroundColor: 'rgba(255, 159, 64, 0.2)', tension: 0.3, fill: true, pointRadius: 3 }] },
+                      options: { animation: { duration: 0 }, responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true, suggestedMax: 100 } }, plugins: { legend: { display: true } } }
+                    });
+                    // update image for print
+                    const updateImg = () => { try { imgEl.src = canvas.toDataURL('image/png'); } catch(e) {} };
+                    if (window.requestAnimationFrame) requestAnimationFrame(updateImg); else updateImg();
+                    setTimeout(updateImg, 150);
+                  };
+                  select.addEventListener('change', updateTrend);
+
+                  const mountTrend = () => {
+                    if (typeof Chart !== 'undefined') { updateTrend(); return; }
+                    const existing = document.querySelector('script[data-load="chartjs"]');
+                    if (existing) { existing.addEventListener('load', updateTrend, { once: true }); return; }
+                    const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/chart.js'; s.async = true; s.defer = true; s.setAttribute('data-load','chartjs'); s.addEventListener('load', updateTrend, { once: true }); document.head.appendChild(s);
+                  };
+                  mountTrend();
+                };
+
+                if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', buildSubjectAnalytics);
+                } else {
+                  buildSubjectAnalytics();
                 }
               })();
             </script>

@@ -1,0 +1,39 @@
+{% load static %}
+<style>
+  /* Place assistant above theme/logout bubbles (z-index ~1055) and higher on the screen */
+  .asst-fab { position: fixed; right: 20px; bottom: 150px; z-index: 1060; }
+  .asst-panel { position: fixed; right: 20px; bottom: 220px; width: 340px; max-height: 60vh; background: #fff; border: 1px solid #e5e7eb; border-radius: .5rem; box-shadow: 0 10px 30px rgba(0,0,0,.1); display: none; z-index: 1060; }
+  .asst-header { padding: .6rem .8rem; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; }
+  .asst-body { padding: .6rem .8rem; overflow-y: auto; max-height: 45vh; }
+  .asst-input { border-top: 1px solid #e5e7eb; padding: .5rem; display: flex; gap: .5rem; }
+  .asst-msg { margin: .25rem 0; }
+  .asst-msg.user { text-align: right; }
+  .asst-bubble { display: inline-block; padding: .35rem .6rem; border-radius: .5rem; max-width: 80%; }
+  .asst-bubble.user { background: #0d6efd; color: #fff; }
+  .asst-bubble.bot { background: #f3f4f6; color: #111827; }
+  .asst-suggestions { padding: .4rem .6rem; border-top: 1px dashed #e5e7eb; display: flex; flex-wrap: wrap; gap: .4rem; }
+  .asst-chip { background: #eff6ff; color: #0d6efd; border: 1px solid #bfdbfe; border-radius: 999px; padding: .2rem .6rem; font-size: .85rem; cursor: pointer; }
+</style>
+<div id="asst-panel" class="asst-panel" data-history-url="{% url 'assistant:history' %}" data-message-url="{% url 'assistant:message' %}" data-clear-url="{% url 'assistant:clear' %}">
+  <div class="asst-header">
+    <strong>Assistant</strong>
+    <div>
+      <button id="asst-clear" class="btn btn-sm btn-outline-warning" title="Clear history">Clear</button>
+      <button id="asst-min" class="btn btn-sm btn-outline-secondary">—</button>
+      <button id="asst-close" class="btn btn-sm btn-outline-danger">×</button>
+    </div>
+  </div>
+  <div id="asst-body" class="asst-body">
+    <div class="text-muted small">Type 'help' to see what I can do.</div>
+  </div>
+  <div id="asst-suggestions" class="asst-suggestions" style="display:none;"></div>
+  <div class="asst-input">
+    <input id="asst-text" class="form-control form-control-sm" placeholder="Ask me to do something..." />
+    <button id="asst-send" class="btn btn-primary btn-sm">Send</button>
+  </div>
+  <form id="asst-csrf-form" style="display:none;">{% csrf_token %}</form>
+</div>
+<button id="asst-fab" class="btn btn-primary rounded-circle asst-fab" title="Assistant">
+  <i class="bi bi-robot"></i>
+</button>
+<script src="{% static 'assistant/assistant.js' %}"></script>

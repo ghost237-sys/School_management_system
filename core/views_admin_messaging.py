@@ -1,6 +1,9 @@
 def is_admin(user):
     return user.is_authenticated and getattr(user, 'role', None) == 'admin'
 
+def is_admin_or_clerk(user):
+    return user.is_authenticated and getattr(user, 'role', None) in ('admin', 'clerk')
+
 from django import forms
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
@@ -514,7 +517,7 @@ def upload_attachment(request):
     return JsonResponse({'success': False, 'error': 'Attachments disabled'}, status=410)
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_clerk)
 def admin_payment_logs(request):
     import os, json, re
     from datetime import datetime
@@ -621,7 +624,7 @@ def admin_payment_logs(request):
     return render(request, 'dashboards/admin_payment_logs.html', context)
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_clerk)
 def admin_payment_messages(request):
     search = request.GET.get('search', '').strip()
     payments = FeePayment.objects.select_related('student__user', 'fee_assignment__class_group')

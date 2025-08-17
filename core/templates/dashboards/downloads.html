@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!a) return;
     const href = a.getAttribute('href') || '';
     // Only trigger overlay for same-window navigations to files
-    if (href && (href.endsWith('.csv') || href.endsWith('.xlsx') || a.classList.contains('dl-link'))) {
+    if (href && (href.endsWith('.csv') || href.endsWith('.xlsx') || href.endsWith('.pdf') || a.classList.contains('dl-link'))) {
       showOverlay();
       setOverlayText(a.getAttribute('data-dl-text') || a.textContent.trim() || 'Preparing your download…');
       disableElems(a.closest('div.card-body') || undefined);
@@ -178,7 +178,10 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="card-body">
           <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-people"></i> Users</h5>
           <p class="text-muted">Download all users and roles.</p>
-          <a class="btn btn-outline-primary dl-link" href="{% url 'export_users_csv' %}" target="dl_frame"><i class="bi bi-download me-1"></i> users.csv</a>
+          <div class="d-flex gap-2">
+            <a class="btn btn-outline-primary dl-link" href="{% url 'export_users_csv' %}" target="dl_frame"><i class="bi bi-download me-1"></i> users.csv</a>
+            <a class="btn btn-outline-secondary dl-link" href="{% url 'export_users_pdf' %}" target="dl_frame"><i class="bi bi-filetype-pdf me-1"></i> users.pdf</a>
+          </div>
         </div>
       </div>
     </div>
@@ -188,7 +191,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="card-body">
           <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-card-checklist"></i> Result Slip</h5>
           <p class="text-muted">Per-student subject scores for a selected exam. Filter by class or level.</p>
-          <form class="row g-2" method="get" action="/exports/result-slip.csv">
+          <form class="row g-2" method="get" action="{% url 'export_result_slip_csv' %}">
             <div class="col-12">
               <label class="form-label small mb-1">Exam</label>
               <select class="form-select form-select-sm" required name="exam_id">
@@ -216,8 +219,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 {% endfor %}
               </select>
             </div>
-            <div class="col-12 col-md-6 d-flex align-items-end">
-              <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-download me-1"></i> Download</button>
+            <div class="col-12 col-md-6 d-flex align-items-end gap-2">
+              <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-download me-1"></i> CSV</button>
+              <button type="submit" class="btn btn-outline-secondary w-100" formaction="{% url 'export_result_slip_pdf' %}"><i class="bi bi-filetype-pdf me-1"></i> PDF</button>
             </div>
           </form>
         </div>
@@ -229,7 +233,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="card-body">
           <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-journal-text"></i> Empty Subject List</h5>
           <p class="text-muted">CSV with admission numbers, names, and a chosen subject column for a class.</p>
-          <form class="row g-2" method="get" action="/exports/empty-subject-list.csv">
+          <form class="row g-2" method="get" action="{% url 'export_empty_subject_list_csv' %}">
             <div class="col-12 col-md-6">
               <label class="form-label small mb-1">Class</label>
               <select class="form-select form-select-sm" name="class_id" required>
@@ -248,8 +252,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 {% endfor %}
               </select>
             </div>
-            <div class="col-12 col-md-6 d-flex align-items-end">
-              <button type="submit" class="btn btn-outline-secondary w-100"><i class="bi bi-download me-1"></i> Download</button>
+            <div class="col-12 col-md-6 d-flex align-items-end gap-2">
+              <button type="submit" class="btn btn-outline-secondary w-100"><i class="bi bi-download me-1"></i> CSV</button>
+              <button type="submit" class="btn btn-outline-secondary w-100" formaction="{% url 'export_empty_subject_list_pdf' %}"><i class="bi bi-filetype-pdf me-1"></i> PDF</button>
             </div>
           </form>
         </div>
@@ -286,8 +291,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 <option value="za">Z → A</option>
               </select>
             </div>
-            <div class="col-12 col-md-6 d-flex align-items-end">
-              <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-download me-1"></i> Download</button>
+            <div class="col-12 col-md-6 d-flex align-items-end gap-2">
+              <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-download me-1"></i> CSV</button>
+              <button type="submit" class="btn btn-outline-secondary w-100" formaction="{% url 'export_teachers_pdf' %}"><i class="bi bi-filetype-pdf me-1"></i> PDF</button>
             </div>
           </form>
         </div>
@@ -356,7 +362,10 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="card-body">
           <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-list-check"></i> Fee Assignments</h5>
           <p class="text-muted">All assigned fees per class and term.</p>
-          <a class="btn btn-outline-success dl-link" href="{% url 'export_fee_assignments_csv' %}" target="dl_frame"><i class="bi bi-download me-1"></i> fee-assignments.csv</a>
+          <div class="d-flex gap-2">
+            <a class="btn btn-outline-success dl-link" href="{% url 'export_fee_assignments_csv' %}" target="dl_frame"><i class="bi bi-download me-1"></i> fee-assignments.csv</a>
+            <a class="btn btn-outline-secondary dl-link" href="{% url 'export_fee_assignments_pdf' %}" target="dl_frame"><i class="bi bi-filetype-pdf me-1"></i> fee-assignments.pdf</a>
+          </div>
         </div>
       </div>
     </div>
@@ -402,8 +411,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 {% endfor %}
               </select>
             </div>
-            <div class="col-12 col-md-6 d-flex align-items-end">
-              <button type="submit" class="btn btn-outline-success w-100"><i class="bi bi-download me-1"></i> Download</button>
+            <div class="col-12 col-md-6 d-flex align-items-end gap-2">
+              <button type="submit" class="btn btn-outline-success w-100"><i class="bi bi-download me-1"></i> CSV</button>
+              <button type="submit" class="btn btn-outline-secondary w-100" formaction="{% url 'export_fee_payments_pdf' %}"><i class="bi bi-filetype-pdf me-1"></i> PDF</button>
             </div>
           </form>
         </div>
@@ -457,8 +467,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 <option value="asc">Smallest → Largest</option>
               </select>
             </div>
-            <div class="col-12 col-md-6 d-flex align-items-end">
-              <button type="submit" class="btn btn-outline-danger w-100"><i class="bi bi-download me-1"></i> Download</button>
+            <div class="col-12 col-md-6 d-flex align-items-end gap-2">
+              <button type="submit" class="btn btn-outline-danger w-100"><i class="bi bi-download me-1"></i> CSV</button>
+              <button type="submit" class="btn btn-outline-secondary w-100" formaction="{% url 'export_students_with_arrears_pdf' %}"><i class="bi bi-filetype-pdf me-1"></i> PDF</button>
             </div>
           </form>
         </div>

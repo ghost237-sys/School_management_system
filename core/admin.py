@@ -1,8 +1,21 @@
 from django.contrib import admin
 from .models import *
 
+
+class SubjectComponentInline(admin.TabularInline):
+    model = SubjectComponent
+    fk_name = 'parent'
+    extra = 1
+
+
+@admin.register(Subject)
+class SubjectAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "department")
+    search_fields = ("name", "code")
+    inlines = [SubjectComponentInline]
+
+
 admin.site.register(User)
-admin.site.register(Subject)
 admin.site.register(Class)
 admin.site.register(Teacher)
 admin.site.register(Student)

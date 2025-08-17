@@ -1,0 +1,47 @@
+{% load static %}
+<nav class="sidebar-custom p-3 d-flex flex-column justify-content-between" style="width: 220px; min-height: 100vh; background: var(--sidebar-gradient);">
+  <h4 class="mb-4" style="font-size:1.3rem; color: #fff;">Finance Desk</h4>
+  <ul class="nav nav-pills flex-column mb-auto">
+    <li class="nav-item mb-2">
+      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'clerk_overview' %}active{% endif %}" href="{% url 'clerk_overview' %}">
+        <i class="bi bi-cash-coin me-2"></i> Overview
+      </a>
+    </li>
+    <li class="nav-item mb-2">
+      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_fees' %}active{% endif %}" href="{% url 'admin_fees' %}">
+        <i class="bi bi-wallet2 me-2"></i> Fees & Billing
+      </a>
+    </li>
+    <li class="nav-item mb-2">
+      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_payment_logs' %}active{% endif %}" href="{% url 'admin_payment_logs' %}">
+        <i class="bi bi-receipt me-2"></i> Payment Logs
+      </a>
+    </li>
+    <li class="nav-item mb-2">
+      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'finance_messaging_page' %}active{% endif %}" href="{% url 'finance_messaging_page' %}">
+        <i class="bi bi-chat-left-text me-2"></i> Finance Messaging
+      </a>
+    </li>
+    <li class="nav-item mb-2">
+      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'clerk_messaging' %}active{% endif %}" href="{% url 'clerk_messaging' %}">
+        <i class="bi bi-chat-dots me-2"></i> Clerk Messaging
+      </a>
+    </li>
+    <li class="nav-item mb-2">
+      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'export_fee_payments_csv' %}active{% endif %}" href="{% url 'export_fee_payments_csv' %}">
+        <i class="bi bi-filetype-csv me-2"></i> Export Payments (CSV)
+      </a>
+    </li>
+    <li class="nav-item mb-2">
+      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'export_fee_payments_pdf' %}active{% endif %}" href="{% url 'export_fee_payments_pdf' %}">
+        <i class="bi bi-filetype-pdf me-2"></i> Export Payments (PDF)
+      </a>
+    </li>
+  </ul>
+  <div class="mt-auto">
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-secondary w-100 d-flex align-items-center justify-content-center"><i class="bi bi-box-arrow-right me-2"></i> Logout</button>
+    </form>
+  </div>
+</nav>

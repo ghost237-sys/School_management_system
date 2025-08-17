@@ -2,7 +2,7 @@
 {% block title %}Student Dashboard{% endblock %}
 
 {% block content %}
-<h2 class="mb-4">Welcome, {{ request.user.username }} (Student)</h2>
+<h2 class="mb-4">Welcome, {{ request.user.first_name|default:request.user.username }} (Student)</h2>
 
 <div class="card text-bg-info mb-3">
     <div class="card-body">

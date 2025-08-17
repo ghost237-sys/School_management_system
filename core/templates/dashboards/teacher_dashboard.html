@@ -152,6 +152,9 @@
                         <div class="mt-auto d-flex tdb-actions">
                             <a href="{% url 'manage_grades' teacher_id=teacher.id %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-clipboard2-check"></i> Manage Grades</a>
                             <a href="{% url 'teacher_class_result_slip' class_id=card.class.id %}" class="btn btn-primary btn-sm ms-2"><i class="bi bi-file-earmark-text"></i> Result Slip</a>
+                            {% if card.class.class_teacher and card.class.class_teacher.id == teacher.id %}
+                            <a href="{% url 'class_profile' class_id=card.class.id %}" class="btn btn-outline-secondary btn-sm ms-2"><i class="bi bi-people"></i> Class Profile</a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -221,13 +224,40 @@
                     </div>
                     <div class="card-body">
                         <link rel="stylesheet" href="{% static 'calendar/fullcalendar.min.css' %}">
+                        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.css">
+                        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="fc-filter-event" checked>
+                                <label class="form-check-label" for="fc-filter-event">Events</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="fc-filter-exam" checked>
+                                <label class="form-check-label" for="fc-filter-exam">Exams</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="fc-filter-responsibility" checked>
+                                <label class="form-check-label" for="fc-filter-responsibility">Responsibilities</label>
+                            </div>
+                            <div class="ms-auto d-flex align-items-center gap-2">
+                                <div class="btn-group me-3" role="group" aria-label="Calendar navigation">
+                                    <button class="btn btn-outline-secondary btn-sm" id="fc-nav-prev" title="Previous">&laquo;</button>
+                                    <button class="btn btn-outline-secondary btn-sm" id="fc-nav-today">Today</button>
+                                    <button class="btn btn-outline-secondary btn-sm" id="fc-nav-next" title="Next">&raquo;</button>
+                                </div>
+                                <div class="d-flex align-items-center gap-3 small text-muted">
+                                    <span><span style="display:inline-block;width:10px;height:10px;background:#0d6efd;border-radius:2px;margin-right:6px;"></span>Event</span>
+                                    <span><span style="display:inline-block;width:10px;height:10px;background:#dc3545;border-radius:2px;margin-right:6px;"></span>Exam</span>
+                                    <span><span style="display:inline-block;width:10px;height:10px;background:#198754;border-radius:2px;margin-right:6px;"></span>Responsibility</span>
+                                </div>
+                            </div>
+                        </div>
                         <div id="teacher-calendar"></div>
                     </div>
                 </div>
- 
+
 {% endblock %}
-{% block extra_js %}
+{% block scripts %}
     <script src="{% static 'calendar/fullcalendar.min.js' %}"></script>
-<script src="{% static 'teacher_calendar.js' %}?v=2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.js"></script>
+    <script src="{% static 'teacher_calendar.js' %}?v=7"></script>
 {% endblock %}
-                // Mean calculation placeholder

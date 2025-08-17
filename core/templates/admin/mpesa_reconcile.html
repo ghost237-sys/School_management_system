@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}M-Pesa Reconciliation{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <h3 class="mb-3">M-Pesa Reconciliation</h3>
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card mb-4">
+    <div class="card-header">Record External PayBill Payment</div>
+    <div class="card-body">
+      <form method="post" class="row g-3">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="record_external">
+        <div class="col-md-3">
+          <label class="form-label">TransID</label>
+          <input type="text" name="trans_id" class="form-control" placeholder="e.g. QBC123XYZ" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Amount (KES)</label>
+          <input type="number" step="1" min="1" name="amount" class="form-control" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Phone</label>
+          <input type="text" name="phone" class="form-control" placeholder="07XX XXX XXX">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Account Ref</label>
+          <input type="text" name="account_ref" class="form-control" placeholder="Account#ADM001">
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+          <button class="btn btn-primary w-100" type="submit">Record</button>
+        </div>
+        <div class="col-12">
+          <small class="text-muted">Provide Account Ref as <code>Account#&lt;admission_no&gt;</code> to auto-link a student. Phone is optional.</small>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">Pending STK Transactions</div>
+        <div class="card-body">
+          {% if pending_txs %}
+          <div class="table-responsive">
+            <table class="table table-sm table-striped">
+              <thead>
+                <tr>
+                  <th>Checkout ID</th>
+                  <th>Phone</th>
+                  <th>Amount</th>
+                  <th>Account Ref</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for tx in pending_txs %}
+                <tr>
+                  <td style="word-break:break-all;">{{ tx.checkout_request_id }}</td>
+                  <td>{{ tx.phone_number }}</td>
+                  <td>{{ tx.amount }}</td>
+                  <td>{{ tx.account_reference }}</td>
+                  <td>
+                    <form method="post" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="query_tx">
+                      <input type="hidden" name="checkout_request_id" value="{{ tx.checkout_request_id }}">
+                      <button class="btn btn-sm btn-outline-primary">Query</button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+            <p class="text-muted mb-0">No pending transactions.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">Pending Fee Payments</div>
+        <div class="card-body">
+          {% if pending_payments %}
+          <div class="table-responsive">
+            <table class="table table-sm table-striped">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Student</th>
+                  <th>Amount</th>
+                  <th>Reference</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for p in pending_payments %}
+                <tr>
+                  <td>{{ p.id }}</td>
+                  <td>{{ p.student.user.get_full_name }}</td>
+                  <td>{{ p.amount_paid }}</td>
+                  <td style="word-break:break-all;">{{ p.reference }}</td>
+                  <td class="d-flex gap-2">
+                    <form method="post" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="approve_payment">
+                      <input type="hidden" name="fee_payment_id" value="{{ p.id }}">
+                      <button class="btn btn-sm btn-success">Approve</button>
+                    </form>
+                    <form method="post" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="link_payment">
+                      <input type="hidden" name="fee_payment_id" value="{{ p.id }}">
+                      <input type="text" class="form-control form-control-sm" name="reference" placeholder="TransID">
+                      <button class="btn btn-sm btn-outline-secondary ms-1">Link</button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+            <p class="text-muted mb-0">No pending payments.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,4 +1,6 @@
 from django import forms
+from django.forms import inlineformset_factory
+from django.forms.models import BaseInlineFormSet
 from django.contrib.auth.forms import UserCreationForm
 from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term, Grade, DefaultTimetable, TeacherResponsibility
 
@@ -86,6 +88,66 @@ class ExamForm(forms.ModelForm):
             'start_date': forms.DateInput(attrs={'type': 'date'}),
             'end_date': forms.DateInput(attrs={'type': 'date'}),
         }
+
+"""
+Composite Subject Management
+"""
+from .models import SubjectComponent  # local import to avoid disturbing earlier imports
+
+
+class SubjectComponentForm(forms.ModelForm):
+    class Meta:
+        model = SubjectComponent
+        fields = ['child', 'weight']
+        widgets = {
+            'child': forms.Select(attrs={'class': 'form-select'}),
+            'weight': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+        }
+
+
+class SubjectComponentBaseFormSet(BaseInlineFormSet):
+    """
+    Filters the child Subject choices so that any Subject already used anywhere
+    (as a parent or as a child) is excluded globally, except:
+      - the currently selected parent (instance) itself is allowed to stay selected as parent
+      - the parent's existing children remain available so they can be edited
+    """
+    def __init__(self, *args, **kwargs):
+        from .models import Subject, SubjectComponent
+        self.instance = kwargs.get('instance')
+        super().__init__(*args, **kwargs)
+
+        # Collect all subjects that are already in any relationship
+        used_parent_ids = set(SubjectComponent.objects.values_list('parent_id', flat=True))
+        used_child_ids = set(SubjectComponent.objects.values_list('child_id', flat=True))
+        used_ids = used_parent_ids.union(used_child_ids)
+
+        # Allow editing current parent and its existing children
+        if self.instance and getattr(self.instance, 'pk', None):
+            used_ids.discard(self.instance.pk)
+            current_children = set(
+                SubjectComponent.objects.filter(parent=self.instance).values_list('child_id', flat=True)
+            )
+            used_ids = used_ids.difference(current_children)
+
+        allowed_qs = Subject.objects.exclude(id__in=used_ids)
+
+        for form in self.forms:
+            if 'child' in form.fields:
+                form.fields['child'].queryset = allowed_qs
+
+
+# Inline formset to edit components of a selected parent Subject
+SubjectComponentFormSet = inlineformset_factory(
+    parent_model=Subject,
+    model=SubjectComponent,
+    form=SubjectComponentForm,
+    formset=SubjectComponentBaseFormSet,
+    fields=['child', 'weight'],
+    fk_name='parent',
+    extra=3,
+    can_delete=True
+)
 
 
 class EventForm(forms.ModelForm):
@@ -372,6 +434,9 @@ class AddTeacherForm(forms.ModelForm):
         # Hide password field if editing (instance exists and has pk)
         if self.instance and getattr(self.instance, 'pk', None):
             self.fields.pop('password', None)
+        # Allow parent or atom subjects; exclude only component (child) subjects
+        if 'subjects' in self.fields:
+            self.fields['subjects'].queryset = Subject.objects.filter(part_of__isnull=True).order_by('name').distinct()
     tsc_number = forms.CharField(max_length=30, required=False)
     staff_id = forms.CharField(max_length=30, required=False)
     phone = forms.CharField(max_length=20, required=False)
@@ -441,7 +506,8 @@ class DefaultTimetableForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['teacher'].queryset = Teacher.objects.select_related('user').order_by('user__first_name', 'user__last_name')
-        self.fields['subject'].queryset = Subject.objects.order_by('name')
+        # Allow parent or atom subjects; exclude only component (child) subjects
+        self.fields['subject'].queryset = Subject.objects.filter(part_of__isnull=True).order_by('name').distinct()
         self.fields['teacher'].required = False
 
 

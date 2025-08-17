@@ -4,31 +4,262 @@
 {% block title %}Class Result Slip{% endblock %}
 {% block content %}
 <div class="container">
-    <h2>Class Result Slip: {{ class_obj.name }} (Level {{ class_obj.level }})</h2>
-<p><strong>Class Teacher:</strong> {{ class_teacher_name|default:"Not assigned" }}</p>
-    <form method="get" class="row g-3 mb-4">
-        <div class="col-md-4">
-            <label for="term" class="form-label">Term</label>
-            <select name="term" id="term" class="form-select">
-                {% for t in terms %}
-                    <option value="{{ t.id }}" {% if t.id == selected_term.id %}selected{% endif %}>{{ t.name }} ({{ t.academic_year.year }})</option>
-                {% endfor %}
-            </select>
+
+    <div class="rs-container">
+    <style>
+      /* Modern, scoped styling without changing the list/table markup */
+      :root {
+        --rs-bg: #f7f9fc;
+        --rs-card-bg: #ffffff;
+        --rs-card-border: 1px solid #e2e8f0;
+        --rs-shadow-sm: 0 2px 8px rgba(15, 23, 42, .04);
+        --rs-shadow-md: 0 8px 24px rgba(15, 23, 42, .07);
+        --rs-muted: #64748b;
+        --rs-accent: var(--bs-primary);
+      }
+
+      .rs-container {
+        padding: 0 1.5rem 1.5rem;
+      }
+
+      .container {
+        background: var(--rs-bg);
+        border-radius: 1rem;
+        padding: 1.25rem 1.25rem 1rem;
+        box-shadow: var(--rs-shadow-sm);
+      }
+
+      .rs-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin: .25rem 0 1.5rem;
+        position: sticky;
+        top: 0.25rem;
+        z-index: 20;
+        padding: .75rem 1rem;
+        background: var(--rs-card-bg);
+        border-radius: .85rem;
+        border: var(--rs-card-border);
+        box-shadow: var(--rs-shadow-sm);
+      }
+      .rs-title {
+        margin: 0;
+        font-weight: 800;
+        letter-spacing: .2px;
+      }
+      .rs-sub {
+        margin: .35rem 0 0;
+        color: var(--rs-muted);
+      }
+      .rs-actions { display: flex; gap: .5rem; }
+      .rs-actions .btn { border-radius: .6rem; padding-inline: .8rem; font-size: .9rem; display: inline-flex; align-items: center; gap: .4rem; transition: all .2s ease; border: 1px solid #e2e8f0; background: #fff; color: #334155; }
+      .rs-actions .btn svg { width: 17px; height: 17px; }
+      .rs-actions .btn:hover { transform: translateY(-1px); box-shadow: var(--rs-shadow-sm); border-color: #cbd5e1; }
+      .rs-actions .btn:active { transform: translateY(0); box-shadow: none; }
+      .rs-actions .btn.btn-outline-primary { border-color: rgba(13,110,253,.3); color: var(--rs-accent); background: rgba(13,110,253,.05); }
+      .rs-actions .btn.btn-outline-primary:hover { background: var(--rs-accent); color: #fff; border-color: var(--rs-accent); }
+
+      .rs-card {
+        border: var(--rs-card-border);
+        border-radius: .85rem;
+        box-shadow: var(--rs-shadow-sm);
+        padding: 1rem;
+        background: var(--rs-card-bg);
+      }
+
+      /* Inputs */
+      .rs-card .form-label { font-weight: 600; color: var(--rs-muted); }
+      .rs-card .form-select,
+      .rs-card .form-control {
+        border-radius: .7rem;
+        border: 1px solid #e2e8f0;
+        padding: .6rem .8rem;
+        transition: box-shadow .2s ease, border-color .2s ease;
+        background: #fff;
+      }
+      .rs-card .form-select:focus,
+      .rs-card .form-control:focus { box-shadow: 0 0 0 .2rem rgba(13,110,253,.15); border-color: var(--rs-accent); }
+      .rs-card .btn-primary { border-radius: .8rem; box-shadow: 0 6px 16px rgba(13,110,253,.18); transition: transform .15s ease, box-shadow .15s ease; }
+      .rs-card .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(13,110,253,.24); }
+
+      /* Tabs */
+      .rs-tabs { gap: .5rem; border-bottom: 1px solid #e2e8f0; padding-bottom: -1px; margin-bottom: 1.25rem !important; }
+      .rs-tabs .nav-link {
+        border: 0;
+        border-bottom: 2px solid transparent !important;
+        color: var(--rs-muted);
+        border-radius: 0 !important;
+        padding: .5rem .25rem;
+        font-weight: 600;
+        transition: all .2s ease;
+      }
+      .rs-tabs .nav-link:hover { color: var(--rs-accent); }
+      .rs-tabs .nav-link.active { color: var(--rs-accent); border-color: var(--rs-accent) !important; background: transparent; }
+
+      /* Table container */
+      .rs-table-wrap {
+        border-radius: .85rem;
+        overflow: auto;
+        max-width: 100%;
+        -webkit-overflow-scrolling: touch;
+        border: var(--rs-card-border);
+        background: var(--rs-card-bg);
+        padding-right: 1rem;
+      }
+
+      /* Table */
+      .rs-table {
+        font-size: .9rem;
+        vertical-align: middle;
+        min-width: 900px;
+        table-layout: auto;
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+      .rs-table th, .rs-table td { white-space: nowrap; padding: .7rem .9rem; }
+      .rs-table th { font-weight: 600; color: var(--rs-muted); }
+      .rs-table td { border-top: var(--rs-card-border); }
+
+      /* Sticky columns and header */
+      .rs-table thead th { position: sticky; top: 0; background: #f8fafc; z-index: 2; }
+      .rs-table th.sticky-col, .rs-table td.sticky-col { position: sticky; left: 0; background: var(--rs-card-bg); z-index: 1; width: 5rem; min-width: 5rem; }
+      .rs-table th.sticky-col-2, .rs-table td.sticky-col-2 { position: sticky; left: 5rem; background: var(--rs-card-bg); z-index: 1; min-width: 30ch; white-space: nowrap; }
+      .rs-table thead th.sticky-col, .rs-table thead th.sticky-col-2 { z-index: 3; }
+      .rs-table tbody tr:hover td { background: #f6f9fc; }
+      .rs-table tbody tr:hover td.sticky-col, .rs-table tbody tr:hover td.sticky-col-2 { background: #f6f9fc; }
+      .badge-grade { font-weight: 600; letter-spacing: .1px; font-size: .8em; }
+
+      /* Reset large right spacing on smaller screens */
+      @media (max-width: 992px) {
+        .rs-actions { margin-right: .5rem; }
+      }
+
+      /* Search UI */
+      .rs-search { display:flex; align-items:center; gap:.5rem; margin-right: auto; }
+      .rs-search input { width: 240px; max-width: 35vw; border-radius: .6rem; border: 1px solid #e2e8f0; padding: .45rem .75rem; font-size: .9rem; }
+      .rs-search input:focus { outline:none; border-color: var(--rs-accent); box-shadow: 0 0 0 .2rem rgba(13,110,253,.15); }
+      .rs-search .btn { padding-inline: .7rem; }
+      .rs-search .status { font-size:.85rem; color: var(--rs-muted); }
+
+      /* Highlight result */
+      @keyframes rsGlow { from { box-shadow: 0 0 0 -3px var(--rs-accent); } to { box-shadow: 0 0 0 4px rgba(13,110,253,0); } }
+      .search-current { animation: rsGlow 1.1s ease-out; }
+      .search-hit td { background-color: #e9f2ff !important; }
+      .search-hit:hover td { background-color: #dde9fa !important; }
+      .search-current td { background-color: #d1e3ff !important; font-weight: 600; }
+      .search-hit td.sticky-col, .search-hit td.sticky-col-2 { background-color: #e9f2ff !important; }
+      .search-hit:hover td.sticky-col, .search-hit:hover td.sticky-col-2 { background-color: #dde9fa !important; }
+      .search-current td.sticky-col, .search-current td.sticky-col-2 { background-color: #d1e3ff !important; }
+
+      @media print {
+        @page { size: landscape; }
+        body, .container, .rs-container {
+          background: #fff !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          font-size: .6rem !important; /* Even smaller font for print */
+        }
+        .rs-header, .rs-card, .rs-tabs, .tab-content > .tab-pane:not(.show), hr, a.btn-secondary {
+          display: none !important;
+        }
+        .tab-content, .tab-pane.show, .rs-table-wrap {
+          display: block !important;
+          overflow: visible !important;
+          max-width: 100% !important;
+          border: 0 !important;
+        }
+        .rs-table, .rs-table th, .rs-table td {
+          border: 1px solid #dee2e6 !important;
+          color: #000 !important;
+          background: #fff !important;
+        }
+        .rs-table {
+          width: 100% !important;
+          min-width: 0 !important;
+          table-layout: fixed !important;
+        }
+        .rs-table th, .rs-table td {
+          padding: .2rem .3rem !important;
+          white-space: normal !important; /* Allow wrapping */
+          text-align: left !important;
+        }
+        .rs-table th { 
+          vertical-align: middle !important;
+          word-break: break-word !important; /* Better wrapping */
+        }
+        .rs-table tfoot th { background-color: #f2f2f2 !important; font-weight: 600 !important; }
+        .rs-table th.sticky-col, .rs-table td.sticky-col { width: 6ch !important; }
+        .rs-table th.sticky-col-2, .rs-table td.sticky-col-2 { width: 20ch !important; }
+        .badge { display: none !important; } /* Hide grade badges */
+
+        /* Reset sticky columns for print */
+        .rs-table th.sticky-col, .rs-table td.sticky-col,
+        .rs-table th.sticky-col-2, .rs-table td.sticky-col-2 {
+          position: static !important;
+          left: auto !important;
+          box-shadow: none !important;
+          z-index: auto !important;
+        }
+      }
+    </style>
+
+    <div class="rs-header">
+      <div>
+        <h2 class="rs-title">Class Result Slip: {{ class_obj.name }} <span class="text-muted" style="font-weight:400">(Level {{ class_obj.level }})</span></h2>
+        <p class="rs-sub"><strong>Class Teacher:</strong> {{ class_teacher_name|default:"Not assigned" }}</p>
+      </div>
+      <div class="rs-actions">
+        <div class="rs-search">
+          <input type="text" id="studentSearchInput" placeholder="Search name or ADM no..." aria-label="Search student by name or admission number" />
+          <button type="button" class="btn btn-primary" id="studentSearchBtn">Search</button>
+          <button type="button" class="btn btn-outline-secondary btn-nav" id="searchPrevBtn" title="Previous match" aria-label="Previous match">Prev</button>
+          <button type="button" class="btn btn-outline-secondary btn-nav" id="searchNextBtn" title="Next match" aria-label="Next match">Next</button>
+          <span class="status" id="searchStatus" aria-live="polite"></span>
         </div>
-        <div class="col-md-4">
-            <label for="exam" class="form-label">Exam</label>
-            <select name="exam" id="exam" class="form-select">
-                {% for e in exams %}
-                    <option value="{{ e.id }}" {% if e.id == selected_exam.id %}selected{% endif %}>{{ e.name }}</option>
-                {% endfor %}
-            </select>
+        <a href="{% if block_result_slip_url %}{{ block_result_slip_url }}?term={{ selected_term.id }}&exam={{ selected_exam.id }}{% else %}/admin/block_result_slip/?level={{ class_obj.level }}&term={{ selected_term.id }}&exam={{ selected_exam.id }}{% endif %}"
+           class="btn btn-outline-secondary" data-bs-toggle="tooltip" data-bs-placement="bottom"
+           title="View all classes in this level" aria-label="View Block Result Slip">
+          View Block Slip
+        </a>
+        <a href="{% url 'admin_classes' %}" class="btn btn-outline-secondary" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Back to Classes" aria-label="Back to Classes">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.5 19.5 3 12l7.5-7.5 1.06 1.06L6.12 11h14.38v2H6.12l5.44 5.44-1.06 1.06Z"/></svg>
+          Back
+        </a>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Print this page" aria-label="Print" onclick="printSection('class-results','Class Result Slip: {{ class_obj.name }}')">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 3h10v4H7V3Zm10 12H7v6h10v-6Zm2-8h-3V3a2 2 0 0 0-2-2H10a2 2 0 0 0-2 2v4H5a3 3 0 0 0-3 3v5h5v5h10v-5h5v-5a3 3 0 0 0-3-3Zm1 6h-3v-2h3v2Z"/></svg>
+          Print
+        </button>
+      </div>
+    </div>
+
+    <form method="get" class="rs-card mb-4">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-5">
+          <label for="term" class="form-label">Term</label>
+          <select name="term" id="term" class="form-select">
+            {% for t in terms %}
+              <option value="{{ t.id }}" {% if t.id == selected_term.id %}selected{% endif %}>{{ t.name }} ({{ t.academic_year.year }})</option>
+            {% endfor %}
+          </select>
         </div>
-        <div class="col-md-4 align-self-end">
-            <button type="submit" class="btn btn-primary">View</button>
+        <div class="col-md-5">
+          <label for="exam" class="form-label">Exam</label>
+          <select name="exam" id="exam" class="form-select">
+            {% for e in exams %}
+              <option value="{{ e.id }}" {% if e.id == selected_exam.id %}selected{% endif %}>{{ e.name }}</option>
+            {% endfor %}
+          </select>
         </div>
+        <div class="col-md-2 d-grid">
+          <button type="submit" class="btn btn-primary">View</button>
+        </div>
+      </div>
     </form>
     <!-- Tabs and content inserted above -->
-    <ul class="nav nav-tabs" id="myTab" role="tablist">
+    <ul class="nav nav-pills rs-tabs mb-3" id="myTab" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="class-results-tab" data-bs-toggle="tab" data-bs-target="#class-results" type="button" role="tab" aria-controls="class-results" aria-selected="true">Class Results</button>
         </li>
@@ -45,12 +276,12 @@
     <div class="tab-content" id="myTabContent">
         <!-- Class Results Tab -->
         <div class="tab-pane fade show active" id="class-results" role="tabpanel" aria-labelledby="class-results-tab">
-            <div class="table-responsive">
-                <table class="table table-bordered table-hover align-middle">
+            <div class="rs-table-wrap">
+                <table id="classResultsTable" class="table table-striped table-hover rs-table" data-subject-count="{{ subjects|length }}">
                     <thead class="table-light sticky-top">
                         <tr>
-                            <th>Rank</th>
-                            <th>Student</th>
+                            <th class="sticky-col">POS</th>
+                            <th class="sticky-col-2">Student</th>
                             {% for subject in subjects %}
                                 <th>{% if subject.code == 'TELAG_NLC_A' or subject.code == 'SC_TELAG_NLC_A' %}INT-SCI{% else %}{{ subject.code }}{% endif %}</th>
                             {% endfor %}
@@ -60,16 +291,16 @@
                     </thead>
                     <tbody>
                         {% for student in students %}
-                        <tr{% if ranks|get_item:student.id <= 3 %} class="table-success fw-bold"{% endif %}>
-                            <td>{{ ranks|get_item:student.id }}</td>
-                            <td>{{ student.user.get_full_name|default:student.user.username }}</td>
+                        <tr data-adm="{{ student.admission_number }}{{ student.admission_no }}{{ student.adm_no }}"{% if ranks|get_item:student.id <= 3 %} class="table-success"{% endif %}>
+                            <td class="sticky-col fw-semibold">{{ ranks|get_item:student.id }}</td>
+                            <td class="sticky-col-2 fw-semibold">{{ student.user.get_full_name|default:student.user.username }}</td>
                             {% for subject in subjects %}
                                 <td>
                                     {% with grade=grades|dict_get:student.id|dict_get:subject.id %}
     {% if grade %}
-        {{ grade.score|floatformat:1 }}{% if grade.grade_letter %} <span class="badge bg-info text-dark">{{ grade.grade_letter }}</span>{% endif %}
+        {{ grade.score|floatformat:1 }}{% if grade.grade_letter %} <span class="badge bg-info text-dark badge-grade">{{ grade.grade_letter }}</span>{% endif %}
     {% else %}
-        <span class="text-muted">N/A</span>
+        <span class="text-muted"></span>
     {% endif %}
 {% endwith %}
                                 </td>
@@ -80,16 +311,18 @@
                         {% empty %}
                             <tr><td colspan="100%">No students found.</td></tr>
                         {% endfor %}
-                        {% for student in students %}
-                        <tr class="table-info">
-                            <td></td>
-                            <td></td>
-                            {% for subject in subjects %}<td></td>{% endfor %}
-                            <td></td>
-                            <td><strong>Total Points: {{ points_sums|get_item:student.id }}</strong></td>
-                        </tr>
-                        {% endfor %}
                     </tbody>
+                    <tfoot>
+                        <tr class="table-light">
+                            <th class="sticky-col"></th>
+                            <th class="sticky-col-2">Mean</th>
+                            {% for subject in subjects %}
+                                <th class="mean-subj" data-subj-index="{{ forloop.counter0 }}">—</th>
+                            {% endfor %}
+                            <th class="mean-avg">—</th>
+                            <th class="mean-points">—</th>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
@@ -98,8 +331,8 @@
             <div class="card mb-4">
                 <div class="card-body">
                     <h5 class="card-title">Class Performance Comparison (Same Level)</h5>
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-striped">
+                    <div class="rs-table-wrap">
+                        <table class="table table-striped rs-table">
                             <thead class="table-light">
                                 <tr>
                                     <th>Class</th>
@@ -126,8 +359,8 @@
             <div class="card mb-4">
                 <div class="card-body">
                     <h5 class="card-title">Overall Student Ranking (All Classes, Level {{ class_obj.level }})</h5>
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover align-middle">
+                    <div class="rs-table-wrap">
+                        <table class="table table-striped table-hover rs-table">
                             <thead class="table-light">
                                 <tr>
                                     <th>Rank</th>
@@ -167,8 +400,8 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover align-middle" id="subjectComparisonTable">
+                    <div class="rs-table-wrap">
+                        <table class="table table-striped table-hover rs-table" id="subjectComparisonTable">
                             <thead class="table-light">
                                 <tr>
                                     <th>Student</th>
@@ -189,7 +422,7 @@
                                                     {% if grade %}
                                                         {{ grade.score|floatformat:1 }} ({{ grade.grade_letter }})
                                                     {% else %}
-                                                        <span class="text-muted">N/A</span>
+                                                        <span class="text-muted">X</span>
                                                     {% endif %}
                                                 {% endwith %}
                                             </td>
@@ -209,7 +442,7 @@
 </div>
 </div> <!-- end class-result-slip-section -->
 <hr>
-<a href="{% url 'admin_classes' %}" class="btn btn-secondary mt-3">Back to Classes</a>
+<a href="{% url 'admin_classes' %}" class="btn btn-secondary mt-3 d-none">Back to Classes</a>
 
 <!-- Bootstrap JS for tabs (if not already included in base.html) -->
 <script>
@@ -217,29 +450,30 @@
     // Optionally, you can set the active tab via JS here
 </script>
 <script>
-    // Print function (existing)
+    // Enable Bootstrap 5 tooltips for header action buttons
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.bootstrap && bootstrap.Tooltip) {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+                new bootstrap.Tooltip(tooltipTriggerEl, {container: 'body'});
+            });
+        }
+    });
+</script>
+<script>
+    // Print function now relies on @media print styles
     function printSection(sectionId, title) {
-        var printContents = document.getElementById(sectionId).innerHTML;
-        var originalContents = document.body.innerHTML;
-        document.body.innerHTML = '<h2>'+title+'</h2>' + printContents;
-        window.print();
-        document.body.innerHTML = originalContents;
-        location.reload();
+      // The title is now handled by the page's h2, which is visible on print
+      window.print();
     }
-    var styles = Array.from(document.querySelectorAll('link[rel=stylesheet], style')).map(node => node.outerHTML).join('');
-    printWindow.document.write(styles);
-    printWindow.document.write('</head><body >');
-    printWindow.document.write(content.innerHTML);
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
-    setTimeout(function(){ printWindow.print(); printWindow.close(); }, 500);
 
 </script>
 <script>
 // Sorting for subject comparison table
 const sortSelect = document.getElementById('subjectSortSelect');
 const table = document.getElementById('subjectComparisonTable');
-sortSelect.addEventListener('change', function() {
+if (sortSelect && table) {
+  sortSelect.addEventListener('change', function() {
     const colIdx = parseInt(this.value);
     const tbody = table.querySelector('tbody');
     const rows = Array.from(tbody.querySelectorAll('tr'));
@@ -256,8 +490,167 @@ sortSelect.addEventListener('change', function() {
         });
     }
     rows.forEach(row => tbody.appendChild(row));
-});
+  });
+}
 </script>
 
   </div>
+<script>
+// Search and highlight in Class Results (auto-search with debounce + multi-hit navigation)
+(function() {
+  const input = document.getElementById('studentSearchInput');
+  const btn = document.getElementById('studentSearchBtn');
+  const prevBtn = document.getElementById('searchPrevBtn');
+  const nextBtn = document.getElementById('searchNextBtn');
+  const statusEl = document.getElementById('searchStatus');
+  if (!input || !btn) return;
+
+  function normalize(s) { return (s || '').toString().toLowerCase().trim(); }
+
+  function getTbody() {
+    const pane = document.getElementById('class-results');
+    return pane ? pane.querySelector('tbody') : document.querySelector('#class-results tbody');
+  }
+
+  function clearHits() {
+    const tbody = getTbody();
+    if (!tbody) return;
+    tbody.querySelectorAll('.search-hit').forEach(el => el.classList.remove('search-hit','search-current'));
+  }
+
+  let matches = [];
+  let currentIndex = -1;
+
+  function collectMatches(q) {
+    const tbody = getTbody();
+    if (!tbody) return [];
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const out = [];
+    for (const tr of rows) {
+      const nameCell = tr.cells && tr.cells.length > 1 ? tr.cells[1] : null; // sticky-col-2 is index 1
+      const nameText = nameCell ? normalize(nameCell.innerText) : '';
+      const adm = normalize(tr.getAttribute('data-adm'));
+      if (nameText.includes(q) || (adm && adm.includes(q))) out.push(tr);
+    }
+    return out;
+  }
+
+  function applyHighlights() {
+    clearHits();
+    if (!matches.length) return;
+    for (const tr of matches) tr.classList.add('search-hit');
+    if (currentIndex < 0 || currentIndex >= matches.length) currentIndex = 0;
+    const current = matches[currentIndex];
+    current.classList.add('search-current');
+    // Ensure the Class Results tab is visible
+    const tabBtn = document.querySelector('#class-results-tab');
+    if (tabBtn) tabBtn.click();
+    current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function updateStatus() {
+    if (!statusEl) return;
+    const q = normalize(input.value);
+    if (!q) { statusEl.textContent = ''; return; }
+    if (!matches.length) { statusEl.textContent = 'No match'; return; }
+    statusEl.textContent = (currentIndex + 1) + ' / ' + matches.length;
+  }
+
+  function setNavState() {
+    const disabled = !matches.length;
+    if (prevBtn) prevBtn.disabled = disabled;
+    if (nextBtn) nextBtn.disabled = disabled;
+  }
+
+  function runSearch(focusFirst=true) {
+    const q = normalize(input.value);
+    matches = q ? collectMatches(q) : [];
+    currentIndex = matches.length ? (focusFirst ? 0 : Math.min(currentIndex, matches.length - 1)) : -1;
+    applyHighlights();
+    updateStatus();
+    setNavState();
+  }
+
+  function gotoNext(delta) {
+    if (!matches.length) return;
+    currentIndex = (currentIndex + delta + matches.length) % matches.length;
+    applyHighlights();
+    updateStatus();
+  }
+
+  // Click and Enter support
+  btn.addEventListener('click', function(){ runSearch(true); });
+  input.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); runSearch(true); }});
+  if (prevBtn) prevBtn.addEventListener('click', function(){ gotoNext(-1); });
+  if (nextBtn) nextBtn.addEventListener('click', function(){ gotoNext(1); });
+
+  // Auto-search on typing with debounce
+  let t;
+  input.addEventListener('input', function() {
+    window.clearTimeout(t);
+    t = window.setTimeout(function(){ runSearch(false); }, 250);
+  });
+})();
+</script>
+
+<script>
+// Compute mean scores for Class Results table (per subject, average, total points)
+(function(){
+  function toNum(text){
+    const n = parseFloat(String(text).replace(/[^0-9.\-]/g,'').trim());
+    return isNaN(n) ? null : n;
+  }
+  function computeClassMeans(){
+    const table = document.getElementById('classResultsTable');
+    if(!table) return;
+    const subjCount = parseInt(table.getAttribute('data-subject-count')||'0',10);
+    const tbody = table.querySelector('tbody');
+    if(!tbody || !subjCount) return;
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if(!rows.length) return;
+
+    const sums = new Array(subjCount).fill(0);
+    const counts = new Array(subjCount).fill(0);
+    let avgSum = 0, avgCnt = 0;
+    let ptsSum = 0, ptsCnt = 0;
+
+    rows.forEach(tr => {
+      const cells = tr.cells;
+      // subjects start at index 2 (0: POS, 1: Student)
+      for(let i=0;i<subjCount;i++){
+        const c = cells[2+i]; if(!c) continue;
+        const v = toNum(c.textContent);
+        if(v!==null){ sums[i]+=v; counts[i]++; }
+      }
+      const avgCell = cells[2+subjCount];
+      const ptsCell = cells[2+subjCount+1];
+      const avg = avgCell ? toNum(avgCell.textContent) : null;
+      const pts = ptsCell ? toNum(ptsCell.textContent) : null;
+      if(avg!==null){ avgSum+=avg; avgCnt++; }
+      if(pts!==null){ ptsSum+=pts; ptsCnt++; }
+    });
+
+    const meanCells = table.querySelectorAll('tfoot .mean-subj');
+    meanCells.forEach((th,i)=>{
+      const mean = counts[i] ? (sums[i]/counts[i]) : null;
+      th.textContent = mean!==null ? mean.toFixed(1) : '—';
+    });
+    const meanAvg = table.querySelector('tfoot .mean-avg');
+    const meanPts = table.querySelector('tfoot .mean-points');
+    if(meanAvg) meanAvg.textContent = avgCnt ? (avgSum/avgCnt).toFixed(1) : '—';
+    if(meanPts) meanPts.textContent = ptsCnt ? Math.round(ptsSum/ptsCnt) : '—';
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', computeClassMeans);
+  } else { computeClassMeans(); }
+  window.__computeClassMeans = computeClassMeans;
+})();
+</script>
+<script>
+// Ensure means are fresh for print preview
+window.addEventListener('beforeprint', function(){
+  if(window.__computeClassMeans) try{ window.__computeClassMeans(); }catch(e){}
+});
+</script>
+</div>
 {% endblock %}

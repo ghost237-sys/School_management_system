@@ -15,10 +15,15 @@
 {% endif %}
 
 <div class="d-flex align-items-center justify-content-between mb-4">
-    <h1 class="mb-0">Students</h1>
-    <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addStudentModal">
-      <i class="bi bi-plus-lg me-1"></i> Add New Student
-    </button>
+    <h1 class="mb-0">Students <span class="fs-5 text-muted">({{ students|length }})</span></h1>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'admin_graduated_students' %}">
+        <i class="bi bi-mortarboard"></i> View Graduated Students
+      </a>
+      <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addStudentModal">
+        <i class="bi bi-plus-lg me-1"></i> Add New Student
+      </button>
+    </div>
 </div>
 <!-- Add Student Modal (modern stepper) -->
 <div class="modal fade" id="addStudentModal" tabindex="-1" aria-labelledby="addStudentModalLabel" aria-hidden="true">
@@ -81,25 +86,44 @@
 <div id="studentsPrintable">
 <div class="card mb-4">
     <div class="card-header bg-success text-white">
-        <h5 class="mb-0">All Students</h5>
+        <h5 class="mb-0">All Students <span class="fw-normal">({{ students|length }})</span></h5>
     </div>
     <div class="card-body">
+        <style>
+          /* Scrollable area for long student lists */
+          .students-scroll-box {
+            max-height: 60vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+          }
+          @media print {
+            .students-scroll-box {
+              max-height: none !important;
+              overflow: visible !important;
+            }
+            /* Hide elements marked as no-print in print preview */
+            .no-print { display: none !important; }
+          }
+        </style>
+        <div class="students-scroll-box">
         <table class="table table-hover">
             <thead>
                 <tr>
                     <th>Name</th>
+                    <th>Admission No</th>
                     <th>Email</th>
                     <th>Class</th>
-                    <th style="width: 160px;">Actions</th>
+                    <th class="no-print" style="width: 160px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
             {% for student in students %}
                 <tr>
                     <td><a href="{% url 'student_profile' student.id %}">{% if student.user %}{{ student.user.get_full_name|default:student.user.username }}{% else %}(No user){% endif %}</a></td>
+                    <td>{{ student.admission_no }}</td>
                     <td>{% if student.user %}{{ student.user.email }}{% else %}(No email){% endif %}</td>
                     <td>{{ student.class_group.name }}</td>
-                    <td>
+                    <td class="no-print">
                         <div class="btn-group btn-group-sm" role="group">
                             <a href="{% url 'student_profile' student.id %}" class="btn btn-outline-primary">
                                 <i class="bi bi-pencil-square"></i> Edit
@@ -113,10 +137,11 @@
                     </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="4">No students found.</td></tr>
+                <tr><td colspan="5">No students found.</td></tr>
             {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 <!-- You can include printed filter summary -->
@@ -132,30 +157,5 @@
     <span class="ms-3">(Filtered)</span>
   {% endif %}
 </div>
-</div>
-<div class="card mb-4">
-    <div class="card-header bg-secondary text-white">
-        <h5 class="mb-0">Graduated Students</h5>
-    </div>
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for student in graduated_students %}
-                <tr>
-                    <td><a href="{% url 'student_profile' student.id %}">{% if student.user %}{{ student.user.get_full_name|default:student.user.username }}{% else %}(No user){% endif %}</a></td>
-                    <td>{% if student.user %}{{ student.user.email }}{% else %}(No email){% endif %}</td>
-                </tr>
-            {% empty %}
-                <tr><td colspan="2">No graduated students found.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
 </div>
 {% endblock %}

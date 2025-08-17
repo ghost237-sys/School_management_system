@@ -11,12 +11,18 @@ from . import timetable_urls
 
 from core.views_student_messaging import student_messaging
 from core.views_teacher_messaging import teacher_messaging
+from core.views_clerk_messaging import clerk_messaging
 urlpatterns = [
     path('', include('core.urls_payment_verification')),
     path('mpesa-callback/', views.mpesa_callback, name='mpesa_callback'),
+  path('mpesa/c2b/validation/', views.mpesa_c2b_validation, name='mpesa_c2b_validation'),
+  path('mpesa/c2b/confirmation/', views.mpesa_c2b_confirmation, name='mpesa_c2b_confirmation'),
     # Redirect custom admin-like paths BEFORE django admin catch-all
-    path('admin/period-slots/', RedirectView.as_view(url='/admin_period_slots/', permanent=False)),
-    path('admin/', admin.site.urls),
+  path('admin/period-slots/', RedirectView.as_view(url='/admin_period_slots/', permanent=False)),
+  path('admin/fees/mpesa/reconcile/', views.admin_mpesa_reconcile, name='admin_mpesa_reconcile'),
+  # Custom admin-like view for block result slip must come BEFORE Django admin catch-all
+  path('admin/block_result_slip/', views.admin_block_result_slip, name='admin_block_result_slip'),
+  path('admin/', admin.site.urls),
     path('api/', include('core.timetable_urls')),
     path('timetable/', timetable_view, name='timetable_view'),
     path('timetable/auto-generate/', views.timetable_auto_generate, name='timetable_auto_generate'),
@@ -24,6 +30,7 @@ urlpatterns = [
     # ... other patterns ...
     path('student_messaging/', student_messaging, name='student_messaging'),
     path('teacher_messaging/', teacher_messaging, name='teacher_messaging'),
+    path('clerk_messaging/', clerk_messaging, name='clerk_messaging'),
     path('finance_messaging/', views_finance_messaging.finance_messaging_page, name='finance_messaging_page'),
 
     # General Login/Logout
@@ -35,6 +42,7 @@ urlpatterns = [
 
     # Admin URLs
     path('admin_overview/', views.admin_overview, name='admin_overview'),
+    path('clerk_overview/', views.clerk_overview, name='clerk_overview'),
     # Backward-compat/avoid confusion: redirect old path to new route
     path('admin/website-settings/', RedirectView.as_view(url='/admin_website_settings/', permanent=False)),
     path('admin_website_settings/', views.admin_website_settings, name='admin_website_settings'),
@@ -49,6 +57,7 @@ urlpatterns = [
     path('admin_teachers/delete/<int:teacher_id>/', views.delete_teacher, name='delete_teacher'),
     path('admin_assign_responsibility/', views.admin_assign_responsibility, name='admin_assign_responsibility'),
     path('admin_students/', views.admin_students, name='admin_students'),
+    path('admin_graduated_students/', views.admin_graduated_students, name='admin_graduated_students'),
     path('admin_classes/', views.admin_classes, name='admin_classes'),
     path('admin_class_result_slip/<int:class_id>/', views.admin_class_result_slip, name='admin_class_result_slip'),
     path('overall_student_results/<int:class_id>/', views.overall_student_results, name='overall_student_results'),
@@ -57,14 +66,18 @@ urlpatterns = [
     path('manage_class_subjects/<int:class_id>/', views.manage_class_subjects, name='manage_class_subjects'),
     path('delete_class/<int:class_id>/', views.delete_class, name='delete_class'),
     path('admin_analytics/', views.admin_analytics, name='admin_analytics'),
+    path('finance/analytics/', views.finance_analytics, name='finance_analytics'),
     path('attendance/view/', views.view_attendance, name='view_attendance'),
     path('admin_subjects/', views.admin_subjects, name='admin_subjects'),
+    path('admin_subject_components/', views.admin_subject_components, name='admin_subject_components'),
     path('manage_subject_grading/<int:subject_id>/', views.manage_subject_grading, name='manage_subject_grading'),
     path('admin_academic_years/', views.admin_academic_years, name='admin_academic_years'),
     # Use a non-admin prefix to avoid being captured by Django admin URLs
     path('admin_period_slots/', views.admin_period_slots, name='admin_period_slots'),
     path('admin_exams/', views.admin_exams, name='admin_exams'),
     path('admin_exams/delete/<int:exam_id>/', views.delete_exam, name='delete_exam'),
+    path('admin_exams/<int:exam_id>/publish/', views.publish_exam_results, name='publish_exam_results'),
+    path('admin_exams/<int:exam_id>/unpublish/', views.unpublish_exam_results, name='unpublish_exam_results'),
     path('admin_manage_grades/', views.admin_manage_grades_entry, name='admin_manage_grades_entry'),
     path('api/exams/', views.exam_calendar_api, name='exam_calendar_api'),
     path('api/classes/', views.api_classes, name='api_classes'),
@@ -89,14 +102,23 @@ urlpatterns = [
     path('downloads/', views.downloads, name='downloads'),
     # Export/Downloads API (Admin)
     path('exports/users.csv', views.export_users_csv, name='export_users_csv'),
+    path('exports/users.pdf', views.export_users_pdf, name='export_users_pdf'),
     path('exports/teachers.csv', views.export_teachers_csv, name='export_teachers_csv'),
+    path('exports/teachers.pdf', views.export_teachers_pdf, name='export_teachers_pdf'),
     path('exports/students.csv', views.export_students_csv, name='export_students_csv'),
+    path('exports/students.pdf', views.export_students_pdf, name='export_students_pdf'),
     path('exports/fee-assignments.csv', views.export_fee_assignments_csv, name='export_fee_assignments_csv'),
+    path('exports/fee-assignments.pdf', views.export_fee_assignments_pdf, name='export_fee_assignments_pdf'),
     path('exports/fee-payments.csv', views.export_fee_payments_csv, name='export_fee_payments_csv'),
+    path('exports/fee-payments.pdf', views.export_fee_payments_pdf, name='export_fee_payments_pdf'),
     path('exports/students-with-arrears.csv', views.export_students_with_arrears_csv, name='export_students_with_arrears_csv'),
+    path('exports/students-with-arrears.pdf', views.export_students_with_arrears_pdf, name='export_students_with_arrears_pdf'),
     path('exports/students-without-arrears.csv', views.export_students_without_arrears_csv, name='export_students_without_arrears_csv'),
+    path('exports/students-without-arrears.pdf', views.export_students_without_arrears_pdf, name='export_students_without_arrears_pdf'),
     path('exports/result-slip.csv', views.export_result_slip_csv, name='export_result_slip_csv'),
+    path('exports/result-slip.pdf', views.export_result_slip_pdf, name='export_result_slip_pdf'),
     path('exports/empty-subject-list.csv', views.export_empty_subject_list_csv, name='export_empty_subject_list_csv'),
+    path('exports/empty-subject-list.pdf', views.export_empty_subject_list_pdf, name='export_empty_subject_list_pdf'),
     path('admin_send_bulk_arrears_notice/', views_admin_messaging.send_bulk_fee_arrears_notice, name='admin_send_bulk_arrears_notice'),
     path('admin_payment_messages/', views_admin_messaging.admin_payment_messages, name='admin_payment_messages'),
     path('admin_payment_messages/logs/', views_admin_messaging.admin_payment_logs, name='admin_payment_logs'),

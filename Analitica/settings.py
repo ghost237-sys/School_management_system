@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import os
+import re
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,12 +22,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-*ok152u%==ocjk_1$lo4s$5j_z790d76%np&uk2m6znr(cvw55'
+# Prefer environment variable; fallback only for local dev
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-*ok152u%==ocjk_1$lo4s$5j_z790d76%np&uk2m6znr(cvw55'
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'true').lower() == 'true'
 
-ALLOWED_HOSTS = []
+# Comma-separated hostnames/IPs in env; safe defaults for local dev
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get(
+    'DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,::1'
+).split(',') if h.strip()]
+
+# During local development, also allow ngrok subdomains automatically
+if DEBUG:
+    # Allows any subdomain of ngrok-free.app, e.g. 0e225c...ngrok-free.app
+    ALLOWED_HOSTS += ['.ngrok-free.app']
 
 
 # Application definition
@@ -43,8 +56,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'core.apps.CoreConfig',
+    'landing.apps.LandingConfig',
+    'assistant.apps.AssistantConfig',
     'crispy_forms',
     'crispy_bootstrap5',
+    'widget_tweaks',
 ]
 
 MIDDLEWARE = [
@@ -70,6 +86,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core.context_processors.site_settings',
             ],
         },
     },
@@ -86,6 +103,56 @@ DATABASES = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
+}
+
+
+# --- Logging: redact PII/payment details in logs ---
+class RedactFilter:
+    """Filter that redacts common PII patterns like Kenyan phone numbers and M-Pesa receipts."""
+    phone_re = re.compile(r"(?:\+?254|0)?7\d{8}")
+    receipt_re = re.compile(r"\b[A-Z0-9]{10,12}\b")
+    account_ref_re = re.compile(r"Account#\w+")
+
+    def filter(self, record):
+        try:
+            msg = str(record.getMessage())
+            redacted = self.phone_re.sub("[PHONE]", msg)
+            redacted = self.receipt_re.sub("[MPESA_RECEIPT]", redacted)
+            redacted = self.account_ref_re.sub("Account#[REDACTED]", redacted)
+            # Update record message safely
+            record.msg = redacted
+            record.args = ()
+        except Exception:
+            pass
+        return True
+
+
+LOG_LEVEL = os.environ.get('DJANGO_LOG_LEVEL', 'INFO')
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'filters': {
+        'redact': {
+            '()': RedactFilter,
+        },
+    },
+    'formatters': {
+        'standard': {
+            'format': '[%(levelname)s] %(asctime)s %(name)s: %(message)s'
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': LOG_LEVEL,
+            'class': 'logging.StreamHandler',
+            'filters': ['redact'],
+            'formatter': 'standard',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': LOG_LEVEL,
+    },
 }
 
 
@@ -131,6 +198,38 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# --- Security hardening ---
+# Force HTTPS in production
+SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'false').lower() == 'true'
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# HSTS (enable only when you're sure HTTPS is correctly set up)
+SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '0' if DEBUG else '31536000'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'true').lower() == 'true'
+SECURE_HSTS_PRELOAD = os.environ.get('SECURE_HSTS_PRELOAD', 'true').lower() == 'true'
+
+# Cookies
+SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'false' if DEBUG else 'true').lower() == 'true'
+CSRF_COOKIE_SECURE = os.environ.get('CSRF_COOKIE_SECURE', 'false' if DEBUG else 'true').lower() == 'true'
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
+CSRF_COOKIE_SAMESITE = os.environ.get('CSRF_COOKIE_SAMESITE', 'Lax')
+
+# Browser security headers
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_REFERRER_POLICY = os.environ.get('SECURE_REFERRER_POLICY', 'strict-origin-when-cross-origin')
+
+# CSRF trusted origins (comma-separated)
+_csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+if _csrf_origins:
+    CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
+elif DEBUG:
+    # Fallback for local dev when using ngrok and no env var is set
+    CSRF_TRUSTED_ORIGINS = ['https://*.ngrok-free.app']
+
 # Email backend
 # For development, print emails to console. Configure SMTP below for production.
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
@@ -162,6 +261,11 @@ MPESA_SHORTCODE = os.environ.get('MPESA_SHORTCODE', '')  # PayBill/Till number
 MPESA_PASSKEY = os.environ.get('MPESA_PASSKEY', '')      # For STK push password
 # Public HTTPS URL for callbacks; must be reachable by Safaricom in production
 MPESA_CALLBACK_URL = os.environ.get('MPESA_CALLBACK_URL', '')
+# Optional: C2B Validation and Confirmation URLs (non-STK PayBill flows)
+MPESA_C2B_VALIDATION_URL = os.environ.get('MPESA_C2B_VALIDATION_URL', '')
+MPESA_C2B_CONFIRMATION_URL = os.environ.get('MPESA_C2B_CONFIRMATION_URL', '')
+# Optional: Shared secret header for callback authentication (X-Mpesa-Secret)
+MPESA_CALLBACK_SECRET = os.environ.get('MPESA_CALLBACK_SECRET', '')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -173,6 +277,16 @@ AUTH_USER_MODEL =  'core.User'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
+
+
+# Per-role concurrent session limits (can be overridden via environment)
+ROLE_SESSION_LIMITS = {
+    'admin': int(os.environ.get('LIMIT_SESSIONS_ADMIN', '2')),
+    'teacher': int(os.environ.get('LIMIT_SESSIONS_TEACHER', '2')),
+    'clerk': int(os.environ.get('LIMIT_SESSIONS_CLERK', '2')),
+    'student': int(os.environ.get('LIMIT_SESSIONS_STUDENT', '1')),
+    'parent': int(os.environ.get('LIMIT_SESSIONS_PARENT', '1')),
+}
 
 
 

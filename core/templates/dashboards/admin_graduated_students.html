@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Graduated Students{% endblock %}
+{% block content %}
+
+{% if messages %}
+<div class="container mt-3">
+    {% for message in messages %}
+    <div class="alert {% if message.tags %}{% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags }}{% endif %}{% else %}alert-info{% endif %} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="mb-0">Graduated Students <span class="fs-5 text-muted">({{ students|length }})</span></h1>
+  <div class="d-flex gap-2">
+    <a href="{% url 'admin_students' %}" class="btn btn-outline-secondary">Back to Students</a>
+    <button class="btn btn-outline-primary" type="button" onclick="window.print()">
+      <i class="bi bi-printer"></i> Print
+    </button>
+  </div>
+</div>
+
+<form class="row g-2 align-items-end mb-3" method="get">
+  <div class="col-auto">
+    <label class="form-label mb-1">Search</label>
+    <input type="text" name="q" class="form-control" placeholder="Name or admission no" value="{{ q }}" style="min-width: 260px;">
+  </div>
+  <div class="col-auto">
+    <label class="form-label mb-1">Gender</label>
+    <select name="gender" class="form-select">
+      <option value="" {% if not gender %}selected{% endif %}>All</option>
+      <option value="male" {% if gender == 'male' %}selected{% endif %}>Male</option>
+      <option value="female" {% if gender == 'female' %}selected{% endif %}>Female</option>
+      <option value="other" {% if gender == 'other' %}selected{% endif %}>Other</option>
+    </select>
+  </div>
+  <div class="col-auto d-flex gap-2">
+    <button class="btn btn-primary" type="submit">Apply</button>
+    <a class="btn btn-outline-secondary" href="{% url 'admin_graduated_students' %}">Reset</a>
+  </div>
+</form>
+
+<div id="graduatesPrintable">
+  <div class="card">
+    <div class="card-header bg-secondary text-white">
+      <h5 class="mb-0">All Graduated Students <span class="fw-normal">({{ students|length }})</span></h5>
+    </div>
+    <div class="card-body">
+      <style>
+        /* Smooth, nice scroll area for the graduates list */
+        .graduates-scroll-box {
+          max-height: 70vh;
+          overflow: auto;
+          scroll-behavior: smooth;
+          padding-right: .25rem;
+          scrollbar-width: thin; /* Firefox */
+          scrollbar-color: rgba(0,0,0,.35) transparent; /* Firefox */
+        }
+        .graduates-scroll-box::-webkit-scrollbar { width: .55rem; }
+        .graduates-scroll-box::-webkit-scrollbar-thumb { background: rgba(0,0,0,.2); border-radius: .5rem; }
+        .graduates-scroll-box:hover::-webkit-scrollbar-thumb { background: rgba(0,0,0,.35); }
+        /* Keep table header visible while scrolling */
+        .graduates-scroll-box thead th {
+          position: sticky;
+          top: 0;
+          z-index: 1;
+          background: var(--bs-body-bg);
+        }
+        @media print {
+          .graduates-scroll-box { max-height: none !important; overflow: visible !important; }
+          .no-print { display: none !important; }
+        }
+      </style>
+      <div class="graduates-scroll-box">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Admission No</th>
+              <th>Email</th>
+              <th>Last Known Class</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in students %}
+            <tr>
+              <td>
+                <a href="{% url 'student_profile' s.id %}">
+                  {% if s.user %}{{ s.user.get_full_name|default:s.user.username }}{% else %}(No user){% endif %}
+                </a>
+              </td>
+              <td>{{ s.admission_no }}</td>
+              <td>{% if s.user %}{{ s.user.email }}{% else %}(No email){% endif %}</td>
+              <td>
+                {% if s.class_group %}
+                  {{ s.class_group.name }}
+                {% else %}-{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4">No graduated students found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="small text-muted mt-2 no-print">
+        {% if q %}<span><strong>Search:</strong> {{ q }}</span>{% endif %}
+        {% if gender %}<span class="ms-3"><strong>Gender:</strong> {{ gender|title }}</span>{% endif %}
+        {% if q or gender %}<span class="ms-3">(Filtered)</span>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# No extra JS needed #}
+{% endblock %}

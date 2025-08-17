@@ -58,9 +58,11 @@ def generate_timetable(*, overwrite: bool = True, seed: int | None = None) -> Di
     rng = random.Random(seed if seed is not None else int(time.time() * 1000) & 0x7FFFFFFF)
 
     # Build demand: for each class, subject, teacher -> number of weekly lessons (from subject.weekly_lessons)
+    # Exclude component (child) subjects from scheduling
     assignments = (
         TeacherClassAssignment.objects
         .select_related("teacher__user", "class_group", "subject")
+        .filter(subject__part_of__isnull=True)
         .order_by("class_group__level", "class_group__name", "subject__name")
     )
 

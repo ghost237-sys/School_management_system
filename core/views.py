@@ -39,9 +39,13 @@ from django.contrib.auth.decorators import user_passes_test
 from django.db.models.functions import Length
 from django.db.models import Sum
 import csv
+from .pdf_utils import pdf_response_from_rows
 
 def is_admin(user):
     return user.is_authenticated and getattr(user, 'role', None) == 'admin'
+
+def is_admin_or_clerk(user):
+    return user.is_authenticated and getattr(user, 'role', None) in ('admin', 'clerk')
 
 @login_required(login_url='login')
 @user_passes_test(is_admin)
@@ -343,7 +347,148 @@ def _csv_response(filename: str):
     return resp
 
 @login_required(login_url='login')
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_clerk)
+def export_students_without_arrears_pdf(request):
+    class_id = request.GET.get('class_id')
+    term_id = request.GET.get('term_id')
+    order = request.GET.get('order', 'asc')
+    sort_by = request.GET.get('sort_by', 'name')
+    min_balance = request.GET.get('min_balance')
+    max_balance = request.GET.get('max_balance')
+
+    students = Student.objects.select_related('user', 'class_group').all()
+    if class_id:
+        students = students.filter(class_group_id=class_id)
+
+    rows_data = []
+    for s in students:
+        fa_q = FeeAssignment.objects.filter(class_group=s.class_group)
+        if term_id:
+            fa_q = fa_q.filter(term_id=term_id)
+        owed = fa_q.aggregate(total=Sum('amount'))['total'] or 0
+        fp_q = FeePayment.objects.filter(student=s, status='approved')
+        if term_id:
+            fp_q = fp_q.filter(fee_assignment__term_id=term_id)
+        paid = fp_q.aggregate(total=Sum('amount_paid'))['total'] or 0
+        balance = (owed - paid)
+        if balance <= 0:
+            rows_data.append((s, balance, owed, paid))
+
+    try:
+        if min_balance not in (None, ''):
+            mb = float(min_balance)
+            rows_data = [r for r in rows_data if r[1] >= mb]
+        if max_balance not in (None, ''):
+            xb = float(max_balance)
+            rows_data = [r for r in rows_data if r[1] <= xb]
+    except ValueError:
+        pass
+
+    is_desc = order in ['desc', 'za']
+    if sort_by == 'admission':
+        rows_data.sort(key=lambda r: (len(r[0].admission_no), r[0].admission_no), reverse=is_desc)
+    elif sort_by == 'balance':
+        rows_data.sort(key=lambda r: r[1], reverse=is_desc)
+    else:
+        rows_data.sort(key=lambda r: ((r[0].user.first_name or '') + ' ' + (r[0].user.last_name or '')).strip().lower(), reverse=is_desc)
+
+    columns = ['Admission No', 'Full Name', 'Class', 'Level', 'Owed', 'Paid', 'Balance']
+    rows = []
+    for s, balance, owed, paid in rows_data:
+        u = s.user
+        rows.append([
+            s.admission_no,
+            u.get_full_name() if u else '',
+            getattr(s.class_group, 'name', ''),
+            getattr(s.class_group, 'level', ''),
+            owed,
+            paid,
+            balance,
+        ])
+    return pdf_response_from_rows('students_without_arrears.pdf', 'Students without Arrears', _site_header_rows(), columns, rows)
+
+@login_required(login_url='login')
+@user_passes_test(is_admin_or_clerk)
+def export_students_with_arrears_pdf(request):
+    class_id = request.GET.get('class_id')
+    term_id = request.GET.get('term_id')
+    order = request.GET.get('order', 'desc')
+    sort_by = request.GET.get('sort_by', 'balance')
+    min_balance = request.GET.get('min_balance')
+    max_balance = request.GET.get('max_balance')
+
+    students = Student.objects.select_related('user', 'class_group').all()
+    if class_id:
+        students = students.filter(class_group_id=class_id)
+
+    rows_data = []
+    for s in students:
+        fa_q = FeeAssignment.objects.filter(class_group=s.class_group)
+        if term_id:
+            fa_q = fa_q.filter(term_id=term_id)
+        owed = fa_q.aggregate(total=Sum('amount'))["total"] or 0
+        fp_q = FeePayment.objects.filter(student=s, status='approved')
+        if term_id:
+            fp_q = fp_q.filter(fee_assignment__term_id=term_id)
+        paid = fp_q.aggregate(total=Sum('amount_paid'))["total"] or 0
+        balance = (owed - paid)
+        if balance > 0:
+            rows_data.append((s, balance, owed, paid))
+
+    try:
+        if min_balance not in (None, ''):
+            mb = float(min_balance)
+            rows_data = [r for r in rows_data if r[1] >= mb]
+        if max_balance not in (None, ''):
+            xb = float(max_balance)
+            rows_data = [r for r in rows_data if r[1] <= xb]
+    except ValueError:
+        pass
+
+    is_desc = order in ['desc', 'za']
+    if sort_by == 'name':
+        rows_data.sort(key=lambda r: ((r[0].user.first_name or '') + ' ' + (r[0].user.last_name or '')).strip().lower(), reverse=is_desc)
+    elif sort_by == 'admission':
+        rows_data.sort(key=lambda r: (len(r[0].admission_no), r[0].admission_no), reverse=is_desc)
+    else:
+        rows_data.sort(key=lambda r: r[1], reverse=is_desc)
+
+    columns = ['Admission No', 'Full Name', 'Class', 'Level', 'Owed', 'Paid', 'Balance']
+    rows = []
+    for s, balance, owed, paid in rows_data:
+        u = s.user
+        rows.append([
+            s.admission_no,
+            u.get_full_name() if u else '',
+            getattr(s.class_group, 'name', ''),
+            getattr(s.class_group, 'level', ''),
+            owed,
+            paid,
+            balance,
+        ])
+    return pdf_response_from_rows('students_with_arrears.pdf', 'Students with Arrears', _site_header_rows(), columns, rows)
+
+def _site_header_rows():
+    """Return a list of single-cell rows for school header: name, motto, address, and a spacer."""
+    rows = []
+    try:
+        from landing.models import SiteSettings
+        ss = SiteSettings.objects.first()
+        if ss:
+            rows.append([getattr(ss, 'school_name', '')])
+            motto = getattr(ss, 'school_motto', '')
+            addr = getattr(ss, 'contact_address', '')
+            if motto:
+                rows.append([motto])
+            if addr:
+                rows.append([addr])
+            rows.append([])
+    except Exception:
+        pass
+    return rows
+
+@login_required(login_url='login')
+@user_passes_test(is_admin_or_clerk)
 def export_students_with_arrears_csv(request):
     class_id = request.GET.get('class_id')
     term_id = request.GET.get('term_id')
@@ -395,6 +540,19 @@ def export_students_with_arrears_csv(request):
 
     resp = _csv_response('students_with_arrears.csv')
     writer = csv.writer(resp)
+    # Prepend school header
+    try:
+        from landing.models import SiteSettings
+        ss = SiteSettings.objects.first()
+        if ss:
+            writer.writerow([getattr(ss, 'school_name', '')])
+            if getattr(ss, 'school_motto', ''):
+                writer.writerow([ss.school_motto])
+            if getattr(ss, 'contact_address', ''):
+                writer.writerow([ss.contact_address])
+            writer.writerow([])
+    except Exception:
+        pass
     writer.writerow(['Admission No', 'Full Name', 'Class', 'Level', 'Owed', 'Paid', 'Balance'])
     for s, balance, owed, paid in rows:
         user = s.user
@@ -410,7 +568,7 @@ def export_students_with_arrears_csv(request):
     return resp
 
 @login_required(login_url='login')
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_clerk)
 def export_students_without_arrears_csv(request):
     class_id = request.GET.get('class_id')
     term_id = request.GET.get('term_id')
@@ -458,6 +616,19 @@ def export_students_without_arrears_csv(request):
 
     resp = _csv_response('students_without_arrears.csv')
     writer = csv.writer(resp)
+    # Prepend school header
+    try:
+        from landing.models import SiteSettings
+        ss = SiteSettings.objects.first()
+        if ss:
+            writer.writerow([getattr(ss, 'school_name', '')])
+            if getattr(ss, 'school_motto', ''):
+                writer.writerow([ss.school_motto])
+            if getattr(ss, 'contact_address', ''):
+                writer.writerow([ss.contact_address])
+            writer.writerow([])
+    except Exception:
+        pass
     writer.writerow(['Admission No', 'Full Name', 'Class', 'Level', 'Owed', 'Paid', 'Balance'])
     for s, balance, owed, paid in rows:
         user = s.user
@@ -478,10 +649,36 @@ def export_users_csv(request):
     qs = User.objects.all().order_by('id')
     resp = _csv_response('users.csv')
     writer = csv.writer(resp)
+    try:
+        from landing.models import SiteSettings
+        ss = SiteSettings.objects.first()
+        if ss:
+            writer.writerow([getattr(ss, 'school_name', '')])
+            if getattr(ss, 'school_motto', ''):
+                writer.writerow([ss.school_motto])
+            if getattr(ss, 'contact_address', ''):
+                writer.writerow([ss.contact_address])
+            writer.writerow([])
+    except Exception:
+        pass
     writer.writerow(['ID', 'Username', 'First Name', 'Last Name', 'Email', 'Role', 'Is Active', 'Date Joined'])
     for u in qs:
         writer.writerow([u.id, u.username, u.first_name, u.last_name, u.email, getattr(u, 'role', ''), u.is_active, u.date_joined])
     return resp
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def export_users_pdf(request):
+    qs = User.objects.all().order_by('id')
+    columns = ['ID', 'Username', 'First Name', 'Last Name', 'Email', 'Role', 'Is Active', 'Date Joined']
+    rows = []
+    for u in qs:
+        rows.append([
+            u.id, u.username, u.first_name, u.last_name, u.email,
+            getattr(u, 'role', ''), u.is_active,
+            u.date_joined.strftime('%Y-%m-%d %H:%M') if getattr(u, 'date_joined', None) else ''
+        ])
+    return pdf_response_from_rows('users.pdf', 'Users', _site_header_rows(), columns, rows)
 
 @login_required(login_url='login')
 @user_passes_test(is_admin)
@@ -502,12 +699,47 @@ def export_teachers_csv(request):
         qs = qs.order_by('user__first_name', 'user__last_name', 'id')
     resp = _csv_response('teachers.csv')
     writer = csv.writer(resp)
+    try:
+        from landing.models import SiteSettings
+        ss = SiteSettings.objects.first()
+        if ss:
+            writer.writerow([getattr(ss, 'school_name', '')])
+            if getattr(ss, 'school_motto', ''):
+                writer.writerow([ss.school_motto])
+            if getattr(ss, 'contact_address', ''):
+                writer.writerow([ss.contact_address])
+            writer.writerow([])
+    except Exception:
+        pass
     writer.writerow(['ID', 'Name', 'Username', 'Department', 'TSC Number', 'Staff ID', 'Phone', 'Gender', 'Email'])
     for t in qs:
         user = t.user
         name = user.get_full_name() if user else ''
         writer.writerow([t.id, name, user.username if user else '', getattr(t.department, 'name', ''), t.tsc_number or '', t.staff_id or '', t.phone or '', t.gender or '', (user.email if user else '')])
     return resp
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def export_teachers_pdf(request):
+    qs = Teacher.objects.select_related('user', 'department').all()
+    dept_id = request.GET.get('department_id')
+    subj_id = request.GET.get('subject_id')
+    order = request.GET.get('order', 'az')
+    if dept_id:
+        qs = qs.filter(department_id=dept_id)
+    if subj_id:
+        qs = qs.filter(subjects__id=subj_id)
+    if order == 'za':
+        qs = qs.order_by('-user__first_name', '-user__last_name', '-id')
+    else:
+        qs = qs.order_by('user__first_name', 'user__last_name', 'id')
+    columns = ['ID', 'Name', 'Username', 'Department', 'TSC Number', 'Staff ID', 'Phone', 'Gender', 'Email']
+    rows = []
+    for t in qs:
+        user = t.user
+        name = user.get_full_name() if user else ''
+        rows.append([t.id, name, user.username if user else '', getattr(t.department, 'name', ''), t.tsc_number or '', t.staff_id or '', t.phone or '', t.gender or '', (user.email if user else '')])
+    return pdf_response_from_rows('teachers.pdf', 'Teachers', _site_header_rows(), columns, rows)
 
 @login_required(login_url='login')
 @user_passes_test(is_admin)
@@ -536,6 +768,18 @@ def export_students_csv(request):
         qs = qs.order_by('-user__first_name', '-user__last_name') if is_desc else qs.order_by('user__first_name', 'user__last_name')
     resp = _csv_response('students.csv')
     writer = csv.writer(resp)
+    try:
+        from landing.models import SiteSettings
+        ss = SiteSettings.objects.first()
+        if ss:
+            writer.writerow([getattr(ss, 'school_name', '')])
+            if getattr(ss, 'school_motto', ''):
+                writer.writerow([ss.school_motto])
+            if getattr(ss, 'contact_address', ''):
+                writer.writerow([ss.contact_address])
+            writer.writerow([])
+    except Exception:
+        pass
     writer.writerow(['Admission No', 'Full Name', 'Username', 'Class', 'Level', 'Gender', 'Phone', 'Graduated'])
     for s in qs:
         user = s.user
@@ -546,6 +790,33 @@ def export_students_csv(request):
 
 @login_required(login_url='login')
 @user_passes_test(is_admin)
+def export_students_pdf(request):
+    qs = Student.objects.select_related('user', 'class_group').all()
+    class_id = request.GET.get('class_id')
+    level = request.GET.get('level')
+    order = request.GET.get('order', 'asc')
+    sort_by = request.GET.get('sort_by', 'admission')
+    if class_id:
+        qs = qs.filter(class_group_id=class_id)
+    if level:
+        qs = qs.filter(class_group__level=level)
+    is_desc = order in ['desc', 'za']
+    if sort_by == 'admission':
+        qs = qs.annotate(_adm_len=Length('admission_no'))
+        qs = qs.order_by('-_adm_len', '-admission_no') if is_desc else qs.order_by('_adm_len', 'admission_no')
+    else:
+        qs = qs.order_by('-user__first_name', '-user__last_name') if is_desc else qs.order_by('user__first_name', 'user__last_name')
+    columns = ['Admission No', 'Full Name', 'Username', 'Class', 'Level', 'Gender', 'Phone', 'Graduated']
+    rows = []
+    for s in qs:
+        user = s.user
+        full_name = user.get_full_name() if user else ''
+        username = user.username if user else ''
+        rows.append([s.admission_no, full_name, username, getattr(s.class_group, 'name', ''), getattr(s.class_group, 'level', ''), s.gender, s.phone or '', s.graduated])
+    return pdf_response_from_rows('students.pdf', 'Students', _site_header_rows(), columns, rows)
+
+@login_required(login_url='login')
+@user_passes_test(is_admin_or_clerk)
 def export_fee_assignments_csv(request):
     qs = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term__academic_year').all()
     class_id = request.GET.get('class_id')
@@ -557,6 +828,18 @@ def export_fee_assignments_csv(request):
     qs = qs.order_by('class_group__level', 'class_group__name', 'fee_category__name')
     resp = _csv_response('fee_assignments.csv')
     writer = csv.writer(resp)
+    try:
+        from landing.models import SiteSettings
+        ss = SiteSettings.objects.first()
+        if ss:
+            writer.writerow([getattr(ss, 'school_name', '')])
+            if getattr(ss, 'school_motto', ''):
+                writer.writerow([ss.school_motto])
+            if getattr(ss, 'contact_address', ''):
+                writer.writerow([ss.contact_address])
+            writer.writerow([])
+    except Exception:
+        pass
     writer.writerow(['ID', 'Fee Category', 'Class', 'Level', 'Term', 'Academic Year', 'Amount'])
     for fa in qs:
         writer.writerow([
@@ -571,7 +854,32 @@ def export_fee_assignments_csv(request):
     return resp
 
 @login_required(login_url='login')
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_clerk)
+def export_fee_assignments_pdf(request):
+    qs = FeeAssignment.objects.select_related('fee_category', 'class_group', 'term__academic_year').all()
+    class_id = request.GET.get('class_id')
+    term_id = request.GET.get('term_id')
+    if class_id:
+        qs = qs.filter(class_group_id=class_id)
+    if term_id:
+        qs = qs.filter(term_id=term_id)
+    qs = qs.order_by('class_group__level', 'class_group__name', 'fee_category__name')
+    columns = ['ID', 'Fee Category', 'Class', 'Level', 'Term', 'Academic Year', 'Amount']
+    rows = []
+    for fa in qs:
+        rows.append([
+            fa.id,
+            fa.fee_category.name if fa.fee_category else '',
+            fa.class_group.name if fa.class_group else '',
+            fa.class_group.level if fa.class_group else '',
+            fa.term.name if fa.term else '',
+            fa.term.academic_year.year if getattr(fa.term, 'academic_year', None) else '',
+            fa.amount,
+        ])
+    return pdf_response_from_rows('fee_assignments.pdf', 'Fee Assignments', _site_header_rows(), columns, rows)
+
+@login_required(login_url='login')
+@user_passes_test(is_admin_or_clerk)
 def export_fee_payments_csv(request):
     qs = FeePayment.objects.select_related('student__user', 'fee_assignment__fee_category', 'fee_assignment__class_group', 'fee_assignment__term__academic_year').all()
     # Filters
@@ -590,6 +898,18 @@ def export_fee_payments_csv(request):
     qs = qs.order_by('-payment_date')
     resp = _csv_response('fee_payments.csv')
     writer = csv.writer(resp)
+    try:
+        from landing.models import SiteSettings
+        ss = SiteSettings.objects.first()
+        if ss:
+            writer.writerow([getattr(ss, 'school_name', '')])
+            if getattr(ss, 'school_motto', ''):
+                writer.writerow([ss.school_motto])
+            if getattr(ss, 'contact_address', ''):
+                writer.writerow([ss.contact_address])
+            writer.writerow([])
+    except Exception:
+        pass
     writer.writerow(['ID', 'Student', 'Admission No', 'Class', 'Level', 'Fee Category', 'Amount Paid', 'Payment Date', 'Method', 'Reference', 'Phone', 'Status'])
     for p in qs:
         student = p.student
@@ -613,6 +933,46 @@ def export_fee_payments_csv(request):
     return resp
 
 @login_required(login_url='login')
+@user_passes_test(is_admin_or_clerk)
+def export_fee_payments_pdf(request):
+    qs = FeePayment.objects.select_related('student__user', 'fee_assignment__fee_category', 'fee_assignment__class_group', 'fee_assignment__term__academic_year').all()
+    method = request.GET.get('method')
+    category_id = request.GET.get('category_id')
+    class_id = request.GET.get('class_id')
+    term_id = request.GET.get('term_id')
+    if method:
+        qs = qs.filter(payment_method__iexact=method)
+    if category_id:
+        qs = qs.filter(fee_assignment__fee_category_id=category_id)
+    if class_id:
+        qs = qs.filter(fee_assignment__class_group_id=class_id)
+    if term_id:
+        qs = qs.filter(fee_assignment__term_id=term_id)
+    qs = qs.order_by('-payment_date')
+    columns = ['ID', 'Student', 'Admission No', 'Class', 'Level', 'Fee Category', 'Amount Paid', 'Payment Date', 'Method', 'Reference', 'Phone', 'Status']
+    rows = []
+    for p in qs:
+        student = p.student
+        user = getattr(student, 'user', None)
+        class_group = getattr(student, 'class_group', None)
+        cat = p.fee_assignment.fee_category.name if p.fee_assignment and p.fee_assignment.fee_category else ''
+        rows.append([
+            p.id,
+            (user.get_full_name() if user else str(student.id)),
+            getattr(student, 'admission_no', ''),
+            getattr(class_group, 'name', ''),
+            getattr(class_group, 'level', ''),
+            cat,
+            p.amount_paid,
+            p.payment_date.strftime('%Y-%m-%d %H:%M'),
+            p.payment_method or '',
+            p.reference or '',
+            p.phone_number or '',
+            p.status,
+        ])
+    return pdf_response_from_rows('fee_payments.pdf', 'Fee Payments', _site_header_rows(), columns, rows)
+
+@login_required(login_url='login')
 @user_passes_test(is_admin)
 def admin_payment_callback_logs(request):
     import os, json
@@ -625,7 +985,141 @@ def admin_payment_callback_logs(request):
         logs = []
     return render(request, 'dashboards/admin_payment_callback_logs.html', {'logs': logs})
 
+@login_required(login_url='login')
+@user_passes_test(is_admin_or_clerk)
+def admin_mpesa_reconcile(request):
+    """Admin page to reconcile M-Pesa transactions and pending FeePayments."""
+    action = request.POST.get('action') if request.method == 'POST' else None
+    if action == 'query_tx':
+        checkout_id = request.POST.get('checkout_request_id')
+        if checkout_id:
+            tx = MpesaTransaction.objects.filter(checkout_request_id=checkout_id).first()
+            if tx:
+                resp = query_stk_status(tx.checkout_request_id)
+                if isinstance(resp, dict) and not resp.get('error'):
+                    rc = resp.get('ResultCode')
+                    rd = resp.get('ResultDesc')
+                    if rc is not None:
+                        try:
+                            tx.result_code = int(rc)
+                        except Exception:
+                            pass
+                    if rd:
+                        tx.result_desc = rd
+                    if str(rc) == '0':
+                        tx.status = 'success'
+                    elif str(rc) not in (None, '', '0'):
+                        tx.status = 'failed'
+                    tx.save()
+                    messages.success(request, f"Queried STK status for {checkout_id}: {rd}")
+                else:
+                    messages.error(request, f"Query failed for {checkout_id}: {resp}")
+            else:
+                messages.error(request, "Transaction not found")
+        return redirect('admin_mpesa_reconcile')
+    elif action == 'approve_payment':
+        fp_id = request.POST.get('fee_payment_id')
+        if fp_id:
+            fp = FeePayment.objects.filter(id=fp_id, status='pending').first()
+            if fp:
+                fp.status = 'approved'
+                fp.save(update_fields=['status'])
+                messages.success(request, f"Payment {fp.reference or fp.id} approved.")
+            else:
+                messages.error(request, "Pending payment not found")
+        return redirect('admin_mpesa_reconcile')
+    elif action == 'link_payment':
+        fp_id = request.POST.get('fee_payment_id')
+        ref = request.POST.get('reference')
+        if fp_id and ref:
+            fp = FeePayment.objects.filter(id=fp_id).first()
+            tx = MpesaTransaction.objects.filter(mpesa_receipt=ref).first()
+            if fp and tx:
+                fp.mpesa_transaction = tx
+                if not fp.reference:
+                    fp.reference = ref
+                fp.save(update_fields=['mpesa_transaction','reference'])
+                messages.success(request, f"Linked payment {fp.id} to transaction {tx.checkout_request_id}.")
+            else:
+                messages.error(request, "Could not find payment/transaction to link")
+        return redirect('admin_mpesa_reconcile')
+    elif action == 'record_external':
+        # Manually record a PayBill payment that was not initiated via the site
+        from decimal import Decimal
+        trans_id = (request.POST.get('trans_id') or '').strip()
+        amount = request.POST.get('amount')
+        phone = _normalize_msisdn(request.POST.get('phone') or '')
+        account_ref = (request.POST.get('account_ref') or '').strip()
+        if not trans_id or not amount:
+            messages.error(request, 'TransID and Amount are required.')
+            return redirect('admin_mpesa_reconcile')
+        # Idempotency: if FeePayment already exists by reference, skip
+        if FeePayment.objects.filter(reference=trans_id).exists():
+            messages.info(request, f'Payment with TransID {trans_id} already recorded.')
+            return redirect('admin_mpesa_reconcile')
+        # Resolve student from Account#ADM or phone
+        student = None
+        if account_ref.startswith('Account#'):
+            adm = account_ref.split('#', 1)[1].strip()
+            student = Student.objects.filter(admission_no=adm).first()
+        if not student and phone:
+            student = Student.objects.filter(phone=phone).first()
+        # Ensure a MpesaTransaction exists
+        tx = MpesaTransaction.objects.filter(mpesa_receipt=trans_id).first()
+        if not tx:
+            try:
+                tx = MpesaTransaction.objects.create(
+                    student=student,
+                    phone_number=phone or '',
+                    amount=Decimal(str(amount)),
+                    account_reference=account_ref or None,
+                    checkout_request_id=f'manual-{trans_id}',
+                    status='success',
+                    mpesa_receipt=trans_id,
+                    result_desc='Manual entry (external PayBill)'
+                )
+            except Exception as e:
+                messages.error(request, f'Error creating transaction: {e}')
+                return redirect('admin_mpesa_reconcile')
+        # Choose fee assignment (current term or any)
+        from django.db.models import Sum as _Sum
+        today = timezone.now().date()
+        current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
+        outstanding_assignment = None
+        if student:
+            q = FeeAssignment.objects.filter(class_group=student.class_group)
+            if current_term:
+                q = q.filter(term=current_term)
+            for fa in q:
+                paid = FeePayment.objects.filter(student=student, fee_assignment=fa).aggregate(total=_Sum('amount_paid'))['total'] or 0
+                if float(paid) < float(fa.amount):
+                    outstanding_assignment = fa
+                    break
+            if not outstanding_assignment:
+                outstanding_assignment = q.first()
+        # Create approved FeePayment
+        try:
+            FeePayment.objects.create(
+                student=student,
+                fee_assignment=outstanding_assignment,
+                amount_paid=Decimal(str(amount)),
+                payment_method='mpesa',
+                reference=trans_id,
+                phone_number=phone,
+                status='approved',
+                mpesa_transaction=tx
+            )
+            messages.success(request, f'Recorded external payment {trans_id}.')
+        except Exception as e:
+            messages.error(request, f'Error creating FeePayment: {e}')
+        return redirect('admin_mpesa_reconcile')
 
+    pending_txs = MpesaTransaction.objects.filter(status='pending').order_by('-created_at')[:100]
+    pending_payments = FeePayment.objects.filter(status='pending').order_by('-payment_date')[:100]
+    return render(request, 'admin/mpesa_reconcile.html', {
+        'pending_txs': pending_txs,
+        'pending_payments': pending_payments,
+    })
 
 from django.http import JsonResponse
 
@@ -649,6 +1143,18 @@ def export_result_slip_csv(request):
     grades = grades.order_by('student__class_group__level', 'student__class_group__name', 'student__admission_no', 'subject__name')
     resp = _csv_response('result_slip.csv')
     writer = csv.writer(resp)
+    try:
+        from landing.models import SiteSettings
+        ss = SiteSettings.objects.first()
+        if ss:
+            writer.writerow([getattr(ss, 'school_name', '')])
+            if getattr(ss, 'school_motto', ''):
+                writer.writerow([ss.school_motto])
+            if getattr(ss, 'contact_address', ''):
+                writer.writerow([ss.contact_address])
+            writer.writerow([])
+    except Exception:
+        pass
     writer.writerow(['Admission No', 'Full Name', 'Class', 'Level', 'Subject', 'Score', 'Grade', 'Exam', 'Term', 'Year'])
     for g in grades:
         s = g.student
@@ -671,6 +1177,41 @@ def export_result_slip_csv(request):
 
 @login_required(login_url='login')
 @user_passes_test(is_admin)
+def export_result_slip_pdf(request):
+    exam_id = request.GET.get('exam_id')
+    class_id = request.GET.get('class_id')
+    level = request.GET.get('level')
+    if not exam_id:
+        return HttpResponse("Missing exam_id", status=400)
+    grades = Grade.objects.select_related('student__user', 'student__class_group', 'subject', 'exam__term__academic_year').filter(exam_id=exam_id)
+    if class_id:
+        grades = grades.filter(student__class_group_id=class_id)
+    if level:
+        grades = grades.filter(student__class_group__level=level)
+    grades = grades.order_by('student__class_group__level', 'student__class_group__name', 'student__admission_no', 'subject__name')
+    columns = ['Admission No', 'Full Name', 'Class', 'Level', 'Subject', 'Score', 'Grade', 'Exam', 'Term', 'Year']
+    rows = []
+    for g in grades:
+        s = g.student
+        user = s.user
+        cls = s.class_group
+        term = g.exam.term if g.exam else None
+        rows.append([
+            s.admission_no,
+            user.get_full_name() if user else '',
+            getattr(cls, 'name', ''),
+            getattr(cls, 'level', ''),
+            g.subject.name if g.subject else '',
+            g.score,
+            g.grade_letter or '',
+            g.exam.name if g.exam else '',
+            term.name if term else '',
+            term.academic_year.year if getattr(term, 'academic_year', None) else '',
+        ])
+    return pdf_response_from_rows('result_slip.pdf', 'Result Slip', _site_header_rows(), columns, rows)
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
 def export_empty_subject_list_csv(request):
     """
     Empty mark entry template for a chosen class and subject.
@@ -690,6 +1231,18 @@ def export_empty_subject_list_csv(request):
     students = Student.objects.select_related('user').filter(class_group=cls).order_by('user__first_name', 'user__last_name')
     resp = _csv_response('empty_subject_list.csv')
     writer = csv.writer(resp)
+    try:
+        from landing.models import SiteSettings
+        ss = SiteSettings.objects.first()
+        if ss:
+            writer.writerow([getattr(ss, 'school_name', '')])
+            if getattr(ss, 'school_motto', ''):
+                writer.writerow([ss.school_motto])
+            if getattr(ss, 'contact_address', ''):
+                writer.writerow([ss.contact_address])
+            writer.writerow([])
+    except Exception:
+        pass
     writer.writerow(['Admission No', 'Full Name', 'Class', 'Level', 'Subject', 'Score'])
     for s in students:
         user = s.user
@@ -702,6 +1255,35 @@ def export_empty_subject_list_csv(request):
             '',
         ])
     return resp
+
+@login_required(login_url='login')
+@user_passes_test(is_admin)
+def export_empty_subject_list_pdf(request):
+    class_id = request.GET.get('class_id')
+    subject_id = request.GET.get('subject_id')
+    if not class_id or not subject_id:
+        return HttpResponse("Missing class_id or subject_id", status=400)
+    try:
+        cls = Class.objects.get(id=class_id)
+        subj = Subject.objects.get(id=subject_id)
+    except Class.DoesNotExist:
+        return HttpResponse("Invalid class_id", status=400)
+    except Subject.DoesNotExist:
+        return HttpResponse("Invalid subject_id", status=400)
+    students = Student.objects.select_related('user').filter(class_group=cls).order_by('user__first_name', 'user__last_name')
+    columns = ['Admission No', 'Full Name', 'Class', 'Level', 'Subject', 'Score']
+    rows = []
+    for s in students:
+        user = s.user
+        rows.append([
+            s.admission_no,
+            user.get_full_name() if user else '',
+            getattr(cls, 'name', ''),
+            getattr(cls, 'level', ''),
+            subj.name,
+            '',
+        ])
+    return pdf_response_from_rows('empty_subject_list.pdf', f'Empty Subject List — {subj.name}', _site_header_rows(), columns, rows)
 
 @login_required(login_url='login')
 def manage_class_subjects(request, class_id):
@@ -769,6 +1351,8 @@ def dashboard(request):
     user = request.user
     if user.role == 'admin':
         return redirect('admin_overview')
+    elif user.role == 'clerk':
+        return redirect('clerk_overview')
     elif user.role == 'teacher':
         teacher = get_object_or_404(Teacher, user=user)
         return redirect('teacher_dashboard', teacher_id=teacher.id)
@@ -918,6 +1502,45 @@ def student_profile(request, student_id):
     points_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1}
     total_points = sum(points_map.get(g.grade_letter, 0) for g in grades if getattr(g, 'grade_letter', None))
 
+    # --- Attendance (summary + recent records, with optional term filter) ---
+    attendance_terms = list(Term.objects.all().order_by('-start_date'))
+    att_term_id = request.GET.get('att_term')
+    att_term = None
+    if att_term_id:
+        try:
+            att_term = Term.objects.get(id=att_term_id)
+        except Term.DoesNotExist:
+            att_term = current_term
+    else:
+        att_term = current_term
+
+    attendance_qs = Attendance.objects.filter(student=student)
+    if att_term and att_term.start_date and att_term.end_date:
+        attendance_qs = attendance_qs.filter(date__gte=att_term.start_date, date__lte=att_term.end_date)
+
+    # Compute summary counts
+    from django.db.models import Count
+    status_counts = attendance_qs.values('status').annotate(c=Count('id'))
+    status_map = {row['status']: row['c'] for row in status_counts}
+    total_lessons = sum(status_map.values()) if status_map else 0
+    present = status_map.get('present', 0)
+    absent = status_map.get('absent', 0)
+    late = status_map.get('late', 0)
+    excused = status_map.get('excused', 0)
+    attendance_rate = round((present / total_lessons) * 100, 1) if total_lessons else 0.0
+
+    attendance_summary = {
+        'total': total_lessons,
+        'present': present,
+        'absent': absent,
+        'late': late,
+        'excused': excused,
+        'rate': attendance_rate,
+    }
+
+    # Recent attendance records (limit for page)
+    attendance_records = attendance_qs.select_related('subject', 'teacher__user').order_by('-date', '-timestamp')[:100]
+
     # Handle contact info update POST
     if request.method == 'POST' and 'update_contact' in request.POST:
         contact_form = StudentContactUpdateForm(request.POST, instance=student, user_instance=student.user)
@@ -950,6 +1573,11 @@ def student_profile(request, student_id):
         'fee_payments': FeePayment.objects.filter(student=student, fee_assignment__in=fee_assignments),
         'total_points': total_points,
         'contact_form': contact_form,
+        # Attendance context
+        'attendance_summary': attendance_summary,
+        'attendance_records': attendance_records,
+        'attendance_terms': attendance_terms,
+        'attendance_current_term_id': att_term.id if att_term else None,
     }
     return render(request, 'dashboards/student_profile.html', context)
 
@@ -1067,7 +1695,12 @@ def teacher_dashboard(request, teacher_id):
     # Prepare class_cards for dashboard cards (one per class+subject assignment)
     class_cards = []
     notifications = []
-    greeting_name = f"Mr. {teacher.user.last_name}" if teacher.user.last_name else teacher.user.get_full_name() or teacher.user.username
+    # Greeting should use the teacher's first name (fallback to full_name or username)
+    try:
+        first_name = (teacher.user.first_name or teacher.user.get_full_name() or teacher.user.username) or ''
+        greeting_name = (first_name.split()[0] if first_name else 'Teacher')
+    except Exception:
+        greeting_name = teacher.user.username
     teacher_subjects = list(teacher.subjects.values_list('name', flat=True))
     # We'll collect classes from both assignments and class_teacher role, avoiding duplicates
     for assign in assignments:
@@ -1226,7 +1859,10 @@ def manage_grades(request, teacher_id):
     teacher_classes = sorted(list(set(a.class_group for a in assignments if a.class_group)), key=lambda c: c.name)
     teacher_subjects = Subject.objects.filter(teacherclassassignment__teacher=teacher).distinct().order_by('name')
     
-    exams = Exam.objects.all().order_by('-start_date')
+    # Only allow grade input for done exams
+    from django.utils import timezone
+    today = timezone.now().date()
+    exams = Exam.objects.filter(end_date__lte=today).order_by('-start_date')
 
     context = {
         'teacher': teacher,
@@ -1260,6 +1896,16 @@ def input_grades(request, teacher_id, class_id, subject_id, exam_id):
     class_group = get_object_or_404(Class, id=class_id)
     subject = get_object_or_404(Subject, id=subject_id)
     exam = get_object_or_404(Exam, id=exam_id)
+
+    # Block access if exam not done
+    if not exam.is_done:
+        messages.error(request, 'You can only input grades for exams that are done.')
+        return redirect('manage_grades', teacher_id=teacher.id)
+
+    # Disallow edits if results already published
+    if request.method == 'POST' and getattr(exam, 'results_published', False):
+        messages.error(request, 'This exam\'s results have been published. Editing grades is disabled.')
+        return redirect('exam_results', teacher_id=teacher.id, class_id=class_group.id, subject_id=subject.id, exam_id=exam.id)
 
     if request.method == 'POST':
         students = Student.objects.filter(class_group=class_group)
@@ -1324,6 +1970,39 @@ def input_grades(request, teacher_id, class_id, subject_id, exam_id):
     }
     return render(request, 'dashboards/input_grades.html', context)
 
+@login_required(login_url='login')
+def publish_exam_results(request, exam_id):
+    """Admin-only: publish results for an exam (only allowed after exam end date)."""
+    exam = get_object_or_404(Exam, id=exam_id)
+    if getattr(request.user, 'role', None) != 'admin':
+        return redirect('dashboard')
+    from django.utils import timezone
+    if not exam.is_done:
+        messages.error(request, 'Cannot publish before the exam is done (after end date).')
+        return HttpResponseRedirect(request.META.get('HTTP_REFERER', '/admin_exams/'))
+    if not exam.results_published:
+        exam.results_published = True
+        exam.published_at = timezone.now()
+        exam.save(update_fields=['results_published', 'published_at'])
+        messages.success(request, 'Exam results published.')
+    else:
+        messages.info(request, 'Exam results are already published.')
+    return HttpResponseRedirect(request.META.get('HTTP_REFERER', '/admin_exams/'))
+
+@login_required(login_url='login')
+def unpublish_exam_results(request, exam_id):
+    """Admin-only: unpublish results for an exam (re-enable grade editing)."""
+    exam = get_object_or_404(Exam, id=exam_id)
+    if getattr(request.user, 'role', None) != 'admin':
+        return redirect('dashboard')
+    if exam.results_published:
+        exam.results_published = False
+        exam.save(update_fields=['results_published'])
+        messages.success(request, 'Exam results unpublished. Teachers can edit grades again.')
+    else:
+        messages.info(request, 'Exam results are not published yet.')
+    return HttpResponseRedirect(request.META.get('HTTP_REFERER', '/admin_exams/'))
+
 
 @login_required(login_url='login')
 def exam_results(request, teacher_id, class_id, subject_id, exam_id):
@@ -1356,7 +2035,8 @@ def gradebook(request, teacher_id):
 
     # Get all unique classes and subjects assigned to the teacher
     teacher_classes = Class.objects.filter(teacherclassassignment__teacher=teacher).distinct()
-    teacher_subjects = Subject.objects.filter(teacher=teacher).distinct()
+    # Subjects assigned via TeacherClassAssignment
+    teacher_subjects = Subject.objects.filter(teacherclassassignment__teacher=teacher).distinct()
 
     selected_class = None
     selected_subject = None
@@ -1370,6 +2050,12 @@ def gradebook(request, teacher_id):
         if class_id and subject_id:
             selected_class = get_object_or_404(Class, id=class_id)
             selected_subject = get_object_or_404(Subject, id=subject_id)
+
+            # After class selection, narrow subjects to those assigned to this class
+            teacher_subjects = Subject.objects.filter(
+                teacherclassassignment__teacher=teacher,
+                teacherclassassignment__class_group=selected_class
+            ).distinct()
 
             # Fetch students in the selected class
             students = Student.objects.filter(class_group=selected_class).order_by('user__last_name', 'user__first_name')
@@ -1494,6 +2180,7 @@ def edit_user(request, user_id):
         last_name = request.POST.get('last_name', '').strip()
         role = request.POST.get('role', user.role)
         is_active = 'is_active' in request.POST
+        is_staff = 'is_staff' in request.POST
         # Check for username/email uniqueness
         if User.objects.exclude(id=user.id).filter(username=username).exists():
             messages.error(request, 'Username already exists.')
@@ -1506,10 +2193,28 @@ def edit_user(request, user_id):
             user.last_name = last_name
             user.role = role
             user.is_active = is_active
+            user.is_staff = is_staff
             password = request.POST.get('password', '')
             if password:
                 user.set_password(password)
             user.save()
+
+            # If marked as clerk, grant finance-related model permissions automatically
+            if role == 'clerk':
+                try:
+                    from django.contrib.auth.models import Permission
+                    from django.contrib.contenttypes.models import ContentType
+                    from .models import FeeCategory, FeeAssignment, FeePayment, MpesaTransaction
+                    models_for_finance = [FeeCategory, FeeAssignment, FeePayment, MpesaTransaction]
+                    perms_to_add = []
+                    for mdl in models_for_finance:
+                        ct = ContentType.objects.get_for_model(mdl)
+                        perms_to_add.extend(list(Permission.objects.filter(content_type=ct)))
+                    if perms_to_add:
+                        user.user_permissions.add(*perms_to_add)
+                except Exception as e:
+                    # Non-fatal: log a message for admin UI
+                    messages.warning(request, f"Clerk permissions could not be fully applied: {e}")
             messages.success(request, 'User updated successfully.')
             return redirect('admin_users')
     return render(request, 'dashboards/edit_user.html', {'user': user})
@@ -1648,6 +2353,7 @@ def admin_students(request):
         'students': students,
         'add_student_form': add_student_form,
         'classes': Class.objects.all().order_by('name'),
+        'site_settings': SiteSettings.objects.first(),
     }
     return render(request, 'dashboards/admin_students.html', context)
 
@@ -1665,22 +2371,52 @@ def admin_classes(request):
         if 'assign_teacher' in request.POST:
             class_id = request.POST.get('class_id')
             subject_id = request.POST.get('subject_id')
-            teacher_id = request.POST.get('teacher_id')
-            if class_id and subject_id and teacher_id:
+            teacher_id = request.POST.get('teacher_id')  # may be '' to indicate unassign
+            if class_id and subject_id:
                 try:
                     class_obj = Class.objects.get(id=class_id)
                     subject_obj = Subject.objects.get(id=subject_id)
+                    # Enforce: allow parent or atom; block component (child) subjects only
+                    is_child = Subject.objects.filter(id=subject_obj.id, part_of__isnull=False).exists()
+                    if is_child:
+                        messages.error(request, f"Cannot assign a teacher to '{subject_obj.name}' because it is a component subject. Please select a parent or atomic subject.")
+                        return redirect('admin_classes')
+
+                    # Handle unassign when teacher_id is blank
+                    if not teacher_id:
+                        existing = TeacherClassAssignment.objects.filter(class_group=class_obj, subject=subject_obj).first()
+                        if existing:
+                            existing.delete()
+                            messages.success(request, f"Unassigned {subject_obj.name} from {class_obj.name}.")
+                        else:
+                            messages.info(request, f"{subject_obj.name} was not assigned for {class_obj.name}.")
+                        return redirect('admin_classes')
+
+                    # Else, assign/reassign to a selected teacher
                     teacher_obj = Teacher.objects.get(id=teacher_id)
-                    # Update or create assignment
-                    assignment, created = TeacherClassAssignment.objects.update_or_create(
+                    # Ensure teacher teaches the selected subject
+                    if not teacher_obj.subjects.filter(id=subject_obj.id).exists():
+                        messages.error(request, f"{teacher_obj.user.get_full_name()} does not teach {subject_obj.name}. Update the teacher's subjects first.")
+                        return redirect('admin_classes')
+
+                    assignment, created = TeacherClassAssignment.objects.get_or_create(
                         class_group=class_obj, subject=subject_obj,
                         defaults={'teacher': teacher_obj}
                     )
-                    messages.success(request, f"Assigned {teacher_obj.user.get_full_name()} to {subject_obj.name} for {class_obj.name}.")
+                    if not created:
+                        # Reassign to a different teacher
+                        if assignment.teacher_id == teacher_obj.id:
+                            messages.info(request, f"{subject_obj.name} is already assigned to {teacher_obj.user.get_full_name()} for {class_obj.name}.")
+                        else:
+                            assignment.teacher = teacher_obj
+                            assignment.save()
+                            messages.success(request, f"Reassigned {subject_obj.name} to {teacher_obj.user.get_full_name()} for {class_obj.name}.")
+                    else:
+                        messages.success(request, f"Assigned {teacher_obj.user.get_full_name()} to {subject_obj.name} for {class_obj.name}.")
                 except (Class.DoesNotExist, Subject.DoesNotExist, Teacher.DoesNotExist):
                     messages.error(request, "Invalid class, subject, or teacher selection.")
             else:
-                messages.error(request, "Please select class, subject, and teacher.")
+                messages.error(request, "Please select class and subject.")
         elif 'assign_class_teacher' in request.POST:
             class_id = request.POST.get('class_id')
             teacher_id = request.POST.get('teacher_id')
@@ -1705,7 +2441,8 @@ def admin_classes(request):
                 messages.error(request, "Please correct the errors below.")
     # Prepare data for GET
     classes = Class.objects.all()
-    all_subjects = Subject.objects.all()
+    # Only exclude component (child) subjects; allow parents and atoms
+    all_subjects = Subject.objects.filter(part_of__isnull=True).order_by('name').distinct()
     all_teachers = Teacher.objects.select_related('user').all()
     class_list = [];
     for c in classes:
@@ -1731,6 +2468,10 @@ def admin_classes(request):
         total_students = class_students.count()
         boys_count = class_students.filter(gender__iexact='male').count()
         girls_count = class_students.filter(gender__iexact='female').count()
+        # Compute available subjects for new assignment: non-child and not already assigned
+        assigned_subject_ids = set(a.subject_id for a in assignments)
+        available_subjects = [s for s in all_subjects if s.id not in assigned_subject_ids]
+
         # Compute subject performance for this class
         from django.db.models import Avg
         subject_performance = []
@@ -1745,6 +2486,7 @@ def admin_classes(request):
             'class_teacher_username': c.class_teacher.user.username if c.class_teacher else None,
             'subject_performance': subject_performance,
             'subjects_and_teachers': subjects_and_teachers,
+            'available_subjects': available_subjects,
             'total_students': total_students,
             'boys_count': boys_count,
             'girls_count': girls_count,
@@ -1787,9 +2529,53 @@ def admin_classes(request):
     return render(request, 'dashboards/admin_classes.html', context)
 
 @login_required(login_url='login')
+def admin_graduated_students(request):
+    """Admin view showing all graduated students with simple search and filters."""
+    if request.user.role != 'admin':
+        return redirect('dashboard')
+    from .models import Student
+    from django.db.models import Q
+    # Filters
+    q = (request.GET.get('q') or '').strip()
+    gender = (request.GET.get('gender') or '').strip()
+    # Base queryset: graduated students only
+    students = Student.objects.filter(graduated=True).select_related('user', 'class_group')
+    if q:
+        students = students.filter(
+            Q(user__first_name__icontains=q) |
+            Q(user__last_name__icontains=q) |
+            Q(user__username__icontains=q) |
+            Q(admission_no__icontains=q)
+        )
+    if gender:
+        students = students.filter(gender__iexact=gender)
+    students = students.order_by('user__last_name', 'user__first_name')
+    context = {
+        'students': students,
+        'q': q,
+        'gender': gender,
+    }
+    return render(request, 'dashboards/admin_graduated_students.html', context)
+
+@login_required(login_url='login')
 def class_profile(request, class_id):
-    from .models import Class, Student, TeacherClassAssignment, Subject, FeeAssignment, FeePayment
-    class_obj = Class.objects.select_related('class_teacher').get(id=class_id)
+    from django.http import HttpResponseForbidden, Http404
+    from .models import Class, Student, TeacherClassAssignment, Subject, FeeAssignment, FeePayment, Teacher
+    try:
+        class_obj = Class.objects.select_related('class_teacher').get(id=class_id)
+    except Class.DoesNotExist:
+        raise Http404("Class not found")
+
+    # Permission: only admin/staff or the assigned class teacher may view
+    teacher = None
+    try:
+        teacher = getattr(request.user, 'teacher', None) or Teacher.objects.filter(user=request.user).first()
+    except Exception:
+        teacher = None
+    is_admin = request.user.is_superuser or request.user.is_staff
+    is_class_teacher = bool(teacher and class_obj.class_teacher_id == teacher.id)
+    if not (is_admin or is_class_teacher):
+        return HttpResponseForbidden("You do not have permission to view this class.")
     students = Student.objects.filter(class_group=class_obj).select_related('user')
     assignments = TeacherClassAssignment.objects.filter(class_group=class_obj).select_related('teacher__user', 'subject')
     subjects_and_teachers = []
@@ -1802,7 +2588,7 @@ def class_profile(request, class_id):
     # --- Level Ranking Table for This Class's Level ---
     from django.db.models import Avg, Sum
     from django.utils import timezone
-    from .models import Exam
+    from .models import Exam, Term, Grade
     level_students = Student.objects.filter(class_group__level=class_obj.level)
     today = timezone.now().date()
     current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
@@ -1869,6 +2655,19 @@ def edit_class(request, class_id):
             class_obj.name = f"Grade {level} {stream}"
             class_obj.level = level
             if class_teacher_id:
+                # Prevent choosing a teacher already assigned as class teacher for another class
+                if Class.objects.exclude(id=class_id).filter(class_teacher_id=class_teacher_id).exists():
+                    messages.error(request, 'Selected teacher is already a class teacher of another class.')
+                    # Re-render with same filtered teacher list
+                    assigned_teacher_ids = (
+                        Class.objects
+                        .exclude(class_teacher=None)
+                        .exclude(id=class_id)
+                        .values_list('class_teacher', flat=True)
+                    )
+                    teachers = Teacher.objects.exclude(id__in=assigned_teacher_ids)
+                    context = {'class_obj': class_obj, 'teachers': teachers}
+                    return render(request, 'dashboards/edit_class.html', context)
                 try:
                     class_obj.class_teacher = Teacher.objects.get(id=class_teacher_id)
                 except Teacher.DoesNotExist:
@@ -1878,7 +2677,15 @@ def edit_class(request, class_id):
             class_obj.save()
             messages.success(request, 'Class updated successfully!')
             return redirect('admin_classes')
-    context = {'class_obj': class_obj, 'teachers': Teacher.objects.all()}
+    # Exclude teachers who are already class teachers for other classes
+    assigned_teacher_ids = (
+        Class.objects
+        .exclude(class_teacher=None)
+        .exclude(id=class_id)
+        .values_list('class_teacher', flat=True)
+    )
+    teachers = Teacher.objects.exclude(id__in=assigned_teacher_ids)
+    context = {'class_obj': class_obj, 'teachers': teachers}
     return render(request, 'dashboards/edit_class.html', context)
 
 @login_required(login_url='login')
@@ -1910,7 +2717,8 @@ def timetable_view(request):
     # This view now primarily handles class-based timetables.
     # It's kept simple, but we pass the teacher for the sidebar.
     classes = Class.objects.all().order_by('level', 'name')
-    subjects = Subject.objects.all().order_by('name')
+    # Exclude component (child) subjects from timetable allocations
+    subjects = Subject.objects.filter(part_of__isnull=True).order_by('name')
     teachers = Teacher.objects.select_related('user').all().order_by('user__last_name')
     periods = PeriodSlot.objects.filter(is_class_slot=True).order_by('start_time')
     days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
@@ -1951,13 +2759,15 @@ def admin_class_result_slip(request, class_id):
     from .models import Class, Student, Subject, Exam, Grade, Term
     class_obj = get_object_or_404(Class, id=class_id)
     students = Student.objects.filter(class_group=class_obj).select_related('user')
-    subjects = Subject.objects.all()
+    # Use top-level subjects only (exclude component/child subjects)
+    subjects = Subject.objects.filter(part_of__isnull=True).order_by('name')
     terms = Term.objects.order_by('-start_date')
     exams = Exam.objects.none()
     selected_term = None
     selected_exam = None
     grades = {}
     averages = {}
+    totals = {}
     ranks = {}
     if terms:
         # Get selected term from GET or default to latest
@@ -1966,29 +2776,49 @@ def admin_class_result_slip(request, class_id):
             selected_term = terms.filter(id=term_id).first()
         if not selected_term:
             selected_term = terms.first()
-        exams = Exam.objects.filter(term=selected_term)
+        # Only show done exams for result slip
+        from django.utils import timezone
+        today = timezone.now().date()
+        exams = Exam.objects.filter(term=selected_term, end_date__lte=today)
         # Get selected exam from GET or default to latest in term
         exam_id = request.GET.get('exam')
         if exam_id:
             selected_exam = exams.filter(id=exam_id).first()
         else:
-            # Prefer latest done exam, fallback to latest by date
+            # Prefer latest done exam
             selected_exam = exams.order_by('-start_date').first()
         if selected_exam:
             # Build grades dict: grades[student.id][subject.id] = {'score': ..., 'grade_letter': ...}
             grades = {s.id: {} for s in students}
             grade_qs = Grade.objects.filter(student__in=students, exam=selected_exam)
-            from .models import SubjectGradingScheme
-            grading_schemes = {s.id: getattr(s, 'grading_scheme', None) for s in subjects}
+            from .models import SubjectGradingScheme, SubjectComponent
+            grading_schemes = {s.id: getattr(s, 'grading_scheme', None) for s in Subject.objects.all()}
             for g in grade_qs:
                 scheme = grading_schemes.get(g.subject.id)
                 grade_letter = None
                 if scheme:
                     grade_letter = scheme.get_grade_letter(g.score)
-                grades[g.student.id][g.subject.id] = {'score': g.score, 'grade_letter': grade_letter, 'remarks': g.remarks if hasattr(g, 'remarks') else ''}
-            # Compute averages and ranks
+                grades[g.student.id][g.subject.id] = {'score': g.score, 'grade_letter': grade_letter, 'remarks': getattr(g, 'remarks', '')}
+            # Compute composite subject scores (e.g., English = Language + Composition)
+            parent_components = {}
+            for sc in SubjectComponent.objects.select_related('parent', 'child').all():
+                parent_components.setdefault(sc.parent_id, []).append((sc.child_id, sc.weight))
             for s in students:
-                subj_scores = [g.score for g in grades[s.id].values() if hasattr(g, 'score') and g.score is not None]
+                for parent_id, comps in parent_components.items():
+                    total = 0.0
+                    has_any = False
+                    for child_id, weight in comps:
+                        child_entry = grades[s.id].get(child_id)
+                        if child_entry and child_entry.get('score') is not None:
+                            total += float(child_entry['score']) * float(weight)
+                            has_any = True
+                    if has_any:
+                        scheme = grading_schemes.get(parent_id)
+                        grade_letter = scheme.get_grade_letter(total) if scheme else None
+                        grades[s.id][parent_id] = {'score': total, 'grade_letter': grade_letter, 'remarks': ''}
+            # Compute averages and ranks based on top-level subjects only
+            for s in students:
+                subj_scores = [v['score'] for sid, v in grades[s.id].items() if (sid in [subj.id for subj in subjects]) and v.get('score') is not None]
                 averages[s.id] = sum(subj_scores) / len(subj_scores) if subj_scores else 0
             sorted_students = sorted(students, key=lambda s: averages[s.id], reverse=True)
             for idx, s in enumerate(sorted_students, 1):
@@ -2040,6 +2870,7 @@ def admin_class_result_slip(request, class_id):
         'selected_exam': selected_exam,
         'grades': grades,
         'averages': averages,
+        'totals': totals,
         'ranks': ranks,
         'points_sums': points_sums if 'points_sums' in locals() else {},
         'comparison_classes': comparison_classes,
@@ -2049,6 +2880,116 @@ def admin_class_result_slip(request, class_id):
         'class_teacher_name': class_obj.class_teacher.user.get_full_name() if getattr(class_obj.class_teacher, 'user', None) else None,
     }
     return render(request, 'dashboards/admin_class_result_slip.html', context)
+
+@login_required(login_url='login')
+def admin_block_result_slip(request):
+    if request.user.role != 'admin':
+        return redirect('dashboard')
+    # Aggregated result slips for all classes in a given level
+    from .models import Class, Student, Subject, Exam, Grade, Term
+    level = request.GET.get('level')
+    classes = Class.objects.none()
+    if level is not None and level != "":
+        classes = Class.objects.filter(level=level).order_by('name')
+    # Use top-level subjects only (exclude component/child subjects)
+    subjects = Subject.objects.filter(part_of__isnull=True).order_by('name')
+    terms = Term.objects.order_by('-start_date')
+    selected_term = None
+    selected_exam = None
+    grades = {}
+    averages = {}
+    totals = {}
+    ranks = {}
+    points_dict = {}
+    students_by_class = {}
+    all_students_ranked = []
+    if terms:
+        # Term selection
+        term_id = request.GET.get('term')
+        if term_id:
+            selected_term = terms.filter(id=term_id).first()
+        if not selected_term:
+            selected_term = terms.first()
+        exams = Exam.objects.filter(term=selected_term)
+        # Exam selection
+        exam_id = request.GET.get('exam')
+        if exam_id:
+            selected_exam = exams.filter(id=exam_id).first()
+        if not selected_exam:
+            selected_exam = exams.order_by('-start_date').first()
+        if selected_exam and classes.exists():
+            # Collect all students in the level
+            all_students = Student.objects.filter(class_group__in=classes).select_related('user', 'class_group')
+            # Build grades dict: grades[student.id][subject.id] = {score, grade_letter}
+            grades = {s.id: {} for s in all_students}
+            grade_qs = Grade.objects.filter(student__in=all_students, exam=selected_exam)
+            # Resolve grade letters if schemes exist; include all subjects for scheme lookup
+            from .models import SubjectGradingScheme, SubjectComponent
+            scheme_map = {sub.id: getattr(sub, 'grading_scheme', None) for sub in Subject.objects.all()}
+            for g in grade_qs:
+                scheme = scheme_map.get(g.subject_id)
+                grade_letter = scheme.get_grade_letter(g.score) if scheme else None
+                grades[g.student_id][g.subject_id] = {'score': g.score, 'grade_letter': grade_letter}
+            # Compute composite/parent subject scores
+            parent_components = {}
+            for sc in SubjectComponent.objects.select_related('parent', 'child').all():
+                parent_components.setdefault(sc.parent_id, []).append((sc.child_id, sc.weight))
+            for s in all_students:
+                for parent_id, comps in parent_components.items():
+                    total = 0.0
+                    has_any = False
+                    for child_id, weight in comps:
+                        entry = grades[s.id].get(child_id)
+                        if entry and entry.get('score') is not None:
+                            total += float(entry['score']) * float(weight)
+                            has_any = True
+                    if has_any:
+                        scheme = scheme_map.get(parent_id)
+                        grade_letter = scheme.get_grade_letter(total) if scheme else None
+                        grades[s.id][parent_id] = {'score': total, 'grade_letter': grade_letter}
+            # Compute totals and averages per student using top-level subjects only
+            for s in all_students:
+                top_ids = set(subj.id for subj in subjects)
+                subj_scores = [val['score'] for sid, val in grades[s.id].items() if sid in top_ids and val.get('score') is not None]
+                totals[s.id] = sum(subj_scores) if subj_scores else 0
+                averages[s.id] = (totals[s.id] / len(subj_scores)) if subj_scores else 0
+            # Compute total points per student from grade letters (A=4, B=3, C=2, D=1)
+            letter_points = {'A': 4, 'B': 3, 'C': 2, 'D': 1}
+            for s in all_students:
+                top_ids = set(subj.id for subj in subjects)
+                letters = [val.get('grade_letter') for sid, val in grades[s.id].items() if sid in top_ids and val.get('grade_letter')]
+                total_pts = 0
+                for lt in letters:
+                    key = str(lt).upper()[:1]
+                    total_pts += letter_points.get(key, 0)
+                points_dict[s.id] = total_pts
+            # Global ranks across the level
+            ranked = sorted(all_students, key=lambda s: averages.get(s.id, 0), reverse=True)
+            for idx, s in enumerate(ranked, 1):
+                ranks[s.id] = idx
+            # Expose a flat ranked list across the level
+            all_students_ranked = ranked
+            # Split students by class and sort by rank
+            for c in classes:
+                cls_students = [s for s in ranked if getattr(s.class_group, 'id', None) == c.id]
+                students_by_class[c.id] = cls_students
+    context = {
+        'level': level,
+        'classes': list(classes) if classes is not None else [],
+        'students_by_class': students_by_class,
+        'all_students_ranked': all_students_ranked,
+        'subjects': subjects,
+        'selected_term': selected_term,
+        'selected_exam': selected_exam,
+        'grades': grades,
+        'averages': averages,
+        'totals': totals,
+        'ranks': ranks,
+        # points_sums optional; template tolerates missing entries
+        'points_sums': {},
+        'points_dict': points_dict,
+    }
+    return render(request, 'dashboards/admin_block_result_slip.html', context)
 @login_required(login_url='login')
 def teacher_class_result_slip(request, class_id):
     if request.user.role != 'teacher':
@@ -2071,13 +3012,16 @@ def teacher_class_result_slip(request, class_id):
             selected_term = terms.filter(id=term_id).first()
         if not selected_term:
             selected_term = terms.first()
-        exams = Exam.objects.filter(term=selected_term)
+        # Only show done exams for result slip
+        from django.utils import timezone
+        today = timezone.now().date()
+        exams = Exam.objects.filter(term=selected_term, end_date__lte=today)
         # Get selected exam from GET or default to latest in term
         exam_id = request.GET.get('exam')
         if exam_id:
             selected_exam = exams.filter(id=exam_id).first()
         if not selected_exam:
-            selected_exam = exams.first()
+            selected_exam = exams.order_by('-start_date').first()
         if selected_exam:
             # Build grades dict: grades[student.id][subject.id] = Grade instance
             all_level_classes = Class.objects.filter(level=class_obj.level)
@@ -2166,12 +3110,15 @@ def overall_student_results(request, class_id):
             selected_term = terms.filter(id=term_id).first()
         if not selected_term:
             selected_term = terms.first()
-        exams = Exam.objects.filter(term=selected_term)
+        # Only show done exams for overall results
+        from django.utils import timezone
+        today = timezone.now().date()
+        exams = Exam.objects.filter(term=selected_term, end_date__lte=today)
         exam_id = request.GET.get('exam')
         if exam_id:
             selected_exam = exams.filter(id=exam_id).first()
         if not selected_exam:
-            selected_exam = exams.first()
+            selected_exam = exams.order_by('-start_date').first()
     overall_students_ranked = []
     if selected_exam and level:
         all_level_classes = Class.objects.filter(level=level)
@@ -2329,7 +3276,7 @@ from django.db.models import Avg
 
 from django.views.generic import ListView
 from django.db.models import Q
-from .models import FeePayment, Term, Class, FeeCategory
+from .models import FeePayment, Term, Class, FeeCategory, Subject, Grade, Student, FeeAssignment
 from .forms import FeePaymentForm
 
 class AdminAnalyticsView(ListView):
@@ -2421,11 +3368,54 @@ class AdminAnalyticsView(ListView):
         context['bar_labels'] = json.dumps(months_sorted)
         context['bar_data'] = json.dumps([monthly_totals[m] for m in months_sorted])
 
+        # Payments by method (Cash/Bank/Mpesa Paybill)
+        from collections import defaultdict as _dd
+        method_totals = _dd(float)
+        method_qs = FeePayment.objects.all()
+        if current_term:
+            method_qs = method_qs.filter(fee_assignment__term=current_term)
+        for p in method_qs:
+            label = p.payment_method or 'Unknown'
+            method_totals[label] += float(p.amount_paid)
+        method_labels = list(method_totals.keys()) or ['No Data']
+        method_data = [method_totals[k] for k in method_labels] or [0]
+        context['method_labels'] = json.dumps(method_labels)
+        context['method_data'] = json.dumps(method_data)
+
+        # Outstanding by class (Assigned - Paid) for current term
+        class_outstanding = []
+        classes = Class.objects.all()
+        for c in classes:
+            assignments = FeeAssignment.objects.filter(class_group=c)
+            if current_term:
+                assignments = assignments.filter(term=current_term)
+            assigned_total = 0.0
+            for fa in assignments:
+                num_students = Student.objects.filter(class_group=c).count()
+                assigned_total += float(getattr(fa, 'amount', 0)) * num_students
+            paid_total = FeePayment.objects.filter(fee_assignment__in=assignments).aggregate(total=Sum('amount_paid'))['total'] or 0.0
+            outstanding = float(assigned_total) - float(paid_total)
+            if outstanding > 0:
+                class_outstanding.append((c.name, outstanding))
+        # Top 10 by outstanding
+        class_outstanding.sort(key=lambda t: t[1], reverse=True)
+        top_labels = [t[0] for t in class_outstanding[:10]] or ['No Data']
+        top_values = [t[1] for t in class_outstanding[:10]] or [0]
+        context['class_out_labels'] = json.dumps(top_labels)
+        context['class_out_data'] = json.dumps(top_values)
+
         return context
 
 @login_required(login_url='login')
 def admin_analytics(request):
-    if request.user.role != 'admin':
+    if request.user.role not in ('admin', 'clerk'):
+        return redirect('dashboard')
+    return AdminAnalyticsView.as_view()(request)
+
+# Finance-specific entry point to analytics (same data, finance-friendly route)
+@login_required(login_url='login')
+def finance_analytics(request):
+    if request.user.role not in ('admin', 'clerk'):
         return redirect('dashboard')
     return AdminAnalyticsView.as_view()(request)
 
@@ -2509,6 +3499,61 @@ def admin_subjects(request):
         'add_subject_form': add_subject_form,
     }
     return render(request, 'dashboards/admin_subjects.html', context)
+
+
+@login_required(login_url='login')
+def admin_subject_components(request):
+    # Admin-only
+    if getattr(request.user, 'role', None) != 'admin':
+        return redirect('dashboard')
+
+    from .models import Subject, SubjectComponent
+    from .forms import SubjectComponentFormSet
+
+    # Accept both 'subject_id' and legacy/shortcut 'parent' query params
+    subject_id = request.GET.get('subject_id') or request.GET.get('parent') or request.POST.get('subject_id')
+    parent = None
+
+    if subject_id:
+        parent = get_object_or_404(Subject, pk=subject_id)
+
+    # Build allowed parent subjects: exclude any subject already used anywhere (as parent or child),
+    # except the currently selected parent so it remains visible/editable in the dropdown.
+    used_parent_ids = set(SubjectComponent.objects.values_list('parent_id', flat=True))
+    used_child_ids = set(SubjectComponent.objects.values_list('child_id', flat=True))
+    used_ids = used_parent_ids.union(used_child_ids)
+    if parent:
+        used_ids.discard(parent.pk)
+    subject_qs = Subject.objects.order_by('name').exclude(id__in=used_ids)
+
+    if request.method == 'POST' and parent:
+        formset = SubjectComponentFormSet(request.POST, instance=parent, prefix='components')
+        if formset.is_valid():
+            # Prevent selecting the parent as its own child
+            for form in formset:
+                if not hasattr(form, 'cleaned_data'):
+                    continue
+                if form.cleaned_data.get('DELETE'):
+                    continue
+                child = form.cleaned_data.get('child')
+                if child and parent and child.pk == parent.pk:
+                    form.add_error('child', 'A subject cannot be a child of itself.')
+            if not any(f.errors for f in formset.forms):
+                formset.save()
+                messages.success(request, 'Subject components updated successfully.')
+                # Redirect to persist selection and avoid resubmission
+                return redirect(f"{reverse('admin_subject_components')}?subject_id={parent.pk}")
+        else:
+            messages.error(request, 'Please fix the errors in the form.')
+    else:
+        formset = SubjectComponentFormSet(instance=parent, prefix='components') if parent else None
+
+    context = {
+        'subjects': subject_qs,
+        'selected_subject': parent,
+        'formset': formset,
+    }
+    return render(request, 'dashboards/admin_subject_components.html', context)
 
 
 
@@ -2886,6 +3931,7 @@ def edit_teacher(request, teacher_id):
     return render(request, 'dashboards/edit_teacher.html', {'form': form, 'teacher': teacher})
 
 @login_required(login_url='login')
+@user_passes_test(is_admin_or_clerk)
 def admin_payment(request):
     from .models import Student, Term, FeeAssignment, FeePayment, MpesaTransaction
     from django.utils import timezone
@@ -3284,7 +4330,7 @@ def admin_fees(request):
     
     # --- Edit/Delete Fee Category Logic ---
     edit_category = None
-    if request.user.role != 'admin':
+    if request.user.role not in ('admin', 'clerk'):
         return HttpResponseForbidden('You are not authorized to access this page.')
 
     # Handle Delete (now POST)
@@ -3576,7 +4622,7 @@ def add_subject_ajax(request):
 from django.core.serializers.json import DjangoJSONEncoder
 
 def events_json(request):
-    from .models import Event, Exam
+    from .models import Event, Exam, TeacherResponsibility, Teacher
     from django.utils import timezone
     from django.core.serializers.json import DjangoJSONEncoder
     from django.utils.dateparse import parse_datetime
@@ -3596,7 +4642,9 @@ def events_json(request):
     # Build base queryset
     events_qs = Event.objects.filter(is_done=False)
     if window_start:
-        events_qs = events_qs.filter(end__gte=window_start)  # overlapping window
+        # Include open-ended events (end is NULL) so they are not excluded
+        from django.db.models import Q
+        events_qs = events_qs.filter(Q(end__gte=window_start) | Q(end__isnull=True))  # overlapping or open-ended
     if window_end:
         events_qs = events_qs.filter(start__lte=window_end)
     # Fallback window ±1 year to avoid empty feed if params missing
@@ -3623,11 +4671,16 @@ def events_json(request):
     if window_end:
         exams_qs = exams_qs.filter(start_date__lte=window_end)
     for ex in exams_qs:
-        # Use start_date and end_date for calendar events
+        # Use start_date and end_date for calendar events (allDay: end should be exclusive)
         if not ex.start_date:
             continue  # skip exams without a start date (FullCalendar requires start)
         start = ex.start_date.isoformat()
-        end = ex.end_date.isoformat() if ex.end_date else start
+        # FullCalendar expects allDay 'end' to be exclusive
+        try:
+            end_base = ex.end_date or ex.start_date
+            end = (end_base + timedelta(days=1)).isoformat()
+        except Exception:
+            end = start
         event_list.append({
             'id': f'exam-{ex.id}',
             'title': ex.name,
@@ -3639,6 +4692,50 @@ def events_json(request):
             'level': ex.level,
             'type': ex.get_type_display() if hasattr(ex, 'get_type_display') else '',
         })
+
+    # Teacher responsibilities for the logged-in teacher
+    try:
+        # If the current user maps to a Teacher, include their responsibilities
+        teacher = getattr(request.user, 'teacher', None)
+        if not teacher:
+            teacher = Teacher.objects.select_related('user').filter(user=request.user).first()
+        if teacher:
+            from django.db.models import Q
+            resp_qs = TeacherResponsibility.objects.filter(teacher=teacher)
+            # Window filtering: treat as allDay from start_date to end_date (inclusive)
+            # Include NULLs on the opposite bound so open-ended responsibilities still appear
+            if window_start:
+                resp_qs = resp_qs.filter(Q(end_date__gte=window_start.date()) | Q(end_date__isnull=True))
+            if window_end:
+                resp_qs = resp_qs.filter(Q(start_date__lte=window_end.date()) | Q(start_date__isnull=True))
+            resp_added = 0
+            for r in resp_qs:
+                    # derive start/end
+                    base_start = r.start_date or (r.assigned_at.date() if getattr(r, 'assigned_at', None) else timezone.now().date())
+                    base_end = r.end_date or r.start_date or base_start
+                    r_start = base_start.isoformat()
+                    # Exclusive end for allDay
+                    try:
+                        r_end = (base_end + timedelta(days=1)).isoformat()
+                    except Exception:
+                        r_end = base_start.isoformat()
+                    event_list.append({
+                        'id': f'resp-{r.id}',
+                        'title': r.responsibility,
+                        'start': r_start,
+                        'end': r_end,
+                        'allDay': True,
+                        'category': 'responsibility',
+                        'details': r.details or '',
+                    })
+                    resp_added += 1
+            try:
+                print(f"[events_json] responsibilities added: {resp_added} for teacher={teacher.id}")
+            except Exception:
+                pass
+    except Exception:
+        # keep feed resilient
+        pass
     try:
         print(f"[events_json] user={request.user.id} role={getattr(request.user,'role',None)} events={len(event_list)} window=({window_start},{window_end})")
     except Exception:
@@ -3752,6 +4849,8 @@ def custom_login_view(request):
                 else:
                     messages.error(request, 'User not a student.')
                     return redirect('login')
+            elif role == 'clerk':
+                return redirect('clerk_overview')
         else:
             messages.error(request, 'Invalid credentials or role mismatch.')
 
@@ -4304,6 +5403,20 @@ def api_download_grade_template(request):
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Grades', index=False)
+            # Insert school header rows using openpyxl
+            try:
+                from landing.models import SiteSettings
+                ss = SiteSettings.objects.first()
+                if ss:
+                    wb = writer.book
+                    ws = wb['Grades']
+                    # Insert 3 rows at top
+                    ws.insert_rows(1, amount=3)
+                    ws['A1'] = getattr(ss, 'school_name', '')
+                    ws['A2'] = getattr(ss, 'school_motto', '')
+                    ws['A3'] = getattr(ss, 'contact_address', '')
+            except Exception:
+                pass
             
             # Add instructions sheet
             instructions = pd.DataFrame({
@@ -4361,6 +5474,20 @@ def api_download_class_students(request, class_id):
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Students', index=False)
+            # Insert school header rows using openpyxl
+            try:
+                from landing.models import SiteSettings
+                ss = SiteSettings.objects.first()
+                if ss:
+                    wb = writer.book
+                    ws = wb['Students']
+                    # Insert 3 rows at top
+                    ws.insert_rows(1, amount=3)
+                    ws['A1'] = getattr(ss, 'school_name', '')
+                    ws['A2'] = getattr(ss, 'school_motto', '')
+                    ws['A3'] = getattr(ss, 'contact_address', '')
+            except Exception:
+                pass
         
         output.seek(0)
         
@@ -4477,6 +5604,65 @@ def admin_overview(request):
 
     return render(request, 'dashboards/admin_overview.html', context)
 
+@login_required(login_url='login')
+def clerk_overview(request):
+    # Only admin or clerk can access
+    if not is_admin_or_clerk(request.user):
+        return HttpResponseForbidden('Forbidden')
+    from django.utils import timezone
+    from .models import Term, Class, Student, FeeAssignment, FeePayment
+    today = timezone.now().date()
+    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
+
+    # Compute totals for the current term
+    fee_assignments = FeeAssignment.objects.all()
+    if current_term:
+        fee_assignments = fee_assignments.filter(term=current_term)
+
+    # Total assigned = sum(amount * students_in_class) for assignments in term
+    total_assigned = 0.0
+    for fa in fee_assignments.select_related('class_group'):
+        num_students = Student.objects.filter(class_group=fa.class_group, graduated=False).count()
+        total_assigned += float(getattr(fa, 'amount', 0)) * num_students
+
+    # Total paid for payments linked to those assignments
+    from django.db.models import Sum
+    total_paid = FeePayment.objects.filter(fee_assignment__in=fee_assignments).aggregate(total=Sum('amount_paid'))['total'] or 0.0
+    total_outstanding = float(total_assigned) - float(total_paid)
+
+    # Recent payments
+    recent_payments = (
+        FeePayment.objects.select_related('student__user', 'fee_assignment__fee_category')
+        .order_by('-payment_date')[:10]
+    )
+
+    # Top classes by outstanding
+    class_stats = []
+    classes = Class.objects.all().order_by('level', 'name')
+    for clazz in classes:
+        class_assignments = fee_assignments.filter(class_group=clazz)
+        assigned = 0.0
+        for fa in class_assignments:
+            num_students = Student.objects.filter(class_group=clazz, graduated=False).count()
+            assigned += float(getattr(fa, 'amount', 0)) * num_students
+        paid = FeePayment.objects.filter(fee_assignment__in=class_assignments).aggregate(total=Sum('amount_paid'))['total'] or 0.0
+        outstanding = float(assigned) - float(paid)
+        if assigned or paid:
+            class_stats.append({'class': clazz, 'assigned': assigned, 'paid': paid, 'outstanding': outstanding})
+    # Sort by outstanding desc and take top 8
+    class_stats.sort(key=lambda r: r['outstanding'], reverse=True)
+    class_stats = class_stats[:8]
+
+    context = {
+        'current_term': current_term,
+        'total_assigned': total_assigned,
+        'total_paid': total_paid,
+        'total_outstanding': total_outstanding if total_outstanding > 0 else 0,
+        'recent_payments': recent_payments,
+        'class_stats': class_stats,
+    }
+    return render(request, 'dashboards/clerk_overview.html', context)
+
 @login_required
 def timetable_view(request):
     """Displays the timetable for a selected class."""
@@ -4508,9 +5694,11 @@ def timetable_view(request):
             # Build subject and teacher options from assignments; if none, fall back to all
             subject_ids = list(assignments.values_list('subject_id', flat=True).distinct())
             if subject_ids:
-                subjects = Subject.objects.filter(id__in=subject_ids).order_by('name')
+                # Exclude component (child) subjects from options
+                subjects = Subject.objects.filter(id__in=subject_ids, part_of__isnull=True).order_by('name')
             else:
-                subjects = Subject.objects.all().order_by('name')
+                # Fallback: all non-child subjects
+                subjects = Subject.objects.filter(part_of__isnull=True).order_by('name')
 
             teacher_ids = list(assignments.values_list('teacher_id', flat=True).distinct())
             if teacher_ids:
@@ -4690,6 +5878,23 @@ def timetable_edit_api(request):
             DefaultTimetable.objects.filter(class_group=class_group, period=period, day=day).delete()
             return JsonResponse({'success': True, 'message': 'Slot cleared successfully.'})
 
+        # Reject component (child) subjects for timetable allocation
+        try:
+            subj_obj = Subject.objects.get(id=subject_id)
+        except Subject.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Subject not found.'}, status=404)
+        if subj_obj.part_of_id is not None:
+            return JsonResponse({'success': False, 'error': 'Component subjects cannot be allocated on the timetable. Select a parent or atomic subject.'}, status=400)
+
+        # If a teacher is specified, ensure they teach this subject
+        if teacher_id:
+            try:
+                teacher_obj = Teacher.objects.select_related('user').get(id=teacher_id)
+            except Teacher.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Teacher not found.'}, status=404)
+            if not teacher_obj.subjects.filter(id=subj_obj.id).exists():
+                return JsonResponse({'success': False, 'error': f"{teacher_obj.user.get_full_name()} does not teach {subj_obj.name}. Update the teacher's subjects first."}, status=400)
+
         # Get or create the timetable entry
         slot, created = DefaultTimetable.objects.get_or_create(
             class_group=class_group,
@@ -4768,10 +5973,12 @@ def mark_notification_as_read_api(request, notification_id):
     return JsonResponse({'success': True})
 
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 import json
 
 @csrf_exempt
+@require_POST
 def mpesa_callback(request):
     import logging
     from django.utils import timezone
@@ -4780,19 +5987,59 @@ def mpesa_callback(request):
     from .mpesa_utils import query_stk_status
     logger = logging.getLogger('django')
     try:
+        # Basic hardening: validate content-type and size, verify shared secret if configured
+        from django.conf import settings
+        content_type = (request.META.get('CONTENT_TYPE') or request.content_type or '').lower()
+        if 'application/json' not in content_type:
+            return JsonResponse({"ResultCode": 1, "ResultDesc": "Invalid content type"}, status=415)
+        # Limit body size to 100KB to prevent abuse
+        if request.META.get('CONTENT_LENGTH') and int(request.META['CONTENT_LENGTH']) > 100 * 1024:
+            return JsonResponse({"ResultCode": 1, "ResultDesc": "Payload too large"}, status=413)
+        secret_expected = getattr(settings, 'MPESA_CALLBACK_SECRET', '')
+        if secret_expected:
+            provided = request.META.get('HTTP_X_MPESA_SECRET', '')
+            if not provided or provided != secret_expected:
+                return JsonResponse({"ResultCode": 1, "ResultDesc": "Unauthorized"}, status=401)
         data = json.loads(request.body.decode('utf-8'))
         stk_callback = data.get('Body', {}).get('stkCallback', {})
         result_code = stk_callback.get('ResultCode', -1)
         merchant_request_id = stk_callback.get('MerchantRequestID')
         checkout_request_id = stk_callback.get('CheckoutRequestID')
         logger.info(f"[M-PESA CALLBACK] Received: {data}")
-        # Log callback to file for admin viewing
+        # Log callback to file for admin viewing (with PII redaction)
         import os
         from datetime import datetime
         log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'payment_callback_logs.txt')
         try:
             # Ensure the log file exists and append safely
             os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            # Redaction helpers (avoid importing re at top-level here)
+            import re as _re
+            phone_re = _re.compile(r'(?:\+?254|0)?7\d{8}')
+            receipt_re = _re.compile(r"\b[A-Z0-9]{10,12}\b")
+            account_ref_re = _re.compile(r"Account#\w+")
+
+            def _mask(s: str) -> str:
+                try:
+                    s = phone_re.sub('[PHONE]', s)
+                    s = account_ref_re.sub('Account#[REDACTED]', s)
+                    s = receipt_re.sub('[MPESA_RECEIPT]', s)
+                except Exception:
+                    pass
+                return s
+
+            def _redact_payload(obj):
+                try:
+                    if isinstance(obj, dict):
+                        return {k: _redact_payload(v) for k, v in obj.items()}
+                    if isinstance(obj, list):
+                        return [_redact_payload(v) for v in obj]
+                    if isinstance(obj, str):
+                        return _mask(obj)
+                    return obj
+                except Exception:
+                    return obj
+
             with open(log_path, 'a+') as logf:
                 logf.seek(0)
                 try:
@@ -4802,7 +6049,7 @@ def mpesa_callback(request):
                 logs.append({
                     'timestamp': datetime.now().isoformat(),
                     'status': 'success' if result_code == 0 else 'failed',
-                    'details': data
+                    'details': _redact_payload(data)
                 })
                 json.dump(logs, logf, indent=2)
                 logf.truncate()
@@ -4867,10 +6114,10 @@ def mpesa_callback(request):
                             'timestamp': datetime.now().isoformat(),
                             'status': 'unmatched',
                             'details': {
-                                'phone': phone,
+                                'phone': '[PHONE]' if phone else None,
                                 'amount': amount,
-                                'reference': mpesa_receipt,
-                                'raw': data
+                                'reference': '[MPESA_RECEIPT]' if mpesa_receipt else None,
+                                'raw': _redact_payload(data)
                             }
                         })
                         json.dump(logs, logf, indent=2)
@@ -5183,3 +6430,153 @@ def paybill_status(request, checkout_request_id: str):
         'shortcode': getattr(settings, 'MPESA_SHORTCODE', ''),
     }
     return render(request, 'fees/paybill_status.html', context)
+
+
+# --- PayBill C2B Callbacks (Validation & Confirmation) ---
+@csrf_exempt
+def mpesa_c2b_validation(request):
+    """Accept or reject an incoming C2B transaction (PayBill). Minimal validation.
+
+    Expected Safaricom JSON fields include: TransType, TransID, TransTime, TransAmount,
+    BusinessShortCode, BillRefNumber, MSISDN, etc.
+    """
+    try:
+        payload = json.loads(request.body.decode('utf-8')) if request.body else {}
+    except Exception:
+        payload = {}
+    # Optionally, validate BusinessShortCode matches settings
+    shortcode_ok = True
+    short_expected = getattr(settings, 'MPESA_SHORTCODE', '')
+    if short_expected:
+        shortcode_ok = str(payload.get('BusinessShortCode') or payload.get('BusinessShortCode')) == str(short_expected)
+    if not shortcode_ok:
+        return JsonResponse({"ResultCode": 1, "ResultDesc": "Invalid shortcode"})
+    # Accept by default
+    return JsonResponse({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+
+@csrf_exempt
+def mpesa_c2b_confirmation(request):
+    """Record a confirmed C2B payment. Creates/updates FeePayment and MpesaTransaction.
+    Uses TransID as reference and BillRefNumber to identify the student (Account#<adm_no>).
+    """
+    import logging
+    from decimal import Decimal
+    logger = logging.getLogger('django')
+    try:
+        data = json.loads(request.body.decode('utf-8')) if request.body else {}
+    except Exception as e:
+        logger.error(f"[C2B CONFIRMATION] Invalid JSON: {e}")
+        return JsonResponse({"ResultCode": 0, "ResultDesc": "Received"})
+
+    # Extract fields
+    trans_id = data.get('TransID')
+    amount = data.get('TransAmount')
+    msisdn = data.get('MSISDN') or data.get('MSISDNNumber')
+    bill_ref = data.get('BillRefNumber') or data.get('AccountReference')
+    phone = _normalize_msisdn(str(msisdn or ''))
+
+    # Log to file for audit
+    try:
+        import os
+        from datetime import datetime
+        log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'payment_callback_logs.txt')
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, 'a+') as logf:
+            logf.seek(0)
+            try:
+                logs = json.load(logf)
+            except Exception:
+                logs = []
+            logs.append({
+                'timestamp': datetime.now().isoformat(),
+                'status': 'c2b_confirmation',
+                'details': data
+            })
+            json.dump(logs, logf, indent=2)
+            logf.truncate()
+    except Exception as logerr:
+        logger.error(f"[C2B CONFIRMATION] Could not write log: {logerr}")
+
+    if not trans_id:
+        return JsonResponse({"ResultCode": 0, "ResultDesc": "Missing TransID"})
+
+    # Resolve student by bill reference if in expected pattern
+    student = None
+    if isinstance(bill_ref, str) and bill_ref.startswith('Account#'):
+        adm = bill_ref.split('#', 1)[1].strip()
+        student = Student.objects.filter(admission_no=adm).first()
+    if not student and phone:
+        student = Student.objects.filter(phone=phone).first()
+
+    # Optional: link to an existing pending MpesaTransaction by account_reference
+    tx = MpesaTransaction.objects.filter(mpesa_receipt=trans_id).first()
+    if not tx:
+        tx = MpesaTransaction.objects.filter(account_reference=bill_ref).order_by('-created_at').first()
+
+    # Find current term and an outstanding assignment
+    from django.db.models import Sum as _Sum
+    today = timezone.now().date()
+    current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
+    outstanding_assignment = None
+    if student and current_term:
+        fee_assignments = FeeAssignment.objects.filter(class_group=student.class_group, term=current_term)
+        for fa in fee_assignments:
+            total_paid = FeePayment.objects.filter(student=student, fee_assignment=fa).aggregate(total=_Sum('amount_paid'))['total'] or 0
+            if float(total_paid) < float(fa.amount):
+                outstanding_assignment = fa
+                break
+        if not outstanding_assignment and fee_assignments.exists():
+            outstanding_assignment = fee_assignments.first()
+
+    # Idempotency: don't double-create FeePayment
+    existing = FeePayment.objects.filter(reference=trans_id).first()
+    if existing:
+        # Ensure it's approved and linked
+        if tx and not existing.mpesa_transaction_id:
+            existing.mpesa_transaction = tx
+            existing.save(update_fields=['mpesa_transaction'])
+        return JsonResponse({"ResultCode": 0, "ResultDesc": "Recorded"})
+
+    # Create/Update MpesaTransaction
+    try:
+        if not tx:
+            # Create a lightweight transaction record for traceability
+            tx = MpesaTransaction.objects.create(
+                student=student,
+                phone_number=phone or '',
+                amount=Decimal(str(amount or 0)),
+                account_reference=bill_ref,
+                checkout_request_id=f"c2b-{trans_id}",
+                status='success',
+                mpesa_receipt=trans_id,
+                result_desc='C2B Confirmation'
+            )
+        else:
+            tx.mpesa_receipt = tx.mpesa_receipt or trans_id
+            tx.status = 'success'
+            tx.result_desc = 'C2B Confirmation'
+            tx.save(update_fields=['mpesa_receipt','status','result_desc','updated_at'])
+    except Exception as e:
+        logger.error(f"[C2B CONFIRMATION] Error updating MpesaTransaction: {e}")
+
+    # Create approved FeePayment
+    try:
+        if student:
+            FeePayment.objects.create(
+                student=student,
+                fee_assignment=outstanding_assignment,
+                amount_paid=Decimal(str(amount or 0)),
+                payment_method='mpesa',
+                reference=trans_id,
+                phone_number=phone,
+                status='approved',
+                mpesa_transaction=tx
+            )
+        else:
+            # If no student resolved, record as pending without student link (optional policy)
+            logger.warning(f"[C2B CONFIRMATION] No student matched for BillRef={bill_ref} phone={phone}")
+    except Exception as e:
+        logger.error(f"[C2B CONFIRMATION] Error creating FeePayment: {e}")
+
+    return JsonResponse({"ResultCode": 0, "ResultDesc": "Received"})

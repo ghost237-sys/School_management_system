@@ -14,7 +14,7 @@ from django.contrib import messages
 # Import your models as needed
 # from .models import User, Student, FeeAssignment, FeePayment, Term
 def is_finance(user):
-    return user.is_authenticated and getattr(user, 'role', None) in ['finance', 'admin']
+    return user.is_authenticated and getattr(user, 'role', None) in ['clerk', 'admin']
 
 from .forms import MessagingForm
 
@@ -147,7 +147,7 @@ def finance_messaging_page(request):
     return render(request, 'dashboards/finance_messaging.html', context)
 
 def is_finance(user):
-    return user.is_authenticated and getattr(user, 'role', None) in ['finance', 'admin']
+    return user.is_authenticated and getattr(user, 'role', None) in ['clerk', 'admin']
 
 # Example placeholder view for sending a finance message
 @login_required
