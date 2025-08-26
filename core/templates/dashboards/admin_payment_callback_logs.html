@@ -2,9 +2,17 @@
 {% block title %}M-PESA Callback Logs{% endblock %}
 {% block content %}
 <div class="container mt-4">
-    <h2 class="mb-4">M-PESA Payment Callback Logs</h2>
-    <div class="mb-3">
-        <a href="{% url 'admin_payment' %}" class="btn btn-secondary">Back to Payments</a>
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h2 class="mb-0">M-PESA Payment Callback Logs</h2>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#verifyPaymentModal">
+                Verify Payment by Reference
+            </button>
+            <a href="{% url 'admin_payment_log_file' %}" class="btn btn-outline-primary" target="_blank" rel="noopener">
+                View Log File
+            </a>
+            <a href="{% url 'admin_payment' %}" class="btn btn-outline-secondary">Back to Payments</a>
+        </div>
     </div>
     {% if logs %}
     <div class="table-responsive">
@@ -40,4 +48,5 @@
         <div class="alert alert-info">No callback logs found.</div>
     {% endif %}
 </div>
+{% include 'dashboards/partials/verify_payment_modal.html' %}
 {% endblock %}

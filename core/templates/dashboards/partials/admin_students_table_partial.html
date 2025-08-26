@@ -1,0 +1,78 @@
+{% comment %}Partial: Students table with pagination. Expects students_page (Page), q, class_id{% endcomment %}
+<div class="students-scroll-box">
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Admission No</th>
+        <th>Email</th>
+        <th>Class</th>
+        <th class="no-print" style="width: 160px;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for student in students_page %}
+      <tr>
+        <td>
+          <a href="{% url 'student_profile' student.id %}">
+            {% if student.user %}{{ student.user.get_full_name|default:student.user.username }}{% else %}(No user){% endif %}
+          </a>
+        </td>
+        <td>{{ student.admission_no }}</td>
+        <td>{% if student.user %}{{ student.user.email }}{% else %}(No email){% endif %}</td>
+        <td>{{ student.class_group.name }}</td>
+        <td class="no-print">
+          <div class="btn-group btn-group-sm" role="group">
+            <a href="{% url 'student_profile' student.id %}" class="btn btn-outline-primary">
+              <i class="bi bi-pencil-square"></i> Edit
+            </a>
+            {% if student.user %}
+            <a href="{% url 'delete_user' student.user.id %}" class="btn btn-outline-danger">
+              <i class="bi bi-trash"></i> Delete
+            </a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">No students found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<nav aria-label="Students pagination" class="mt-2">
+  <ul class="pagination pagination-sm mb-0">
+    {% if students_page.has_previous %}
+      <li class="page-item"><a class="page-link" href="#" data-page="{{ students_page.previous_page_number }}">« Prev</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">« Prev</span></li>
+    {% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ students_page.number }} of {{ students_page.paginator.num_pages }}</span></li>
+    {% if students_page.has_next %}
+      <li class="page-item"><a class="page-link" href="#" data-page="{{ students_page.next_page_number }}">Next »</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Next »</span></li>
+    {% endif %}
+  </ul>
+</nav>
+<script>
+// Handle pagination link clicks inside the partial
+(function(){
+  const container = document.currentScript.closest('#studentsListContainer');
+  if (!container) return;
+  container.querySelectorAll('a.page-link[data-page]').forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      const page = this.getAttribute('data-page');
+      const url = new URL(window.location.origin + '{% url "admin_students_partial" %}');
+      const params = new URLSearchParams(window._studentsQuery || window.location.search);
+      params.set('page', page);
+      url.search = params.toString();
+      fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+        .then(r => r.text())
+        .then(html => { container.innerHTML = html; })
+        .catch(() => { container.innerHTML = '<div class="alert alert-danger">Failed to load page.</div>'; });
+    });
+  });
+})();
+</script>

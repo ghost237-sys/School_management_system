@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}All M-Pesa Transactions{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="mb-0">All M-Pesa Transactions</h2>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#verifyPaymentModal">
+        Verify Payment by Reference
+      </button>
+      <a href="{% url 'admin_c2b_ledger' %}" class="btn btn-outline-secondary">C2B Ledger</a>
+      <a href="{% url 'admin_mpesa_reconcile' %}" class="btn btn-outline-secondary">Reconcile</a>
+    </div>
+  </div>
+
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-md-4">
+      <input type="text" class="form-control" name="q" placeholder="Search TransID / Phone / BillRef / Checkout / Receipt" value="{{ q }}">
+    </div>
+    <div class="col-md-3">
+      <input type="text" class="form-control" name="since" placeholder="Since (YYYY-MM-DD)" value="{{ since }}">
+    </div>
+    <div class="col-md-3">
+      <input type="text" class="form-control" name="until" placeholder="Until (YYYY-MM-DD)" value="{{ until }}">
+    </div>
+    <div class="col-md-2 d-grid">
+      <button type="submit" class="btn btn-primary">Filter</button>
+    </div>
+  </form>
+
+  <div class="row g-4">
+    <div class="col-12 col-xl-6">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>C2B PayBill Ledger</strong>
+          <small class="text-muted">Latest {{ c2b|length }} records</small>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm table-striped table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>#</th>
+                  <th>TransID</th>
+                  <th>Amount</th>
+                  <th>MSISDN</th>
+                  <th>BillRef</th>
+                  <th>Time</th>
+                  <th>Created</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for e in c2b %}
+                <tr>
+                  <td>{{ forloop.counter }}</td>
+                  <td><code>{{ e.trans_id }}</code></td>
+                  <td>KES {{ e.amount|default:'-' }}</td>
+                  <td>{{ e.msisdn|default:'-' }}</td>
+                  <td>{{ e.bill_ref|default:'-' }}</td>
+                  <td>{{ e.trans_time|default:'-' }}</td>
+                  <td>{{ e.created_at|date:'Y-m-d H:i' }}</td>
+                  <td>
+                    <form method="post" action="{% url 'verify_payment_by_reference' %}" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="reference" value="{{ e.trans_id }}" />
+                      <button type="submit" class="btn btn-sm btn-success">Verify</button>
+                    </form>
+                  </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="text-center text-muted py-3">No C2B entries</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-6">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>STK Push Transactions</strong>
+          <small class="text-muted">Latest {{ stk|length }} records</small>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm table-striped table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>#</th>
+                  <th>Checkout</th>
+                  <th>Phone</th>
+                  <th>Amount</th>
+                  <th>Reference</th>
+                  <th>Status</th>
+                  <th>Receipt</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in stk %}
+                <tr>
+                  <td>{{ forloop.counter }}</td>
+                  <td><code>{{ t.checkout_request_id }}</code></td>
+                  <td>{{ t.phone_number }}</td>
+                  <td>KES {{ t.amount }}</td>
+                  <td>{{ t.account_reference|default:'-' }}</td>
+                  <td>
+                    {% if t.status == 'success' %}
+                      <span class="badge bg-success">Success</span>
+                    {% elif t.status == 'failed' %}
+                      <span class="badge bg-danger">Failed</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Pending</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ t.mpesa_receipt|default:'-' }}</td>
+                  <td>{{ t.created_at|date:'Y-m-d H:i' }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="text-center text-muted py-3">No STK transactions</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% include 'dashboards/partials/verify_payment_modal.html' %}
+{% endblock %}

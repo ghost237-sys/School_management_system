@@ -20,3 +20,7 @@ Admins manage users, classes, fees, exams, messaging, analytics, and academic ye
 
 ## Messaging
 - One-on-one basic messaging between roles (no groups/attachments in v1).
+
+## Troubleshooting
+- For common admin issues (analytics empty, URL reverses, M-Pesa callbacks, forms not saving), see the Admin Troubleshooting guide:
+  - [Admin Troubleshooting](../troubleshooting/admin.md)

@@ -129,9 +129,26 @@
             <h2 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>Exams Management</h2>
             <small class="text-muted">Create exams, view the calendar, and manage grades efficiently.</small>
         </div>
-        <a href="/admin_manage_grades/" class="btn btn-primary">
-          <i class="bi bi-journal-check me-1"></i> Manage Grades
-        </a>
+        {% if user.is_authenticated %}
+            {% if user.role == 'admin' or user.is_staff or user.is_superuser %}
+            <div class="d-flex gap-2">
+                <a href="/admin_manage_grades/" class="btn btn-primary">
+                  <i class="bi bi-journal-check me-1"></i> Manage Grades
+                </a>
+                <a href="{% url 'admin_block_result_slip' %}" class="btn btn-warning">
+                  <i class="bi bi-shield-lock me-1"></i> Restrict Results Access
+                </a>
+                <div class="btn-group">
+                  <button type="button" class="btn btn-outline-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-card-text me-1"></i> Result Slips
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end" id="resultSlipsDropdown">
+                    <li class="px-3 py-2 text-muted small">Loading classes...</li>
+                  </ul>
+                </div>
+            </div>
+            {% endif %}
+        {% endif %}
     </div>
     <!-- Top Sticky Exams Nav -->
     <style>
@@ -202,16 +219,28 @@
                 <i class="bi bi-exclamation-triangle me-2"></i>
                 <strong>No terms defined!</strong> Please <a href="/admin/">add a Term</a> in the admin panel before creating exams.
               </div>
-              <form method="post" class="mb-4">
+              <form method="post" class="mb-4" id="addExamFormDisabled">
                 {% csrf_token %}
-                {{ exam_form.as_p|safe }}
-                <button type="submit" name="add_exam" class="btn btn-success" disabled>Add Exam</button>
+                <div class="form-grid row g-3">
+                  {{ exam_form.as_p|safe }}
+                </div>
+                <div class="d-flex justify-content-end mt-2">
+                  <button type="submit" name="add_exam" class="btn btn-success" disabled>
+                    <i class="bi bi-plus-circle me-1"></i>Add Exam
+                  </button>
+                </div>
               </form>
             {% else %}
-              <form method="post" class="mb-4">
+              <form method="post" class="mb-4" id="addExamForm">
                 {% csrf_token %}
-                {{ exam_form.as_p }}
-                <button type="submit" name="add_exam" class="btn btn-success">Add Exam</button>
+                <div class="form-grid row g-3">
+                  {{ exam_form.as_p }}
+                </div>
+                <div class="d-flex justify-content-end mt-2">
+                  <button type="submit" name="add_exam" class="btn btn-success">
+                    <i class="bi bi-plus-circle me-1"></i>Add Exam
+                  </button>
+                </div>
               </form>
             {% endif %}
           </div>
@@ -221,52 +250,331 @@
       <div class="tab-pane fade" id="available-exams" role="tabpanel" aria-labelledby="available-exams-tab">
         <div class="card mb-4">
           <div class="card-body">
-            {% if exams %}  
-              <div class="table-responsive mb-2">
-                <table class="table align-middle table-hover">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Term</th>
-                      <th>Start</th>
-                      <th>End</th>
-                      <th>Type</th>
-                      <th class="text-end">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for exam in exams %}
-                    <tr>
-                      <td class="fw-semibold">{{ exam.name }}</td>
-                      <td>{{ exam.term }}</td>
-                      <td>{{ exam.start_date|date:'d M Y' }}</td>
-                      <td>{{ exam.end_date|date:'d M Y' }}</td>
-                      <td><span class="badge bg-light text-dark border">{{ exam.get_type_display }}</span></td>
-                      <td class="text-end">
-                        <button type="button" class="btn btn-soft-primary btn-sm me-1"
-                                data-bs-toggle="modal" data-bs-target="#examDetailModal"
-                                data-exam-name="{{ exam.name }}"
-                                data-exam-start="{{ exam.start_date|date:'d M Y' }}"
-                                data-exam-end="{{ exam.end_date|date:'d M Y' }}"
-                                data-exam-term="{{ exam.term }}"
-                                onclick="openExamModal(this)">
-                          <i class="bi bi-eye"></i>
-                        </button>
-                        <form method="post" action="{% url 'delete_exam' exam.id %}" class="d-inline">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-danger btn-sm" title="Delete" onclick="return confirm('Delete exam {{ exam.name }}?');">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </form>
-                      </td>
-                    </tr>   
-                    {%endfor%}
-                  </tbody>
-                </table>
+            <div id="availableExamsContainer">
+              <div class="text-center p-4">
+                <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+                <p class="mt-2 mb-0">Loading exams...</p>
               </div>
-            {% else %}
-              <div class="alert alert-info">No exams available.</div>
-            {% endif %}
+            </div>
+            <script>
+            document.addEventListener('DOMContentLoaded', function(){
+              const container = document.getElementById('availableExamsContainer');
+              if (!container) return;
+              function loadPartial() {
+                const url = new URL(window.location.origin + '{% url "admin_exams_available_partial" %}');
+                const params = new URLSearchParams(window.location.search);
+                window._examsQuery = params.toString();
+                url.search = params.toString();
+                fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                  .then(r => r.text())
+                  .then(html => { container.innerHTML = html; })
+                  .catch(() => { container.innerHTML = '<div class="alert alert-danger">Failed to load exams.</div>'; });
+              }
+              // Initial load
+              loadPartial();
+              // Delegated pagination click
+              container.addEventListener('click', function(e){
+                const a = e.target.closest('a.page-link[data-page]');
+                if (!a) return;
+                e.preventDefault();
+                const page = a.getAttribute('data-page');
+                const url = new URL(window.location.origin + '{% url "admin_exams_available_partial" %}');
+                const params = new URLSearchParams(window._examsQuery || window.location.search);
+                params.set('page', page);
+                url.search = params.toString();
+                fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                  .then(r => r.text())
+                  .then(html => { container.innerHTML = html; })
+                  .catch(() => { container.innerHTML = '<div class="alert alert-danger">Failed to load page.</div>'; });
+              });
+              // Delegated submit for publish/unpublish/delete
+              container.addEventListener('submit', function(e){
+                const form = e.target;
+                if (!form.matches('form[action*="/publish/"], form[action*="/unpublish/"], form[action*="/delete/"]')) return;
+                // Respect inline confirm via onsubmit attribute; if it returns false, browser would have prevented default.
+                // Here we intercept default and send via fetch.
+                e.preventDefault();
+                const action = form.getAttribute('action');
+                const csrf = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+                fetch(action, {
+                  method: 'POST',
+                  headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' },
+                  credentials: 'same-origin',
+                  body: new URLSearchParams({ 'csrfmiddlewaretoken': csrf }).toString()
+                })
+                .then(async (r) => {
+                  if (!r.ok) throw new Error(await r.text() || 'Request failed');
+                  return loadPartial();
+                })
+                .catch(() => { window.location.href = window.location.href; });
+              });
+            });
+            </script>
+  <style>
+    .small-hint { font-size: 12px; color: #6c757d; }
+    .inline-tools { display: flex; gap: 6px; margin: 6px 0 4px; }
+    .inline-tools .btn { padding: 1px 6px; font-size: 11px; }
+    .char-counter { font-size: 12px; color: #6c757d; float: right; }
+    /* Floating labels helper styles for legacy as_p structure */
+    .form-floating-lite { position: relative; }
+    .form-floating-lite > label { position: absolute; top: -8px; left: 10px; background: #fff; padding: 0 6px; font-size: 12px; color: #6c757d; }
+    .with-icon { position: relative; }
+    .with-icon .left-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #6c757d; }
+    .with-icon input, .with-icon select { padding-left: 30px; }
+    .invalid-feedback { display: none; }
+    .is-invalid ~ .invalid-feedback { display: block; }
+  </style>
+  <script>
+    // Extra UX for Add Exam inputs
+    document.addEventListener('DOMContentLoaded', function(){
+      const form = document.getElementById('addExamForm');
+      if (!form) return;
+
+      // Name field: placeholder, maxlength, counter, required, floating label, icon, inline validation
+      const nameInput = form.querySelector('input[name*="name" i], input[name*="Name" i], input[name*="exam_name" i]') || form.querySelector('input[type="text"]');
+      if (nameInput) {
+        nameInput.placeholder = nameInput.placeholder || 'e.g., Mid Term 1 - 2025';
+        nameInput.maxLength = nameInput.maxLength && nameInput.maxLength > 0 ? nameInput.maxLength : 100;
+        nameInput.required = true;
+        // floating label + icon
+        const nameP = nameInput.closest('p') || nameInput.parentElement;
+        if (nameP) {
+          nameP.classList.add('form-floating-lite','mb-3','with-icon');
+          const lbl = nameP.querySelector('label');
+          if (lbl) lbl.textContent = 'Name';
+          const icon = document.createElement('i');
+          icon.className = 'bi bi-type left-icon';
+          nameP.appendChild(icon);
+        }
+        // add counter
+        let counter = document.createElement('small');
+        counter.className = 'char-counter';
+        counter.textContent = `0/${nameInput.maxLength}`;
+        if (nameP) nameP.appendChild(counter);
+        const updateCount = () => { counter.textContent = `${nameInput.value.length}/${nameInput.maxLength}`; };
+        nameInput.addEventListener('input', updateCount); updateCount();
+        // inline validation container
+        const invalid = document.createElement('div');
+        invalid.className = 'invalid-feedback';
+        invalid.textContent = 'Please enter a name (max 100 characters).';
+        if (nameP) nameP.appendChild(invalid);
+      }
+
+      // Term select: required
+      const termSelect = form.querySelector('select[name*="term" i]') || form.querySelector('select');
+      if (termSelect) {
+        termSelect.required = true;
+        const termP = termSelect.closest('p') || termSelect.parentElement;
+        if (termP) {
+          termP.classList.add('form-floating-lite','mb-3','with-icon');
+          const lbl = termP.querySelector('label');
+          if (lbl) lbl.textContent = 'Term';
+          const icon = document.createElement('i');
+          icon.className = 'bi bi-calendar3 left-icon';
+          termP.appendChild(icon);
+          const invalid = document.createElement('div');
+          invalid.className = 'invalid-feedback';
+          invalid.textContent = 'Please select a term.';
+          termP.appendChild(invalid);
+        }
+      }
+
+      // Multi-select levels: add quick tools + floating label + icon
+      const levelSelect = form.querySelector('select[multiple], select[size]');
+      if (levelSelect) {
+        const tools = document.createElement('div');
+        tools.className = 'inline-tools';
+        tools.innerHTML = `
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="levelsSelectAll">Select All</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="levelsClear">Clear</button>
+        `;
+        const container = levelSelect.closest('p') || levelSelect.parentElement;
+        if (container) container.insertBefore(tools, levelSelect);
+        tools.querySelector('#levelsSelectAll').addEventListener('click', ()=>{ for (const o of levelSelect.options) o.selected = true; });
+        tools.querySelector('#levelsClear').addEventListener('click', ()=>{ for (const o of levelSelect.options) o.selected = false; });
+        // hint
+        let hint = document.createElement('div');
+        hint.className = 'small-hint';
+        hint.textContent = 'Tip: Hold Ctrl/Cmd to select multiple levels.';
+        container.appendChild(hint);
+        // floating label + icon
+        container.classList.add('form-floating-lite','mb-3','with-icon');
+        const lbl = container.querySelector('label');
+        if (lbl) lbl.textContent = 'Level(s)';
+        const icon = document.createElement('i');
+        icon.className = 'bi bi-layers left-icon';
+        container.appendChild(icon);
+        const invalid = document.createElement('div');
+        invalid.className = 'invalid-feedback';
+        invalid.textContent = 'Please select at least one level.';
+        container.appendChild(invalid);
+      }
+
+      // Dates: enforce start <= end, floating labels + icons, disable past dates, limit to selected term when available
+      const startInput = form.querySelector('input[name*="start" i]');
+      const endInput = form.querySelector('input[name*="end" i]');
+      if (startInput) startInput.required = true;
+      if (endInput) endInput.required = true;
+      const todayStr = new Date().toISOString().slice(0,10);
+      if (startInput && !startInput.min) startInput.min = todayStr;
+      if (endInput && !endInput.min) endInput.min = todayStr;
+      function syncDates(){
+        if (startInput && endInput) {
+          endInput.min = startInput.value || '';
+        }
+      }
+      if (startInput) startInput.addEventListener('change', syncDates);
+      if (endInput) endInput.addEventListener('change', syncDates);
+      syncDates();
+      // floating label + icons + inline validation for dates
+      const setupDateDecor = (el, label) => {
+        const p = el && (el.closest('p') || el.parentElement);
+        if (!p) return;
+        p.classList.add('form-floating-lite','mb-3','with-icon');
+        const lbl = p.querySelector('label');
+        if (lbl) lbl.textContent = label;
+        const icon = document.createElement('i'); icon.className = 'bi bi-calendar-event left-icon'; p.appendChild(icon);
+        const invalid = document.createElement('div'); invalid.className = 'invalid-feedback'; invalid.textContent = `${label} is required.`; p.appendChild(invalid);
+      };
+      if (startInput) setupDateDecor(startInput, 'Start date');
+      if (endInput) setupDateDecor(endInput, 'End date');
+
+      // Validate on submit
+      form.addEventListener('submit', function(e){
+        let invalidAny = false;
+        const setInvalid = (el, msg) => {
+          if (!el) return; invalidAny = true; el.classList.add('is-invalid');
+          const fb = (el.closest('p')||el.parentElement).querySelector('.invalid-feedback'); if (fb && msg) fb.textContent = msg;
+        };
+        const clearInvalid = (el) => { if (!el) return; el.classList.remove('is-invalid'); };
+        // basic required checks
+        clearInvalid(nameInput); if (nameInput && !nameInput.value.trim()) setInvalid(nameInput);
+        clearInvalid(termSelect); if (termSelect && !termSelect.value) setInvalid(termSelect);
+        clearInvalid(startInput); if (startInput && !startInput.value) setInvalid(startInput);
+        clearInvalid(endInput); if (endInput && !endInput.value) setInvalid(endInput);
+        // date order
+        if (startInput && endInput && startInput.value && endInput.value && endInput.value < startInput.value) {
+          setInvalid(endInput, 'End date must be on or after the start date.');
+        }
+        if (invalidAny) e.preventDefault();
+      });
+
+      // Option 4: Auto-fill Term from date range using /api/terms/ if available
+      let termData = null;
+      function tryFetchTerms(){
+        fetch('/api/terms/', { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(data => { termData = data && (data.terms || data); })
+          .catch(() => { termData = null; });
+      }
+      tryFetchTerms();
+      function parseYmd(s){ return s ? new Date(s) : null; }
+      function ymd(d){ return d ? d.toISOString().slice(0,10) : ''; }
+      function autoSelectTerm(){
+        if (!termData || !termSelect || !startInput) return;
+        const s = parseYmd(startInput.value);
+        if (!s) return;
+        for (const t of termData){
+          const ts = parseYmd(t.start_date || t.start || t.startDate);
+          const te = parseYmd(t.end_date || t.end || t.endDate);
+          if (ts && te && s >= ts && s <= te){
+            // try to match option by id or name
+            let matched = false;
+            [...termSelect.options].forEach(opt => {
+              if (String(opt.value) === String(t.id) || (t.name && opt.text.trim().toLowerCase() === String(t.name).trim().toLowerCase())){
+                termSelect.value = opt.value; matched = true;
+              }
+            });
+            // limit date pickers to selected term
+            if (matched){
+              if (startInput) { startInput.min = ymd(ts); startInput.max = ymd(te); }
+              if (endInput)   { endInput.min = startInput.value || ymd(ts); endInput.max = ymd(te); }
+            }
+            break;
+          }
+        }
+      }
+      if (startInput) startInput.addEventListener('change', autoSelectTerm);
+      // also adjust when term changes manually
+      if (termSelect) termSelect.addEventListener('change', function(){
+        if (!termData) return;
+        const t = (termData||[]).find(x => String(x.id) === String(termSelect.value) || (x.name && x.name === termSelect.options[termSelect.selectedIndex].text));
+        if (t){
+          const ts = parseYmd(t.start_date || t.start || t.startDate);
+          const te = parseYmd(t.end_date || t.end || t.endDate);
+          if (startInput){ startInput.min = ymd(ts); startInput.max = ymd(te); if (startInput.value && startInput.value < startInput.min) startInput.value = startInput.min; }
+          if (endInput){ endInput.min = startInput.value || ymd(ts); endInput.max = ymd(te); if (endInput.value && endInput.value > endInput.max) endInput.value = endInput.max; }
+        }
+      });
+    });
+  </script>
+<style>
+  /* Make Django as_p fields look like grid items */
+  .form-grid > p { margin-bottom: 0; }
+  .form-grid > p label { font-weight: 600; margin-bottom: 4px; display: block; }
+  @media (min-width: 768px) {
+    .form-grid > p { width: 50%; float: left; padding-right: 10px; }
+  }
+  @media (max-width: 767.98px) {
+    .form-grid > p { width: 100%; }
+  }
+</style>
+<script>
+  // Enhance Add Exam form controls with Bootstrap styles and UX
+  document.addEventListener('DOMContentLoaded', function(){
+    function enhanceForm(formId){
+      const form = document.getElementById(formId);
+      if (!form) return;
+      // Style inputs and selects
+      form.querySelectorAll('input[type="text"], input[type="number"], input[type="date"], input[type="email"], input:not([type])').forEach(el => {
+        el.classList.add('form-control','form-control-sm');
+        if (/start/i.test(el.name)) el.placeholder = el.placeholder || 'yyyy-mm-dd';
+        if (/end/i.test(el.name)) el.placeholder = el.placeholder || 'yyyy-mm-dd';
+      });
+      form.querySelectorAll('select').forEach(sel => {
+        sel.classList.add('form-select','form-select-sm');
+        // If likely a multi-select for levels, give a reasonable height
+        if (/level/i.test(sel.name)) sel.size = sel.size && sel.size > 1 ? sel.size : 6;
+      });
+      // Convert probable date fields
+      form.querySelectorAll('input[name*="start"], input[name*="end"]').forEach(d => {
+        if (!d.type || d.type === 'text') d.setAttribute('type','date');
+      });
+    }
+    enhanceForm('addExamForm');
+    enhanceForm('addExamFormDisabled');
+  });
+</script>
+            <script>
+            // Populate Result Slips dropdown with classes
+            document.addEventListener('DOMContentLoaded', function(){
+              const dd = document.getElementById('resultSlipsDropdown');
+              if (!dd) return;
+              fetch('/api/classes/', { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+                .then(r => r.json())
+                .then(data => {
+                  const classes = data && data.classes ? data.classes : [];
+                  if (!classes.length) {
+                    dd.innerHTML = '<li class="px-3 py-2 text-muted small">No classes found</li>';
+                    return;
+                  }
+                  dd.innerHTML = '';
+                  classes.forEach(cls => {
+                    const li = document.createElement('li');
+                    const a = document.createElement('a');
+                    a.className = 'dropdown-item';
+                    a.textContent = cls.display_name || cls.name || `Class ${cls.id}`;
+                    a.href = `/admin_class_result_slip/${cls.id}/`;
+                    a.target = '_blank';
+                    li.appendChild(a);
+                    dd.appendChild(li);
+                  });
+                })
+                .catch(() => {
+                  dd.innerHTML = '<li class="px-3 py-2 text-danger small">Failed to load classes</li>';
+                });
+            });
+            </script>
           </div>
         </div>
       </div>

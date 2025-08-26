@@ -3,6 +3,7 @@ from django.http import JsonResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
+from urllib.parse import quote
 import difflib
 import re
 
@@ -649,6 +650,16 @@ def _handle_intent(intent: str, slots: dict, request):
             stu = Student.objects.filter(user=user).first()
             if not stu:
                 return False, "Your student profile was not found.", None, []
+            # Enforce fee-based restriction before navigation
+            try:
+                from core.views import can_view_results_for_student
+                can_view, msg, restrict_flag = can_view_results_for_student(request, stu)
+            except Exception:
+                can_view, msg, restrict_flag = True, "", False
+            if not can_view and restrict_flag:
+                blk_url = f"/results/blocked/?msg={quote(msg or 'Results are temporarily unavailable due to outstanding fees.') }"
+                action = {"type": "navigate", "url": blk_url}
+                return True, "Your results are currently restricted.", action, []
             url = f"/student_profile/{stu.id}/?tab=performance"
             action = {"type": "navigate", "url": url}
             return True, "Opening your results (Performance).", action, []

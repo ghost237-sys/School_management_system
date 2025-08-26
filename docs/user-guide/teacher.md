@@ -12,3 +12,7 @@
 
 ## Tips
 - If a dropdown (e.g., Term) is empty, ensure data exists (Terms must be created first).
+
+## Troubleshooting
+- For common teacher issues (calendar empty, messaging recipients not loading, result slip access), see:
+  - [Teacher Troubleshooting](../troubleshooting/teacher.md)

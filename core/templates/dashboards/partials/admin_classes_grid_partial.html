@@ -1,0 +1,47 @@
+{% comment %}Partial: Classes grid with pagination. Expects classes_page (Page), class_summaries (dict){% endcomment %}
+ <div id="classesGrid" class="row row-cols-1 row-cols-md-2 row-cols-lg-2 row-cols-xl-3 g-4 mt-2">
+  {% for class in classes_page %}
+  <div class="col class-card" data-level="{{ class.level }}" data-stream="{{ class.name|lower }}">
+    <div class="card h-100 shadow-sm">
+      <div class="card-header bg-light text-dark border-top border-primary border-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 fw-semibold">{{ class.name }} <span class="fw-normal text-muted">(Level {{ class.level }})</span></h5>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-2 mb-2">
+          <a href="{% url 'class_profile' class.id %}" class="btn btn-sm btn-outline-info">View</a>
+          <a href="{% url 'admin_class_result_slip' class.id %}" class="btn btn-sm btn-success">Result Slip</a>
+          <a href="{% url 'edit_class' class.id %}" class="btn btn-sm btn-outline-primary">Edit</a>
+          <a href="{% url 'edit_class' class.id %}" class="btn btn-sm btn-outline-dark">Class Teacher</a>
+          <a href="{% url 'assign_subject_teachers' class.id %}" class="btn btn-sm btn-outline-warning">Subject Teachers</a>
+          <a href="{% url 'manage_class_subjects' class.id %}" class="btn btn-sm btn-outline-secondary">Subjects</a>
+          <a href="{% url 'delete_class' class.id %}" class="btn btn-sm btn-outline-danger">Delete</a>
+        </div>
+        <div class="small text-muted">
+          <em>Assignments summary will appear here.</em>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+    <div class="col"><div class="alert alert-info">No classes found.</div></div>
+  {% endfor %}
+</div>
+
+<nav aria-label="Classes pagination" class="mt-2">
+  <ul class="pagination pagination-sm mb-0">
+    {% if classes_page.has_previous %}
+      <li class="page-item"><a class="page-link" href="#" data-page="{{ classes_page.previous_page_number }}">« Prev</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">« Prev</span></li>
+    {% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ classes_page.number }} of {{ classes_page.paginator.num_pages }}</span></li>
+    {% if classes_page.has_next %}
+      <li class="page-item"><a class="page-link" href="#" data-page="{{ classes_page.next_page_number }}">Next »</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Next »</span></li>
+    {% endif %}
+  </ul>
+  <div class="form-text">Showing {{ classes_page.start_index }}–{{ classes_page.end_index }} of {{ classes_page.paginator.count }} classes</div>
+</nav>

@@ -106,19 +106,6 @@
       <div class="col-12 col-md-4">
         <div class="card border-0" style="background:#f8f9fa;">
           <div class="card-body d-flex align-items-center">
-            <div class="metric-icon me-3" style="font-size:1.5rem;"><i class="fa fa-sitemap text-primary"></i></div>
-            <div>
-              <div class="metric-title">Stream Rank</div>
-              <div class="metric-value">
-                {% if stream_rank %} {{ stream_rank }} <small class="text-muted">/ {{ stream_total }}</small>{% else %} N/A {% endif %}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-md-4">
-        <div class="card border-0" style="background:#f8f9fa;">
-          <div class="card-body d-flex align-items-center">
             <div class="metric-icon me-3" style="font-size:1.5rem;"><i class="fa fa-globe text-success"></i></div>
             <div>
               <div class="metric-title">Overall Level Rank</div>
@@ -179,7 +166,11 @@
                     <strong class="me-md-3">Personal Information</strong>
                     <div class="ms-md-auto d-flex flex-wrap align-items-center gap-2">
                         <div class="btn-group btn-group-sm me-md-2 flex-wrap" role="group" aria-label="Print actions">
-                            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#actionChooseModal" data-section="result-slip-section" data-title="Result Slip"><i class="fa fa-file"></i> Result Slip</button>
+                            {% if can_view_results %}
+                              <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#actionChooseModal" data-section="result-slip-section" data-title="Result Slip"><i class="fa fa-file"></i> Result Slip</button>
+                            {% else %}
+                              <button class="btn btn-outline-primary disabled" title="{{ fee_restriction_message }}" data-restricted="1" data-section="result-slip-section" data-title="Result Slip"><i class="fa fa-file"></i> Result Slip</button>
+                            {% endif %}
                             <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#actionChooseModal" data-section="fees-statement-section" data-title="Fees Statement"><i class="fa fa-file"></i> Fees Statement</button>
                             <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#actionChooseModal" data-section="fees-structure-section" data-title="Fees Structure"><i class="fa fa-file"></i> Fees Structure</button>
                         </div>
@@ -187,6 +178,14 @@
                     </div>
                 </div>
                 <div class="card-body">
+                    {% if restrict_results_by_fee and not can_view_results and user.role == 'student' %}
+                    <div class="alert alert-warning d-flex align-items-start" role="alert">
+                      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                      <div>
+                        {{ fee_restriction_message }}
+                      </div>
+                    </div>
+                    {% endif %}
                     <div class="row mb-2">
                         <div class="col-sm-4 fw-bold">Admission No:</div>
                         <div class="col-sm-8">{{ student.admission_no }}</div>
@@ -263,6 +262,28 @@
     </div>
   </div>
 </div>
+
+<!-- Export Progress Modal -->
+<div class="modal fade" id="exportProgressModal" tabindex="-1" aria-labelledby="exportProgressModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exportProgressModalLabel">Preparing PDF…</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="progress" role="progressbar" aria-label="PDF progress" aria-valuemin="0" aria-valuemax="100">
+          <div id="exportProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%">0%</div>
+        </div>
+        <div id="exportStatus" class="mt-2 small text-muted">Starting…</div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div id="exportError" class="text-danger small d-none"></div>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hide</button>
+      </div>
+    </div>
+  </div>
+  </div>
 
 <!-- Attendance Section -->
 <div class="card mb-4" id="attendance-section">
@@ -373,9 +394,16 @@
 
   </div>
   <div class="tab-pane fade" id="performance" role="tabpanel" aria-labelledby="performance-tab">
-    <div id="result-slip-section">
-    {% include 'dashboards/student_report_card.html' with student=student grades=grades average_score=average_score term=current_term %}
-    </div>
+    {% if can_view_results %}
+      <div id="result-slip-section">
+        {% include 'dashboards/student_report_card.html' with student=student grades=grades average_score=average_score term=current_term %}
+      </div>
+    {% else %}
+      <div class="alert alert-warning mt-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        {{ fee_restriction_message }}
+      </div>
+    {% endif %}
     <!-- html2pdf for client-side PDF downloads (no SRI to avoid mismatch blocking) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- dom-to-image fallback for more reliable rasterization -->
@@ -460,6 +488,43 @@
     </div>
   </div>
 </div>
+<!-- Exam Select Modal (only for Result Slip) -->
+<div class="modal fade" id="examSelectModal" tabindex="-1" aria-labelledby="examSelectModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="examSelectModalLabel">Select Exam to Print/Download</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        {% if published_exams and published_exams.exists %}
+          <div class="mb-3">
+            <label for="examSelect" class="form-label">Exam</label>
+            <select id="examSelect" class="form-select">
+              {% for ex in published_exams %}
+                <option value="{{ ex.id }}" {% if selected_exam and selected_exam.id == ex.id %}selected{% endif %}>
+                  {{ ex.name }} — {{ ex.term.name }} ({{ ex.term.academic_year.year }})
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="small text-muted">Only published exams are available.</div>
+        {% else %}
+          <div class="alert alert-info mb-0">
+            There are no published exams available for this student yet.
+          </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        {% if published_exams and published_exams.exists %}
+          <button type="button" class="btn btn-primary" id="confirmExamSelectBtn">Continue</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  </div>
+
 <!-- Action choose modal (Download or Print) -->
 <div class="modal fade" id="actionChooseModal" tabindex="-1" aria-labelledby="actionChooseModalLabel" aria-hidden="true">
   <div class="modal-dialog">
@@ -481,6 +546,18 @@
   </div>
 
 <script>
+// Flag from backend to indicate if results are restricted for this viewer
+// Use string comparisons to keep JS parsers happy before Django templating runs
+const __restrictResultsByFee = "{{ restrict_results_by_fee|yesno:'true,false' }}" === 'true';
+const __canViewResults = "{{ can_view_results|yesno:'true,false' }}" === 'true';
+window.resultsRestricted = __restrictResultsByFee && !__canViewResults;
+window.resultsRestrictionMessage = "{{ fee_restriction_message|escapejs }}";
+// Exam publishing/selection flags
+const __selectedExamIdStr = "{{ selected_exam.id|default:'' }}";
+window.selectedExamId = __selectedExamIdStr ? parseInt(__selectedExamIdStr, 10) : null;
+const __publishedExamsCountStr = "{{ published_exams|length|default:'0' }}";
+window.publishedExamsCount = parseInt(__publishedExamsCountStr, 10);
+
 // Switch to correct tab when opening modal from a card
 const feeDetailsModal = document.getElementById('feeDetailsModal');
 if (feeDetailsModal) {
@@ -561,19 +638,103 @@ if (actionChooseModal) {
     const button = event.relatedTarget;
     selectedSectionId = button?.getAttribute('data-section');
     selectedTitle = button?.getAttribute('data-title');
+    // If opened programmatically (no button), default to result slip if an exam was selected
+    if (!button && (!selectedSectionId || !selectedTitle) && window.selectedExamId) {
+      selectedSectionId = 'result-slip-section';
+      selectedTitle = 'Result Slip';
+    }
+    // Block opening for restricted result slip
+    if (window.resultsRestricted && selectedSectionId === 'result-slip-section') {
+      event.preventDefault();
+      event.stopPropagation();
+      const msg = window.resultsRestrictionMessage || 'Results access is restricted due to outstanding fees.';
+      alert(msg);
+      return false;
+    }
+    // If result slip and no selected exam yet, force exam picker first
+    if (selectedSectionId === 'result-slip-section') {
+      const hasSelectedExam = !!window.selectedExamId;
+      if (!hasSelectedExam) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!window.publishedExamsCount || Number(window.publishedExamsCount) === 0) {
+          alert('No published exams available to print or download.');
+          return false;
+        }
+        const examModalEl = document.getElementById('examSelectModal');
+        const examModal = new bootstrap.Modal(examModalEl);
+        examModal.show();
+        return false;
+      }
+    }
   });
   document.getElementById('chooseDownloadBtn').addEventListener('click', function(){
     if (selectedSectionId && selectedTitle) {
+      if (window.resultsRestricted && selectedSectionId === 'result-slip-section') {
+        alert(window.resultsRestrictionMessage || 'Results access is restricted due to outstanding fees.');
+        return;
+      }
       const modal = bootstrap.Modal.getInstance(actionChooseModal);
       modal?.hide();
+      // debug
+      try { console.debug('Download PDF for section', selectedSectionId, 'title', selectedTitle, 'exam', window.selectedExamId); } catch(_) {}
       downloadSection(selectedSectionId, selectedTitle);
     }
   });
   document.getElementById('choosePrintBtn').addEventListener('click', function(){
     if (selectedSectionId && selectedTitle) {
+      if (window.resultsRestricted && selectedSectionId === 'result-slip-section') {
+        alert(window.resultsRestrictionMessage || 'Results access is restricted due to outstanding fees.');
+        return;
+      }
       const modal = bootstrap.Modal.getInstance(actionChooseModal);
       modal?.hide();
+      // debug
+      try { console.debug('Print section', selectedSectionId, 'title', selectedTitle, 'exam', window.selectedExamId); } catch(_) {}
       printSection(selectedSectionId, selectedTitle);
+    }
+  });
+}
+
+// Helper: fetch server-rendered result slip for a specific exam and return a detached DOM node
+async function fetchResultSlipNodeForExam(examId) {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('exam_id', String(examId));
+    url.searchParams.set('tab', 'performance');
+    const resp = await fetch(url.toString(), { credentials: 'same-origin' });
+    if (!resp.ok) throw new Error('Failed to load exam result slip');
+    const html = await resp.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const node = doc.getElementById('result-slip-section');
+    return node ? node.cloneNode(true) : null;
+  } catch (e) {
+    console.warn('fetchResultSlipNodeForExam error', e);
+    return null;
+  }
+}
+
+// Handle exam selection "Continue" action
+const confirmExamBtn = document.getElementById('confirmExamSelectBtn');
+if (confirmExamBtn) {
+  confirmExamBtn.addEventListener('click', function() {
+    const sel = document.getElementById('examSelect');
+    const val = sel && sel.value ? parseInt(sel.value, 10) : null;
+    if (!val) {
+      alert('Please select an exam.');
+      return;
+    }
+    window.selectedExamId = val;
+    // Close exam select modal
+    const examModalEl = document.getElementById('examSelectModal');
+    const examModal = bootstrap.Modal.getInstance(examModalEl) || new bootstrap.Modal(examModalEl);
+    examModal.hide();
+    // Re-open action chooser if we came from result slip flow
+    if (selectedSectionId === 'result-slip-section') {
+      const acmEl = document.getElementById('actionChooseModal');
+      const acm = bootstrap.Modal.getInstance(acmEl) || new bootstrap.Modal(acmEl);
+      acm.show();
     }
   });
 }
@@ -598,153 +759,299 @@ document.addEventListener('DOMContentLoaded', function(){
 
 // Download the same sections as PDF
 function downloadSection(sectionId, title) {
-  const node = document.getElementById(sectionId);
-  if (!node) { alert('Section not found!'); return; }
+  const nodeEl = document.getElementById(sectionId);
+  if (!nodeEl) { alert('Section not found!'); return; }
 
-  // Build header + clone
-  const clone = node.cloneNode(true);
-  // Ensure the clone is visible and not constrained by hidden/tab/collapse styles
-  try {
-    clone.style.display = 'block';
-    clone.style.visibility = 'visible';
-    clone.style.position = 'static';
-    clone.style.opacity = '1';
-    clone.style.width = 'auto';
-    clone.style.maxWidth = '100%';
-    clone.classList.remove('d-none','collapse','collapsed','tab-pane','fade');
-    clone.classList.add('show');
-    // Expand any nested collapse/tab panes inside the clone
-    clone.querySelectorAll('.collapse, .tab-pane').forEach(el => {
-      el.classList.remove('collapse','tab-pane','fade');
-      el.classList.add('show');
-      el.style.display = 'block';
-      el.style.visibility = 'visible';
-    });
-  } catch(_) {}
-  const header = document.createElement('div');
-  header.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid #ccc;padding-bottom:8px;">
-      <div style="display:flex;align-items:center;gap:12px;">
-        {% if school.logo %}
-          <img src="{{ school.logo.url }}" alt="Logo" style="height:54px;width:auto;object-fit:contain;">
-        {% endif %}
-        <div>
-          <div style="font-weight:800;font-size:18px;">{{ school.name|default:'School' }}</div>
-          {% if school.motto %}<div style="font-size:12px;color:#666;">{{ school.motto }}</div>{% endif %}
-          <div style="font-size:13px;margin-top:4px;">${title}</div>
+  // If exporting Result Slip and an exam is chosen, fetch server-rendered HTML for that exam
+  let node = nodeEl;
+  const isResultSlip = sectionId === 'result-slip-section';
+  const examId = window.selectedExamId;
+  const shouldFetch = isResultSlip && examId;
+
+  const proceed = () => {
+    // Clone and prepare content
+    const clone = node.cloneNode(true);
+    try {
+      clone.style.display = 'block';
+      clone.style.visibility = 'visible';
+      clone.style.position = 'static';
+      clone.style.opacity = '1';
+      clone.style.width = 'auto';
+      clone.style.maxWidth = '100%';
+      clone.classList.remove('d-none','collapse','collapsed','tab-pane','fade');
+      clone.classList.add('show');
+      clone.querySelectorAll('.collapse, .tab-pane').forEach(el => {
+        el.classList.remove('collapse','tab-pane','fade');
+        el.classList.add('show');
+        el.style.display = 'block';
+        el.style.visibility = 'visible';
+      });
+      clone.querySelectorAll('[data-pdf-fixed-width]')?.forEach(el => {
+        const r = el.getBoundingClientRect();
+        el.style.width = r.width + 'px';
+      });
+      clone.querySelectorAll('img').forEach(img => {
+        try {
+          const src = img.getAttribute('src') || '';
+          if (!src || src.startsWith('data:')) return;
+          img.setAttribute('crossorigin', 'anonymous');
+        } catch(_) {}
+      });
+      // Remove elements that are not needed in PDF
+      try {
+        const selectors = ['#subjectSummaryTbl', '#subjectTrendChart', '#subjectTrendImg', '#subjectTrendSelect'];
+        selectors.forEach(sel => {
+          clone.querySelectorAll(sel).forEach(el => {
+            const col = el.closest('.col-12.col-lg-6');
+            const card = el.closest('.card');
+            if (col && col.parentElement) col.remove(); else if (card) card.remove();
+          });
+        });
+        const perfTargets = clone.querySelectorAll('#reportCardPerformanceChart, #rcPerfImg');
+        perfTargets.forEach(t => { const card = t.closest('.card'); if (card) card.remove(); });
+        clone.querySelectorAll('.row.g-3').forEach(r => { if (!r.querySelector('.card')) r.remove(); });
+      } catch (_) {}
+      try {
+        const liveCanvas = document.getElementById('reportCardPerformanceChart');
+        const liveImg = document.getElementById('rcPerfImg');
+        if (liveCanvas) {
+          let dataUrl = null; try { dataUrl = liveCanvas.toDataURL('image/png'); } catch(e) { dataUrl = null; }
+          const targetCanvas = clone.querySelector('#reportCardPerformanceChart');
+          const targetImg = clone.querySelector('#rcPerfImg');
+          if (dataUrl) {
+            const imgEl = document.createElement('img');
+            imgEl.src = dataUrl; imgEl.alt = 'Performance Over Time'; imgEl.style.maxWidth = '100%'; imgEl.style.height = 'auto';
+            if (targetCanvas) targetCanvas.replaceWith(imgEl); else if (targetImg) { targetImg.src = dataUrl; targetImg.style.display = 'block'; }
+          } else if (targetImg && liveImg && liveImg.src) {
+            targetImg.src = liveImg.src; targetImg.style.display = 'block';
+          }
+        }
+      } catch(_) {}
+    } catch(_) {}
+
+    const header = document.createElement('div');
+    header.innerHTML = `
+      <div class="pdf-header">
+        <div class="pdf-brand">
+          {% if school.logo %}
+            <img src="{{ school.logo.url }}" alt="Logo" class="pdf-logo">
+          {% endif %}
+          <div class="pdf-brand-text">
+            <div class="pdf-school">{{ school.name|default:'School' }}</div>
+            {% if school.motto %}<div class="pdf-motto">{{ school.motto }}</div>{% endif %}
+            <div class="pdf-title">${title}</div>
+          </div>
         </div>
-      </div>
-      <div style="text-align:right;font-size:12px;color:#555;">
-        <div>Generated: ${new Date().toLocaleString()}</div>
-        <div>Adm: {{ student.admission_no }}</div>
-        <div>Term: {{ current_term }}</div>
-      </div>
-    </div>`;
+        <div class="pdf-meta">
+          <div><strong>Generated:</strong> ${new Date().toLocaleString()}</div>
+          <div><strong>Adm:</strong> {{ student.admission_no }}</div>
+        </div>
+      </div>`;
 
-  // Render inside an offscreen iframe that imports page styles
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.left = '-10000px';
-  iframe.style.top = '0';
-  iframe.style.width = '900px';
-  iframe.style.height = '1200px';
-  iframe.setAttribute('aria-hidden', 'true');
-  document.body.appendChild(iframe);
+    const filename = `${title.replace(/\s+/g,'_')}_{{ student.admission_no }}.pdf`;
+    const opt = {
+      margin:       10,
+      filename:     filename,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, allowTaint: false },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
 
-  const filename = `${title.replace(/\s+/g,'_')}_{{ student.admission_no }}.pdf`;
-  const opt = {
-    margin:       10,
-    filename:     filename,
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, allowTaint: true },
-    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    showExportProgress();
+    setExportStatus('Preparing content…');
+    setExportProgress(15);
+
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'fixed';
+    wrapper.style.left = '-10000px';
+    wrapper.style.top = '0';
+    wrapper.style.background = '#ffffff';
+    wrapper.id = 'pdf-render-wrapper';
+    const root = document.createElement('div');
+    root.id = 'pdf-root';
+    root.className = 'pdf-root';
+
+    const style = document.createElement('style');
+    style.textContent = `
+      .pdf-root { background:#f6f8fb; padding:16px; font-family: "Segoe UI", Roboto, Arial, sans-serif; color:#0f172a; width:794px; }
+      .pdf-card { background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; box-shadow: 0 4px 16px rgba(15,23,42,.08); overflow:hidden; }
+      .pdf-header { display:flex; justify-content:space-between; align-items:center; padding:16px 18px; border-bottom:1px solid #e5e7eb; background: linear-gradient(90deg, #1f6feb 0%, #0ea5e9 100%); color:#fff; }
+      .pdf-brand { display:flex; align-items:center; gap:12px; }
+      .pdf-logo { height:48px; width:auto; object-fit:contain; filter: drop-shadow(0 2px 6px rgba(0,0,0,.25)); background:#fff; border-radius:8px; padding:6px; }
+      .pdf-brand-text .pdf-school { font-weight:800; font-size:18px; line-height:1.1; }
+      .pdf-brand-text .pdf-motto { font-size:12px; opacity:.9; }
+      .pdf-brand-text .pdf-title { margin-top:4px; font-size:13px; font-weight:600; }
+      .pdf-meta { text-align:right; font-size:12px; }
+      .pdf-body { padding:18px; }
+      .pdf-body table { width:100%; border-collapse:collapse; }
+      .pdf-body th { background:#eef2ff; color:#111827; border:1px solid #e5e7eb; padding:6px; font-weight:700; font-size:12px; }
+      .pdf-body td { border:1px solid #e5e7eb; padding:6px; font-size:12px; }
+      .pdf-section-title { font-weight:800; color:#1f6feb; margin:12px 0 8px; border-left:4px solid #1f6feb; padding-left:8px; }
+      .pdf-footer { border-top:1px solid #e5e7eb; padding:10px 18px; font-size:11px; color:#6b7280; display:flex; justify-content:space-between; }
+      .badge { display:inline-block; padding:2px 8px; border-radius:999px; background:#e0f2fe; color:#0369a1; font-size:11px; font-weight:700; }
+    `;
+
+    const card = document.createElement('div');
+    card.className = 'pdf-card';
+    const body = document.createElement('div');
+    body.className = 'pdf-body';
+    body.appendChild(clone);
+
+    const footer = document.createElement('div');
+    footer.className = 'pdf-footer';
+    footer.innerHTML = `
+      <div>Powered by EduTrack School Manager</div>
+      <div>{{ site_settings.contact_address|default:'' }}</div>
+    `;
+
+    card.appendChild(header);
+    card.appendChild(body);
+    card.appendChild(footer);
+
+    root.appendChild(style);
+    root.appendChild(card);
+    wrapper.appendChild(root);
+    document.body.appendChild(wrapper);
+
+    function ensureLibs(){
+      if (window.html2pdf) return Promise.resolve();
+      return new Promise((resolve, reject)=>{
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+      });
+    }
+
+    function ensurePerfGraphReady(){
+      return new Promise((resolve) => {
+        try {
+          if (!clone.querySelector('#reportCardPerformanceChart, #rcPerfImg')) { resolve(); return; }
+          const liveCanvas = document.getElementById('reportCardPerformanceChart');
+          const liveImg = document.getElementById('rcPerfImg');
+          const targetCanvas = clone.querySelector('#reportCardPerformanceChart');
+          const targetImg = clone.querySelector('#rcPerfImg');
+          const container = targetCanvas ? targetCanvas.parentElement : (targetImg ? targetImg.parentElement : null);
+          try { window.dispatchEvent(new Event('beforeprint')); } catch(_) {}
+          let attempts = 0; const maxAttempts = 60;
+          const replaceWithSrc = (src) => {
+            if (!src || src.length < 100) return false;
+            if (targetImg && targetImg.parentElement) try { targetImg.remove(); } catch(_) {}
+            if (targetCanvas && targetCanvas.parentElement) { const imgEl = document.createElement('img'); imgEl.src = src; imgEl.alt = 'Performance Over Time'; imgEl.style.maxWidth='100%'; imgEl.style.height='auto'; targetCanvas.replaceWith(imgEl); return true; }
+            if (container) { const imgEl = document.createElement('img'); imgEl.src = src; imgEl.alt = 'Performance Over Time'; imgEl.style.maxWidth='100%'; imgEl.style.height='auto'; container.prepend(imgEl); return true; }
+            return false;
+          };
+          const tryMake = async () => {
+            let done = false;
+            try {
+              if (liveCanvas) {
+                const box = liveCanvas.getBoundingClientRect();
+                if ((box.width || liveCanvas.width) === 0 || (box.height || liveCanvas.height) === 0) throw new Error('chart-not-ready');
+                let d = null; try { d = liveCanvas.toDataURL('image/png'); } catch(e) { d = null; }
+                if (replaceWithSrc(d)) done = true;
+              }
+              if (!done && liveImg && liveImg.src) { if (replaceWithSrc(liveImg.src)) done = true; }
+              if (!done && targetCanvas && liveCanvas) {
+                try { const cloneCanvas = document.createElement('canvas'); const w = liveCanvas.width || 800, h = liveCanvas.height || 300; cloneCanvas.width = w; cloneCanvas.height = h; cloneCanvas.style.maxWidth='100%'; cloneCanvas.style.height='auto'; const ctx = cloneCanvas.getContext('2d'); ctx.drawImage(liveCanvas, 0, 0); targetCanvas.replaceWith(cloneCanvas); done = true; } catch(_) {}
+              }
+              if (!done && container) {
+                if (!window.domtoimage) { await new Promise((res, rej)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/dom-to-image-more@3.4.0/dist/dom-to-image-more.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
+                try { const png = await window.domtoimage.toPng(container, { bgcolor: '#ffffff', quality: 1 }); if (replaceWithSrc(png)) done = true; } catch(_) {}
+              }
+            } catch(_) {}
+            if (done || attempts++ >= maxAttempts) { resolve(); } else { setTimeout(tryMake, 120); }
+          };
+          tryMake();
+        } catch(_) { resolve(); }
+      });
+    }
+
+    setExportStatus('Loading exporter…');
+    setExportProgress(35);
+    const watchdog = setTimeout(() => {
+      try { setExportStatus('Taking too long. Using Print…'); hideExportProgress(); wrapper.remove(); printSection(sectionId, title); } catch(_) {}
+    }, 45000);
+
+    ensureLibs().then(() => {
+      setExportStatus('Finalizing layout…');
+      setExportProgress(55);
+      setTimeout(() => {
+        setExportStatus('Rendering pages…');
+        setExportProgress(75);
+        ensurePerfGraphReady().then(() => window.html2pdf().from(root).set(opt).save()).then(() => {
+          setExportProgress(100);
+          setExportStatus('Done');
+          clearTimeout(watchdog);
+          setTimeout(() => { hideExportProgress(); wrapper.remove(); }, 350);
+        }).catch(async err => {
+          console.warn('html2pdf failed, using fallback', err);
+          try {
+            setExportStatus('Using fallback renderer…');
+            setExportProgress(85);
+            async function ensureDomToImage() { if (window.domtoimage) return; await new Promise((resolve, reject)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/dom-to-image-more@3.4.0/dist/dom-to-image-more.min.js'; s.onload=resolve; s.onerror=reject; document.head.appendChild(s); }); }
+            await ensureDomToImage();
+            const dataUrl = await window.domtoimage.toPng(root, { bgcolor: '#ffffff', quality: 1 });
+            if (!window.jspdf || !window.jspdf.jsPDF) { await new Promise((resolve, reject)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; s.onload=resolve; s.onerror=reject; document.head.appendChild(s); }); }
+            const { jsPDF } = window.jspdf || {}; if (!jsPDF) throw new Error('jsPDF not available after load');
+            const pdf = new jsPDF(opt.jsPDF);
+            const imgProps = pdf.getImageProperties(dataUrl);
+            const pdfW = pdf.internal.pageSize.getWidth();
+            const pdfH = (imgProps.height * pdfW) / imgProps.width;
+            pdf.addImage(dataUrl, 'PNG', 0, 0, pdfW, pdfH);
+            pdf.save(filename);
+            setExportProgress(100);
+            setExportStatus('Done');
+            clearTimeout(watchdog);
+            setTimeout(()=>{ hideExportProgress(); wrapper.remove(); }, 350);
+          } catch (e2) {
+            console.error('Fallback failed', e2);
+            try { setExportStatus('Opening Print as fallback…'); clearTimeout(watchdog); hideExportProgress(); wrapper.remove(); printSection(sectionId, title); return; } catch(_) { setExportError('Unable to generate PDF on this device. Please use Print instead.'); setExportStatus('Failed'); setExportProgress(100); wrapper.remove(); }
+          }
+        });
+      }, 400);
+    }).catch(() => {
+      setExportError('PDF library failed to load. Using Print instead.');
+      hideExportProgress();
+      wrapper.remove();
+      printSection(sectionId, title);
+    });
   };
 
-  function copyStyles(srcDoc, destDoc){
-    // Copy link stylesheets
-    srcDoc.querySelectorAll('link[rel="stylesheet"]').forEach(l => {
-      const link = destDoc.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = l.href;
-      destDoc.head.appendChild(link);
-    });
-    // Copy inline styles
-    srcDoc.querySelectorAll('style').forEach(s => {
-      const st = destDoc.createElement('style');
-      st.textContent = s.textContent;
-      destDoc.head.appendChild(st);
-    });
-  }
-
-  function runExport(){
-    const doc = iframe.contentDocument;
-    const win = iframe.contentWindow;
-    try {
-      doc.open();
-      const baseHref = document.baseURI || window.location.origin + '/';
-      doc.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${baseHref}">`);
-      doc.write('</head><body style="background:#fff;color:#000;padding:16px;">');
-      doc.write('<div id="pdf-root"></div>');
-      doc.write('</body></html>');
-      doc.close();
-
-      copyStyles(document, doc);
-      const root = doc.getElementById('pdf-root');
-      root.appendChild(doc.importNode(header, true));
-      root.appendChild(doc.importNode(clone, true));
-
-      // Ensure required libraries exist inside iframe
-      function loadScript(src){
-        return new Promise((resolve, reject) => { const s = doc.createElement('script'); s.src = src; s.onload = resolve; s.onerror = reject; doc.head.appendChild(s); });
-      }
-      const libLoads = [];
-      if (!win.html2pdf) libLoads.push(loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'));
-      if (!win.domtoimage) libLoads.push(loadScript('https://cdn.jsdelivr.net/npm/dom-to-image-more@3.4.0/dist/dom-to-image-more.min.js'));
-
-      const waitFonts = doc.fonts && doc.fonts.ready ? doc.fonts.ready.catch(()=>{}) : Promise.resolve();
-      const waitImages = () => {
-        const imgs = Array.from(doc.images || []);
-        return Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = res; })));
-      };
-
-      Promise.all([waitFonts, waitImages(), Promise.all(libLoads).catch(()=>{})]).then(() => {
-        // Small layout delay
-        setTimeout(() => {
-          // Try html2pdf first
-          win.html2pdf().from(root).set(opt).save().then(() => {
-            iframe.remove();
-          }).catch(async err => {
-            console.warn('html2pdf in iframe failed, fallback to dom-to-image', err);
-            try {
-              const dataUrl = await win.domtoimage.toPng(root, { bgcolor: '#ffffff', quality: 1 });
-              const pdf = new win.jspdf ? new win.jspdf.jsPDF('p','mm','a4') : new (window.jspdf ? window.jspdf.jsPDF : jsPDF)('p','mm','a4');
-              const pageW = 210 - 20; const pageH = 297 - 20;
-              const im = new Image(); im.src = dataUrl; await new Promise(r => { im.onload = r; im.onerror = r; });
-              let w = pageW; let hScaled = (im.height / im.width) * w;
-              if (hScaled > pageH) { hScaled = pageH; w = (im.width / im.height) * hScaled; }
-              pdf.addImage(dataUrl, 'PNG', 10, 10, w, hScaled);
-              pdf.save(filename);
-            } catch (e2) {
-              alert('Unable to generate PDF on this device. Please use Print instead.');
-            } finally { iframe.remove(); }
-          });
-        }, 800);
-      });
-    } catch (e) {
-      console.error(e);
-      iframe.remove();
-      alert('Unable to generate PDF on this device. You can use Print instead.');
-    }
-  }
-  if (typeof window.html2pdf === 'undefined') {
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-    s.onload = runExport;
-    s.onerror = function(){ alert('PDF library failed to load. Using Print instead.'); printSection(sectionId, title); };
-    document.head.appendChild(s);
+  if (shouldFetch) {
+    showExportProgress();
+    setExportStatus('Loading selected exam…');
+    setExportProgress(10);
+    fetchResultSlipNodeForExam(examId).then(fetched => {
+      if (fetched) node = fetched;
+      hideExportProgress();
+      proceed();
+    }).catch(() => { hideExportProgress(); proceed(); });
   } else {
-    runExport();
+    proceed();
   }
+}
+// Progress helpers for export
+function showExportProgress(){
+  try {
+    const modalEl = document.getElementById('exportProgressModal');
+    if (!modalEl) return;
+    const bar = document.getElementById('exportProgressBar');
+    const status = document.getElementById('exportStatus');
+    const err = document.getElementById('exportError');
+    if (bar) { bar.style.width = '0%'; bar.textContent = '0%'; }
+    if (status) status.textContent = 'Starting…';
+    if (err) { err.textContent = ''; err.classList.add('d-none'); }
+    const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+    modal.show();
+  } catch(_) {}
+}
+function setExportProgress(p){
+  try { const bar = document.getElementById('exportProgressBar'); if (!bar) return; const v = Math.max(0, Math.min(100, Math.round(p))); bar.style.width = v + '%'; bar.textContent = v + '%'; } catch(_) {}
+}
+function setExportStatus(text){ try { const el = document.getElementById('exportStatus'); if (el) el.textContent = text; } catch(_) {}
+}
+function setExportError(text){ try { const el = document.getElementById('exportError'); if (el) { el.textContent = text; el.classList.remove('d-none'); } } catch(_) {}
+}
+function hideExportProgress(){ try { const el = document.getElementById('exportProgressModal'); if (!el) return; const inst = bootstrap.Modal.getInstance(el); if (inst) inst.hide(); } catch(_) {}
 }
 </script>
 </div>

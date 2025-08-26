@@ -715,4 +715,87 @@
       }
     }
   }
+][
+  {
+    "timestamp": "2025-08-17T22:32:45.644951",
+    "status": "c2b_confirmation",
+    "details": {}
+  }
+][
+  {
+    "timestamp": "2025-08-17T23:08:43.542572",
+    "status": "success",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "3b7c-40c0-a7fc-02d632d25a1e19011",
+          "CheckoutRequestID": "ws_CO_170820252308338769024337",
+          "ResultCode": 0,
+          "ResultDesc": "The service request is processed successfully",
+          "CallbackMetadata": {
+            "Item": [
+              {
+                "Name": "Amount",
+                "Value": 1
+              },
+              {
+                "Name": "MpesaReceiptNumber",
+                "Value": "THH7T57EG1"
+              },
+              {
+                "Name": "Balance",
+                "Value": "{Amount={CurrencyCode=KES, MinimumAmount=11156700, BasicAmount=111567.00}}"
+              },
+              {
+                "Name": "TransactionDate",
+                "Value": 20250817230841
+              },
+              {
+                "Name": "PhoneNumber",
+                "Value": 254769024337
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+][
+  {
+    "timestamp": "2025-08-25T17:12:53.283716",
+    "status": "success",
+    "details": {
+      "Body": {
+        "stkCallback": {
+          "MerchantRequestID": "e220-4004-8311-59daec3452ca7677",
+          "CheckoutRequestID": "ws_CO_250820251712378796031071",
+          "ResultCode": 0,
+          "ResultDesc": "The service request is processed successfully.",
+          "CallbackMetadata": {
+            "Item": [
+              {
+                "Name": "Amount",
+                "Value": 1
+              },
+              {
+                "Name": "MpesaReceiptNumber",
+                "Value": "THP6VXT5EE"
+              },
+              {
+                "Name": "Balance"
+              },
+              {
+                "Name": "TransactionDate",
+                "Value": 20250825171245
+              },
+              {
+                "Name": "PhoneNumber",
+                "Value": 254796031071
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
 ]

@@ -134,6 +134,11 @@
                 #subjectTrendChart { display: none !important; }
                 #subjectTrendImg { display: block !important; }
               }
+              /* Make charts larger on small screens */
+              @media (max-width: 576.98px) {
+                #reportCardPerformanceChart { height: 260px !important; }
+                #subjectTrendChart { height: 280px !important; }
+              }
             </style>
             <script>
               (function() {
@@ -166,7 +171,7 @@
                     options: {
                       animation: { duration: 0 },
                       responsive: true,
-                      maintainAspectRatio: true,
+                      maintainAspectRatio: false,
                       scales: { y: { beginAtZero: true, suggestedMax: 100 } },
                       plugins: { legend: { display: true } }
                     }
@@ -266,7 +271,7 @@
                     trendChart = new Chart(ctx, {
                       type: 'line',
                       data: { labels, datasets: [{ label: subject, data, borderColor: 'rgba(255, 159, 64, 1)', backgroundColor: 'rgba(255, 159, 64, 0.2)', tension: 0.3, fill: true, pointRadius: 3 }] },
-                      options: { animation: { duration: 0 }, responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true, suggestedMax: 100 } }, plugins: { legend: { display: true } } }
+                      options: { animation: { duration: 0 }, responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, suggestedMax: 100 } }, plugins: { legend: { display: true } } }
                     });
                     // update image for print
                     const updateImg = () => { try { imgEl.src = canvas.toDataURL('image/png'); } catch(e) {} };

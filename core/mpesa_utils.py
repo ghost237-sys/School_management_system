@@ -55,8 +55,8 @@ def initiate_stk_push(phone_number, amount, account_ref, transaction_desc):
         else "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
     )
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-    # Prefer a configurable callback URL from settings; fall back to legacy value if not set
-    callback_url = getattr(settings, 'MPESA_CALLBACK_URL', None) or "https://469684394867.ngrok-free.app/mpesa-callback/"
+    # Prefer a configurable callback URL from settings; fall back to current ngrok URL if not set
+    callback_url = getattr(settings, 'MPESA_CALLBACK_URL', None) or "https://0719e873a579.ngrok-free.app/mpesa-callback/"
     payload = {
         "BusinessShortCode": shortcode,
         "Password": password,

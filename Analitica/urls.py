@@ -15,7 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from core import views as core_views
 from django.conf import settings
 from django.conf.urls.static import static
@@ -34,3 +34,12 @@ urlpatterns = [
 # Serve media files during development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # DEBUG-only catch-all route to preview custom 404 for any invalid path
+    # This must be LAST so it doesn't shadow valid routes
+    urlpatterns += [
+        re_path(r'^(?P<unused_path>.*)$', core_views.custom_404_catchall),
+    ]
+
+# Custom error handlers (used when DEBUG=False)
+handler404 = 'core.views.custom_404'
+handler403 = 'core.views.custom_403'

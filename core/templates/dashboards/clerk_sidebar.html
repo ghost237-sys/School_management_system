@@ -18,6 +18,16 @@
       </a>
     </li>
     <li class="nav-item mb-2">
+      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_mpesa_all' %}active{% endif %}" href="{% url 'admin_mpesa_all' %}">
+        <i class="bi bi-phone me-2"></i> M-Pesa: All Transactions
+      </a>
+    </li>
+    <li class="nav-item mb-2">
+      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_c2b_ledger' %}active{% endif %}" href="{% url 'admin_c2b_ledger' %}">
+        <i class="bi bi-journal-text me-2"></i> M-Pesa: C2B Ledger
+      </a>
+    </li>
+    <li class="nav-item mb-2">
       <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'finance_messaging_page' %}active{% endif %}" href="{% url 'finance_messaging_page' %}">
         <i class="bi bi-chat-left-text me-2"></i> Finance Messaging
       </a>

@@ -2,6 +2,7 @@ from django.urls import path, include
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from . import views, views_admin_messaging, views_finance_messaging
+from . import views_lock
 from django.views.generic.base import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
@@ -20,6 +21,9 @@ urlpatterns = [
     # Redirect custom admin-like paths BEFORE django admin catch-all
   path('admin/period-slots/', RedirectView.as_view(url='/admin_period_slots/', permanent=False)),
   path('admin/fees/mpesa/reconcile/', views.admin_mpesa_reconcile, name='admin_mpesa_reconcile'),
+  path('admin/fees/mpesa/ledger/', views.admin_c2b_ledger, name='admin_c2b_ledger'),
+  path('admin/fees/mpesa/', views.admin_mpesa_all, name='admin_mpesa_all'),
+  path('admin/fees/mpesa/log-file/', views.admin_payment_log_file, name='admin_payment_log_file'),
   # Custom admin-like view for block result slip must come BEFORE Django admin catch-all
   path('admin/block_result_slip/', views.admin_block_result_slip, name='admin_block_result_slip'),
   path('admin/', admin.site.urls),
@@ -36,6 +40,8 @@ urlpatterns = [
     # General Login/Logout
     path('login/', views.custom_login_view, name='login'),
     path('logout/', views.custom_logout_view, name='logout'),
+    # Auth utility endpoints
+    path('auth/verify-password/', views_lock.verify_password, name='verify_password'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('', include('landing.urls')),
 
@@ -63,12 +69,15 @@ urlpatterns = [
     path('overall_student_results/<int:class_id>/', views.overall_student_results, name='overall_student_results'),
     path('class_profile/<int:class_id>/', views.class_profile, name='class_profile'),
     path('edit_class/<int:class_id>/', views.edit_class, name='edit_class'),
+    path('assign_subject_teachers/<int:class_id>/', views.assign_subject_teachers, name='assign_subject_teachers'),
     path('manage_class_subjects/<int:class_id>/', views.manage_class_subjects, name='manage_class_subjects'),
     path('delete_class/<int:class_id>/', views.delete_class, name='delete_class'),
     path('admin_analytics/', views.admin_analytics, name='admin_analytics'),
+    path('admin_analytics/data/', views.admin_analytics_data, name='admin_analytics_data'),
     path('finance/analytics/', views.finance_analytics, name='finance_analytics'),
     path('attendance/view/', views.view_attendance, name='view_attendance'),
     path('admin_subjects/', views.admin_subjects, name='admin_subjects'),
+    path('admin_grade_comments/', views.admin_grade_comments, name='admin_grade_comments'),
     path('admin_subject_components/', views.admin_subject_components, name='admin_subject_components'),
     path('manage_subject_grading/<int:subject_id>/', views.manage_subject_grading, name='manage_subject_grading'),
     path('admin_academic_years/', views.admin_academic_years, name='admin_academic_years'),
@@ -78,6 +87,8 @@ urlpatterns = [
     path('admin_exams/delete/<int:exam_id>/', views.delete_exam, name='delete_exam'),
     path('admin_exams/<int:exam_id>/publish/', views.publish_exam_results, name='publish_exam_results'),
     path('admin_exams/<int:exam_id>/unpublish/', views.unpublish_exam_results, name='unpublish_exam_results'),
+    # Signed PDF download for student result slips
+    path('results/slip/<str:token>/', views.download_result_slip_signed, name='download_result_slip_signed'),
     path('admin_manage_grades/', views.admin_manage_grades_entry, name='admin_manage_grades_entry'),
     path('api/exams/', views.exam_calendar_api, name='exam_calendar_api'),
     path('api/classes/', views.api_classes, name='api_classes'),
@@ -91,6 +102,9 @@ urlpatterns = [
     path('admin_exams/json/', views.admin_exams_json, name='admin_exams_json'),
     path('admin_fees/', views.admin_fees, name='admin_fees'),
     path('admin_fees/history/partial/', views.admin_payment_history_partial, name='admin_payment_history_partial'),
+    path('admin_students/partial/', views.admin_students_partial, name='admin_students_partial'),
+    path('admin_classes/partial/', views.admin_classes_partial, name='admin_classes_partial'),
+    path('admin_exams/available/partial/', views.admin_exams_available_partial, name='admin_exams_available_partial'),
     path('admin_payment/', views.admin_payment, name='admin_payment'),
     path('admin_payment_logs/', views_admin_messaging.admin_payment_logs, name='admin_payment_logs'),
     path('admin_messaging/', views_admin_messaging.admin_messaging, name='admin_messaging'),
@@ -141,11 +155,13 @@ urlpatterns = [
     path('student_profile/<int:student_id>/', views.student_profile, name='student_profile'),
     path('student_dashboard/', views.student_dashboard, name='student_dashboard'),
     path('student_fees/', views.student_fees, name='student_fees'),
+    path('results/blocked/', views.student_results_blocked, name='student_results_blocked'),
     path('fees/paybill/', views.paybill_start, name='paybill_start'),
     path('fees/paybill/status/<str:checkout_request_id>/', views.paybill_status, name='paybill_status'),
 
     # API and AJAX URLs
     path('api/exam_events/', views.exam_events_api, name='exam_events_api'),
+    path('api/job-status/<int:job_id>/', views.job_status, name='job_status'),
     path('dashboard/students/add/', views.add_student_ajax, name='add_student_ajax'),
     path('dashboard/teachers/add/', views.add_teacher_ajax, name='add_teacher_ajax'),
     path('dashboard/classes/add/', views.add_class_ajax, name='add_class_ajax'),
@@ -155,6 +171,8 @@ urlpatterns = [
     path('dashboard/events/update/', views.event_update, name='event_update'),
     path('dashboard/events/delete/', views.event_delete, name='event_delete'),
     path('dashboard/events/feed/', views.events_feed, name='events_feed'),
+    # Debug-only preview for 404 page (safe to leave; it checks DEBUG at runtime)
+    path('_preview/404/', views.preview_404, name='preview_404'),
 ]
 
 if settings.DEBUG:

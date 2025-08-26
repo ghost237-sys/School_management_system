@@ -97,51 +97,33 @@
             overflow-x: hidden;
           }
           @media print {
-            .students-scroll-box {
-              max-height: none !important;
-              overflow: visible !important;
-            }
-            /* Hide elements marked as no-print in print preview */
+            .students-scroll-box { max-height: none !important; overflow: visible !important; }
             .no-print { display: none !important; }
           }
         </style>
-        <div class="students-scroll-box">
-        <table class="table table-hover">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Admission No</th>
-                    <th>Email</th>
-                    <th>Class</th>
-                    <th class="no-print" style="width: 160px;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for student in students %}
-                <tr>
-                    <td><a href="{% url 'student_profile' student.id %}">{% if student.user %}{{ student.user.get_full_name|default:student.user.username }}{% else %}(No user){% endif %}</a></td>
-                    <td>{{ student.admission_no }}</td>
-                    <td>{% if student.user %}{{ student.user.email }}{% else %}(No email){% endif %}</td>
-                    <td>{{ student.class_group.name }}</td>
-                    <td class="no-print">
-                        <div class="btn-group btn-group-sm" role="group">
-                            <a href="{% url 'student_profile' student.id %}" class="btn btn-outline-primary">
-                                <i class="bi bi-pencil-square"></i> Edit
-                            </a>
-                            {% if student.user %}
-                            <a href="{% url 'delete_user' student.user.id %}" class="btn btn-outline-danger">
-                                <i class="bi bi-trash"></i> Delete
-                            </a>
-                            {% endif %}
-                        </div>
-                    </td>
-                </tr>
-            {% empty %}
-                <tr><td colspan="5">No students found.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
+        <div id="studentsListContainer">
+          <div class="text-center p-4">
+            <div class="spinner-border text-success" role="status"><span class="visually-hidden">Loading...</span></div>
+            <p class="mt-2 mb-0">Loading students...</p>
+          </div>
         </div>
+        <script>
+        // Deferred load students partial preserving filters
+        document.addEventListener('DOMContentLoaded', function(){
+          const container = document.getElementById('studentsListContainer');
+          if (!container) return;
+          const url = new URL(window.location.origin + '{% url "admin_students_partial" %}');
+          const params = new URLSearchParams(window.location.search);
+          // Map form field "search" to q expected by partial API
+          if (params.get('search')) { params.set('q', params.get('search')); }
+          window._studentsQuery = params.toString();
+          url.search = params.toString();
+          fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+            .then(r => r.text())
+            .then(html => { container.innerHTML = html; })
+            .catch(() => { container.innerHTML = '<div class="alert alert-danger">Failed to load students.</div>'; });
+        });
+        </script>
     </div>
 </div>
 <!-- You can include printed filter summary -->

@@ -13,6 +13,13 @@
   .analytic-stat .label { color: #6c757d; font-size: .9rem; }
   .analytic-stat .value { font-size: 1.25rem; font-weight: 700; color: #2c3e50; }
   .chart-title { font-weight: 600; color: #2c3e50; }
+
+  /* Mobile: increase canvas heights for readability */
+  @media (max-width: 576px) {
+    #subjectPerformanceChart { height: 260px !important; }
+    #subjectTrendChart, #classAvgChart, #gradeBandsChart, #passRateChart { height: 220px !important; }
+    #feePieChart, #feeBarChart, #paymentMethodChart, #classOutstandingChart, #categoryChart, #dailyChart, #cumChart { height: 230px !important; }
+  }
 </style>
 
 <div class="finance-analytics">
@@ -22,6 +29,46 @@
   </div>
   {% endif %}
   <h1><span class="icon"><i class="bi bi-graph-up"></i></span> Analytics</h1>
+
+  <!-- Filters -->
+  <form id="analyticsFilters" class="row g-2 mb-3">
+    <div class="col-md-3">
+      <label class="form-label">Term</label>
+      <select class="form-select" name="term" id="filterTerm">
+        <option value="">All/Current</option>
+        {% for t in terms %}
+        <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:'s' %}selected{% endif %}>{{ t.name }} ({{ t.academic_year.year }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Class</label>
+      <select class="form-select" name="class_group" id="filterClass">
+        <option value="">All</option>
+        {% for c in class_groups %}
+        <option value="{{ c.id }}" {% if selected_class == c.id|stringformat:'s' %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Fee Category</label>
+      <select class="form-select" name="fee_category" id="filterCategory">
+        <option value="">All</option>
+        {% for fc in fee_categories %}
+        <option value="{{ fc.id }}" {% if selected_category == fc.id|stringformat:'s' %}selected{% endif %}>{{ fc.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="comparePrev" />
+        <label class="form-check-label" for="comparePrev">Compare previous term</label>
+      </div>
+    </div>
+    <div class="col-md-1 d-flex align-items-end">
+      <button type="submit" class="btn btn-primary w-100">Apply</button>
+    </div>
+  </form>
 
 <ul class="nav nav-tabs mb-4" id="analyticsTabs" role="tablist">
   <li class="nav-item" role="presentation">
@@ -35,9 +82,11 @@
     </button>
   </li>
 </ul>
-<div class="tab-content" id="analyticsTabsContent">
+  <div class="tab-content" id="analyticsTabsContent">
   <div class="tab-pane fade" id="performance" role="tabpanel" aria-labelledby="performance-tab">
     <!-- Performance Analytics Content -->
+  <div class="container-fluid px-0">
+  <div class="row">
   <div class="col-lg-8">
     <div class="card analytic-card">
       <div class="card-header bg-info text-white">
@@ -72,7 +121,48 @@
       </div>
     </div>
   </div>
-</div>
+  </div> <!-- /.row -->
+
+  <!-- Additional Academic Visualizations -->
+  <div class="container-fluid px-0 mb-3">
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card analytic-card">
+          <div class="card-body">
+            <h6 class="mb-2 chart-title">Subject Trend (Last 3 Terms)</h6>
+            <canvas id="subjectTrendChart" height="160"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card analytic-card">
+          <div class="card-body">
+            <h6 class="mb-2 chart-title">Class Averages (Same Level)</h6>
+            <canvas id="classAvgChart" height="160"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card analytic-card">
+          <div class="card-body">
+            <h6 class="mb-2 chart-title">Grade Bands Distribution</h6>
+            <canvas id="gradeBandsChart" height="160"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card analytic-card">
+          <div class="card-body">
+            <h6 class="mb-2 chart-title">Pass Rate</h6>
+            <canvas id="passRateChart" height="160"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div> <!-- /.container-fluid -->
 
   </div>
   <div class="tab-pane fade show active" id="fees" role="tabpanel" aria-labelledby="fees-tab">
@@ -121,7 +211,7 @@
             <div class="card mb-3 analytic-card">
               <div class="card-body">
                 <h6 class="mb-2 chart-title">Payments by Method</h6>
-                <canvas id="paymentMethodChart" height="200"></canvas>
+                <canvas id="paymentMethodChart" height="140"></canvas>
               </div>
             </div>
           </div>
@@ -129,7 +219,62 @@
             <div class="card mb-3 analytic-card">
               <div class="card-body">
                 <h6 class="mb-2 chart-title">Outstanding by Class (Top 10)</h6>
-                <canvas id="classOutstandingChart" height="200"></canvas>
+                <canvas id="classOutstandingChart" height="140"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Additional Visualizations Row -->
+        <div class="row">
+          <div class="col-md-4">
+            <div class="card mb-3 analytic-card">
+              <div class="card-body">
+                <h6 class="mb-2 chart-title">Payments by Category</h6>
+                <canvas id="categoryChart" height="180"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card mb-3 analytic-card">
+              <div class="card-body">
+                <h6 class="mb-2 chart-title">Daily Payments (14 days)</h6>
+                <canvas id="dailyChart" height="180"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card mb-3 analytic-card">
+              <div class="card-body">
+                <h6 class="mb-2 chart-title">Cumulative Collections (Term)</h6>
+                <canvas id="cumChart" height="180"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top Debtors Table (per selected class) -->
+        <div class="row">
+          <div class="col-12">
+            <div class="card analytic-card">
+              <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Top Debtors (Selected Class)</h6>
+                <small class="text-muted">Shows only when a class is selected</small>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-striped table-sm" id="topDebtorsTable">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Student</th>
+                        <th>Admission No</th>
+                        <th>Balance (Ksh)</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -153,8 +298,15 @@
 <script id="methodData" type="application/json">{{ method_data|safe }}</script>
 <script id="classOutLabels" type="application/json">{{ class_out_labels|safe }}</script>
 <script id="classOutData" type="application/json">{{ class_out_data|safe }}</script>
+<script id="categoryLabels" type="application/json">{{ category_labels|safe }}</script>
+<script id="categoryData" type="application/json">{{ category_data|safe }}</script>
+<script id="dailyLabels" type="application/json">{{ daily_labels|safe }}</script>
+<script id="dailyData" type="application/json">{{ daily_data|safe }}</script>
+<script id="cumLabels" type="application/json">{{ cum_labels|safe }}</script>
+<script id="cumPaid" type="application/json">{{ cum_paid|safe }}</script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
+    const isMobile = window.matchMedia('(max-width: 576px)').matches;
     // Global chart defaults (classic)
     Chart.defaults.font.family = 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
     Chart.defaults.color = '#2c3e50';
@@ -178,6 +330,7 @@
       data: data,
       options: {
         responsive: true,
+        maintainAspectRatio: !isMobile,
         plugins: {
           legend: { display: false },
           title: { display: false }
@@ -201,7 +354,7 @@
     const pieData = JSON.parse(document.getElementById('pieData').textContent);
     const pieColors = ['#0d6efd', '#6c757d'];
     const feePieCtx = document.getElementById('feePieChart').getContext('2d');
-    new Chart(feePieCtx, {
+    const feePieChart = new Chart(feePieCtx, {
       type: 'pie',
       data: {
         labels: pieLabels,
@@ -212,6 +365,7 @@
       },
       options: {
         responsive: true,
+        maintainAspectRatio: !isMobile,
         plugins: {
           legend: { position: 'bottom' },
           title: { display: false }
@@ -223,7 +377,7 @@
     const barLabels = JSON.parse(document.getElementById('barLabels').textContent);
     const barData = JSON.parse(document.getElementById('barData').textContent);
     const feeBarCtx = document.getElementById('feeBarChart').getContext('2d');
-    new Chart(feeBarCtx, {
+    const feeBarChart = new Chart(feeBarCtx, {
       type: 'bar',
       data: {
         labels: barLabels,
@@ -237,6 +391,7 @@
       },
       options: {
         responsive: true,
+        maintainAspectRatio: !isMobile,
         plugins: {
           legend: { display: false },
           title: { display: false },
@@ -266,7 +421,7 @@
     const methodLabels = JSON.parse(document.getElementById('methodLabels').textContent || '[]');
     const methodData = JSON.parse(document.getElementById('methodData').textContent || '[]');
     const methodCtx = document.getElementById('paymentMethodChart').getContext('2d');
-    new Chart(methodCtx, {
+    const methodChart = new Chart(methodCtx, {
       type: 'doughnut',
       data: {
         labels: methodLabels,
@@ -277,6 +432,7 @@
       },
       options: {
         responsive: true,
+        maintainAspectRatio: !isMobile,
         plugins: {
           legend: { position: 'bottom' },
           tooltip: {
@@ -295,7 +451,7 @@
     const classOutLabels = JSON.parse(document.getElementById('classOutLabels').textContent || '[]');
     const classOutData = JSON.parse(document.getElementById('classOutData').textContent || '[]');
     const classOutCtx = document.getElementById('classOutstandingChart').getContext('2d');
-    new Chart(classOutCtx, {
+    const classOutChart = new Chart(classOutCtx, {
       type: 'bar',
       data: {
         labels: classOutLabels,
@@ -309,6 +465,7 @@
       },
       options: {
         responsive: true,
+        maintainAspectRatio: !isMobile,
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -323,6 +480,236 @@
         }
       }
     });
+
+    // Payments by Category (bar)
+    const categoryLabels = JSON.parse(document.getElementById('categoryLabels').textContent || '[]');
+    const categoryData = JSON.parse(document.getElementById('categoryData').textContent || '[]');
+    const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+    const categoryChart = new Chart(categoryCtx, {
+      type: 'bar',
+      data: {
+        labels: categoryLabels,
+        datasets: [{
+          label: 'Ksh',
+          data: categoryData,
+          backgroundColor: 'rgba(25, 135, 84, .7)',
+          borderColor: 'rgba(25, 135, 84, 1)'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: !isMobile,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: (v) => new Intl.NumberFormat('en-KE').format(v) } },
+          x: { title: { display: true, text: 'Category' } }
+        }
+      }
+    });
+
+    // Daily Payments (line)
+    const dailyLabels = JSON.parse(document.getElementById('dailyLabels').textContent || '[]');
+    const dailyData = JSON.parse(document.getElementById('dailyData').textContent || '[]');
+    const dailyCtx = document.getElementById('dailyChart').getContext('2d');
+    const dailyChart = new Chart(dailyCtx, {
+      type: 'line',
+      data: {
+        labels: dailyLabels,
+        datasets: [{
+          label: 'Ksh per day',
+          data: dailyData,
+          fill: false,
+          borderColor: '#0dcaf0',
+          tension: 0.2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: !isMobile,
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: (v) => new Intl.NumberFormat('en-KE').format(v) } },
+          x: { ticks: { maxRotation: 45, minRotation: 45 } }
+        }
+      }
+    });
+
+    // Cumulative Collections (line)
+    const cumLabels = JSON.parse(document.getElementById('cumLabels').textContent || '[]');
+    const cumPaid = JSON.parse(document.getElementById('cumPaid').textContent || '[]');
+    const cumCtx = document.getElementById('cumChart').getContext('2d');
+    const cumChart = new Chart(cumCtx, {
+      type: 'line',
+      data: {
+        labels: cumLabels,
+        datasets: [{
+          label: 'Cumulative Ksh',
+          data: cumPaid,
+          fill: true,
+          borderColor: '#6610f2',
+          backgroundColor: 'rgba(102,16,242,.1)',
+          tension: 0.15
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: !isMobile,
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: (v) => new Intl.NumberFormat('en-KE').format(v) } },
+          x: { ticks: { maxRotation: 45, minRotation: 45 } }
+        }
+      }
+    });
+    // --- Dynamic filtering & re-render ---
+    const form = document.getElementById('analyticsFilters');
+    const tableBody = document.querySelector('#topDebtorsTable tbody');
+    let barPrevChart = null; // overlay comparison
+    let cumPrevChart = null; // overlay comparison
+
+    // --- Academic charts ---
+    const subjTrendCtx = document.getElementById('subjectTrendChart').getContext('2d');
+    const subjectTrendChart = new Chart(subjTrendCtx, {
+      type: 'line',
+      data: { labels: [], datasets: [] },
+      options: { responsive: true, maintainAspectRatio: !isMobile, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    const classAvgCtx = document.getElementById('classAvgChart').getContext('2d');
+    const classAvgChart = new Chart(classAvgCtx, {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'Avg Score', data: [], backgroundColor: 'rgba(13,110,253,.4)', borderColor: 'rgba(13,110,253,1)' }] },
+      options: { responsive: true, maintainAspectRatio: !isMobile, scales: { y: { beginAtZero: true, max: 100 } } }
+    });
+
+    const gradeBandsCtx = document.getElementById('gradeBandsChart').getContext('2d');
+    const gradeBandsChart = new Chart(gradeBandsCtx, {
+      type: 'bar',
+      data: { labels: ['A','B','C','D','E'], datasets: [{ label: 'Count', data: [0,0,0,0,0], backgroundColor: ['#198754','#0d6efd','#0dcaf0','#ffc107','#dc3545'] }] },
+      options: { responsive: true, maintainAspectRatio: !isMobile, scales: { y: { beginAtZero: true } } }
+    });
+
+    const passRateCtx = document.getElementById('passRateChart').getContext('2d');
+    const passRateChart = new Chart(passRateCtx, {
+      type: 'doughnut',
+      data: { labels: ['Pass','Fail'], datasets: [{ data: [0,0], backgroundColor: ['#198754','#dc3545'] }] },
+      options: { responsive: true, maintainAspectRatio: !isMobile, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    function updateChart(chart, labels, data, datasetIndex=0) {
+      chart.data.labels = labels;
+      if (!chart.data.datasets[datasetIndex]) {
+        chart.data.datasets[datasetIndex] = { data: [] };
+      }
+      chart.data.datasets[datasetIndex].data = data;
+      chart.update();
+    }
+
+    function setOverlay(chart, labels, data, label, color, index) {
+      if (!labels || labels.length === 0) {
+        if (chart.data.datasets[index]) { chart.data.datasets.splice(index, 1); chart.update(); }
+        return;
+      }
+      const ds = {
+        label,
+        data,
+        fill: false,
+        borderColor: color,
+        borderDash: [6,3],
+        tension: 0.15
+      };
+      chart.data.labels = labels; // ensure label domain includes all
+      if (chart.data.datasets[index]) chart.data.datasets[index] = ds; else chart.data.datasets.push(ds);
+      chart.update();
+    }
+
+    const dataUrl = "{% url 'admin_analytics_data' %}";
+    async function fetchData(params) {
+      const qs = new URLSearchParams(params).toString();
+      const resp = await fetch(`${dataUrl}?${qs}`);
+      if (!resp.ok) throw new Error('Failed to load analytics');
+      return resp.json();
+    }
+
+    function renderTopDebtors(rows) {
+      tableBody.innerHTML = '';
+      if (!rows || rows.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="4" class="text-muted">Select a class to view top debtors.</td></tr>';
+        return;
+      }
+      rows.forEach((r, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${i+1}</td><td>${r.student}</td><td>${r.admission_no}</td><td>${new Intl.NumberFormat('en-KE').format(r.balance)}</td>`;
+        tableBody.appendChild(tr);
+      });
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const params = {
+        term: document.getElementById('filterTerm').value,
+        class_group: document.getElementById('filterClass').value,
+        fee_category: document.getElementById('filterCategory').value,
+        compare_prev: document.getElementById('comparePrev').checked ? '1' : '0'
+      };
+      const data = await fetchData(params);
+
+      // Summary stats
+      document.querySelectorAll('.analytic-stat .value')[0].textContent = `Ksh. ${new Intl.NumberFormat('en-KE').format(data.summary.total_assigned)}`;
+      document.querySelectorAll('.analytic-stat .value')[1].textContent = `Ksh. ${new Intl.NumberFormat('en-KE').format(data.summary.total_paid)}`;
+      document.querySelectorAll('.analytic-stat .value')[2].textContent = `${data.summary.payment_percentage}%`;
+
+      // Charts
+      updateChart(feePieChart, data.pie.labels, data.pie.data);
+      updateChart(feeBarChart, data.bar.labels, data.bar.data);
+      updateChart(methodChart, data.method.labels, data.method.data);
+      updateChart(classOutChart, data.class_out.labels, data.class_out.data);
+      updateChart(categoryChart, data.category.labels, data.category.data);
+      updateChart(dailyChart, data.daily.labels, data.daily.data);
+      updateChart(cumChart, data.cum.labels, data.cum.data);
+
+      // Overlays for comparison
+      if (data.bar_prev && data.bar_prev.labels.length) {
+        setOverlay(feeBarChart, data.bar_prev.labels, data.bar_prev.data, 'Prev Term', '#ff7f0e', 1);
+      } else {
+        if (feeBarChart.data.datasets[1]) { feeBarChart.data.datasets.splice(1,1); feeBarChart.update(); }
+      }
+      if (data.cum_prev && data.cum_prev.labels.length) {
+        setOverlay(cumChart, data.cum_prev.labels, data.cum_prev.data, 'Prev Term', '#ff7f0e', 1);
+      } else {
+        if (cumChart.data.datasets[1]) { cumChart.data.datasets.splice(1,1); cumChart.update(); }
+      }
+
+      // Top debtors table
+      renderTopDebtors(data.top_debtors);
+
+      // Academic charts update
+      // Subject trend: replace datasets
+      subjectTrendChart.data.labels = data.subject_trend.labels || [];
+      subjectTrendChart.data.datasets = (data.subject_trend.datasets || []).map((ds, i) => ({
+        label: ds.label,
+        data: ds.data,
+        fill: false,
+        borderColor: ['#0d6efd','#198754','#6610f2','#dc3545','#fd7e14'][i % 5],
+        tension: 0.2
+      }));
+      subjectTrendChart.update();
+
+      classAvgChart.data.labels = data.class_avg.labels || [];
+      classAvgChart.data.datasets[0].data = data.class_avg.data || [];
+      classAvgChart.update();
+
+      gradeBandsChart.data.labels = data.grade_bands.labels || ['A','B','C','D','E'];
+      gradeBandsChart.data.datasets[0].data = data.grade_bands.data || [0,0,0,0,0];
+      gradeBandsChart.update();
+
+      passRateChart.data.labels = data.pass_rate.labels || ['Pass','Fail'];
+      passRateChart.data.datasets[0].data = data.pass_rate.data || [0,0];
+      passRateChart.update();
+    });
+
+    // Initial table state
+    renderTopDebtors([]);
+    // Initial load with defaults (current term)
+    form.dispatchEvent(new Event('submit'));
   });
 </script>
 

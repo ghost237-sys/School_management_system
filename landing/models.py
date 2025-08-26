@@ -35,6 +35,21 @@ class SiteSettings(models.Model):
     twitter_url = models.URLField(blank=True, default="")
     instagram_url = models.URLField(blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
+    # Results access restrictions
+    restrict_results_by_fee = models.BooleanField(
+        default=False,
+        help_text="If enabled, students with fee balances above the threshold cannot view or download results."
+    )
+    fee_restriction_threshold = models.PositiveIntegerField(
+        default=50,
+        help_text="Block results if balance percent is greater than this value (e.g., 50 = balance > 50%)."
+    )
+    fee_restriction_message = models.CharField(
+        max_length=255,
+        blank=True,
+        default="Results are temporarily unavailable due to outstanding fees. Please clear at least 50% to access.",
+        help_text="Message shown to restricted students."
+    )
 
     class Meta:
         verbose_name = "Site Settings"
@@ -127,3 +142,4 @@ class CategoryMedia(models.Model):
 
     def __str__(self):
         return f"{self.kind} for {self.category.name}"
+

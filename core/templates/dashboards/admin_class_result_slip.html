@@ -285,7 +285,7 @@
                             {% for subject in subjects %}
                                 <th>{% if subject.code == 'TELAG_NLC_A' or subject.code == 'SC_TELAG_NLC_A' %}INT-SCI{% else %}{{ subject.code }}{% endif %}</th>
                             {% endfor %}
-                            <th>Average</th>
+                            <th>Total</th>
                             <th>Total Points</th>
                         </tr>
                     </thead>
@@ -305,7 +305,7 @@
 {% endwith %}
                                 </td>
                             {% endfor %}
-                            <td>{{ averages|get_item:student.id|floatformat:1 }}</td>
+                            <td>{{ totals|get_item:student.id|floatformat:1 }}</td>
                             <td>{{ points_sums|get_item:student.id }}</td>
                         </tr>
                         {% empty %}

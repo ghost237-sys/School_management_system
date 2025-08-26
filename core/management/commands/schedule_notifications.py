@@ -3,8 +3,9 @@ from django.utils import timezone
 from django.db.models import Sum
 from django.conf import settings
 
-from core.models import Student, FeeAssignment, FeePayment, Term, Teacher
+from core.models import Student, FeeAssignment, FeePayment, Term, Teacher, Exam
 from core.messaging_utils import send_sms, send_bulk_sms
+from django.core.mail import send_mail, get_connection
 
 
 def school_name():
@@ -82,8 +83,57 @@ class Command(BaseCommand):
             days_to_open = (upcoming_term.start_date - today).days
             if days_to_open == 5:
                 notify_all_students("5 days before opening day. Welcome back preparations underway.")
+            if days_to_open == 2:
+                notify_all_students("2 days before opening day. Ensure uniforms and materials are ready. See you soon!")
             if days_to_open == 0:
                 notify_all_students("School opens today. Welcome back!")
+
+        # 10) Exam reminders: 3 days before each exam start_date
+        # Strategy: find exams starting in exactly 3 days; if Exam.level set, target only that level, else notify all students
+        upcoming_exams = Exam.objects.filter(start_date__isnull=False, start_date=today + timezone.timedelta(days=3))
+        if upcoming_exams.exists():
+            for ex in upcoming_exams:
+                level = getattr(ex, 'level', None)
+                qs = Student.objects.exclude(phone__isnull=True).exclude(phone__exact='')
+                if level:
+                    qs = qs.filter(class_group__level=str(level))
+                phones = list(qs.values_list('phone', flat=True))
+                if not phones:
+                    continue
+                text = f"{school}: Reminder — '{ex.name}' exams start on {ex.start_date:%Y-%m-%d}. Kindly prepare and be on time."
+                if dry:
+                    for p in phones:
+                        self.stdout.write(f"[DRY] {p} <- {text}")
+                else:
+                    send_bulk_sms(phones, text)
+
+                # Optional email counterpart to students who have emails
+                try:
+                    emails = list(
+                        qs.select_related('user')
+                        .exclude(user__email__isnull=True)
+                        .exclude(user__email__exact='')
+                        .values_list('user__email', flat=True)
+                    )
+                    if emails and not dry:
+                        subject = f"{school}: Exam reminder — {ex.name}"
+                        body = f"Dear Student,\n\nThis is a reminder that '{ex.name}' exams start on {ex.start_date:%Y-%m-%d}. Please prepare accordingly.\n\nRegards,\n{school}"
+                        with get_connection() as connection:
+                            for addr in emails:
+                                try:
+                                    send_mail(
+                                        subject=subject,
+                                        message=body,
+                                        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@example.com'),
+                                        recipient_list=[addr],
+                                        fail_silently=True,
+                                        connection=connection,
+                                    )
+                                except Exception:
+                                    # continue on errors
+                                    pass
+                except Exception:
+                    pass
 
         # Teachers timetable update reminders are sent via a signal when the timetable is saved; nothing here.
 

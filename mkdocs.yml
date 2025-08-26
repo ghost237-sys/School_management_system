@@ -27,11 +27,18 @@ nav:
   - User Guide:
       - Admin: user-guide/admin.md
       - Teacher: user-guide/teacher.md
+      - Student: user-guide/student.md
+      - Parent/Guardian: user-guide/parent.md
   - Developer Guide:
       - Overview: developer-guide/overview.md
   - Integrations:
       - M-Pesa (Daraja): integrations/mpesa.md
-  - Troubleshooting: troubleshooting.md
+  - Troubleshooting:
+      - Overview: troubleshooting/index.md
+      - Admin: troubleshooting/admin.md
+      - Teacher: troubleshooting/teacher.md
+      - Student: troubleshooting/student.md
+      - Parent/Guardian: troubleshooting/parent.md
 
 markdown_extensions:
   - admonition

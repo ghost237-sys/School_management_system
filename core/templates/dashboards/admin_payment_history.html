@@ -166,5 +166,27 @@
             </tbody>
             </table>
         </div>
+        <div class="d-flex justify-content-between align-items-center mt-2">
+          <small class="text-muted">Page {{ all_fee_payments.number }} of {{ all_fee_payments.paginator.num_pages }} ({{ all_fee_payments.paginator.count }} payments)</small>
+          <nav>
+            <ul class="pagination pagination-sm mb-0">
+              {% if all_fee_payments.has_previous %}
+                <li class="page-item">
+                  <a class="page-link" href="?tab=history&payment_search={{ request.GET.payment_search|urlencode }}&payment_sort={{ request.GET.payment_sort|default:'newest' }}&payments_page={{ all_fee_payments.previous_page_number }}#history">Previous</a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+              {% endif %}
+              <li class="page-item active"><span class="page-link">{{ all_fee_payments.number }}</span></li>
+              {% if all_fee_payments.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="?tab=history&payment_search={{ request.GET.payment_search|urlencode }}&payment_sort={{ request.GET.payment_sort|default:'newest' }}&payments_page={{ all_fee_payments.next_page_number }}#history">Next</a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">Next</span></li>
+              {% endif %}
+            </ul>
+          </nav>
+        </div>
     </div>
 </div>

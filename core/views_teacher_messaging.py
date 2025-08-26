@@ -9,7 +9,7 @@ def teacher_messaging(request):
     # Only allow teachers
     if not hasattr(request.user, 'teacher'):
         messages.error(request, 'Only teachers can access this page.')
-        return redirect('dashboard')
+        return redirect('login')
     teacher = request.user.teacher
     # Determine if teacher is a class teacher
     class_groups = Class.objects.filter(class_teacher=teacher)

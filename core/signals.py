@@ -2,11 +2,11 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import send_mail, get_connection
 from django.core.cache import cache
 import logging
 
-from .models import Student, FeePayment, DefaultTimetable, Teacher, User, FeeAssignment, MpesaTransaction
+from .models import Student, FeePayment, DefaultTimetable, Teacher, User, FeeAssignment, MpesaTransaction, TeacherResponsibility, Exam
 from .messaging_utils import send_sms, send_bulk_sms
 from .messaging_utils import _normalize_msisdn
 
@@ -76,6 +76,18 @@ def notify_on_student_admission(sender, instance: Student, created, **kwargs):
     msg = f"{school}: Admission successful for {who}. Welcome!"
     if instance.phone:
         send_sms(instance.phone, msg)
+    # Email counterpart if available
+    try:
+        if instance.user and getattr(instance.user, 'email', None):
+            send_mail(
+                subject=f"{school}: Admission successful",
+                message=msg,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@example.com'),
+                recipient_list=[instance.user.email],
+                fail_silently=True,
+            )
+    except Exception:
+        pass
 
 
 # 3) After payment of fees -> send to payer's number and student's number including transaction id
@@ -98,7 +110,132 @@ def notify_on_fee_payment(sender, instance: FeePayment, created, **kwargs):
         targets.append(student.phone)
     if targets:
         send_bulk_sms(targets, msg)
+    # Email counterpart to student if email available
+    try:
+        if student and student.user and getattr(student.user, 'email', None):
+            send_mail(
+                subject=f"{school}: Fee payment received",
+                message=msg,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@example.com'),
+                recipient_list=[student.user.email],
+                fail_silently=True,
+            )
+    except Exception:
+        pass
 
+@receiver(post_save, sender=Exam)
+def notify_on_results_published(sender, instance: Exam, created, **kwargs):
+    """When exam results are published, notify relevant students via SMS and email.
+    If published_at isn't set yet when results_published becomes True, set it.
+    """
+    try:
+        if not instance.results_published:
+            return
+        # Ensure published_at is set once
+        if not instance.published_at:
+            instance.published_at = timezone.now()
+            try:
+                instance.save(update_fields=['published_at'])
+            except Exception:
+                pass
+
+        school = _school_name()
+        level = getattr(instance, 'level', None)
+        qs = Student.objects.exclude(phone__isnull=True).exclude(phone__exact='')
+        if level:
+            qs = qs.filter(class_group__level=str(level))
+
+        # SMS
+        phones = list(qs.values_list('phone', flat=True))
+        if phones:
+            text = f"{school}: Results for '{instance.name}' have been published. Please check the portal."
+            try:
+                send_bulk_sms(phones, text)
+            except Exception:
+                pass
+
+        # Email
+        try:
+            emails = list(
+                qs.select_related('user')
+                .exclude(user__email__isnull=True)
+                .exclude(user__email__exact='')
+                .values_list('user__email', flat=True)
+            )
+            if emails:
+                subject = f"{school}: Exam results published — {instance.name}"
+                body = f"Dear Student,\n\nResults for '{instance.name}' have been published. Please log in to the portal to view your results.\n\nRegards,\n{school}"
+                with get_connection() as connection:
+                    for addr in emails:
+                        try:
+                            send_mail(
+                                subject=subject,
+                                message=body,
+                                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@example.com'),
+                                recipient_list=[addr],
+                                fail_silently=True,
+                                connection=connection,
+                            )
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+    except Exception:
+        # Never block DB save due to notification issues
+        logger.error("notify_on_results_published error")
+
+
+# 3b) Notify a teacher when a responsibility is assigned
+@receiver(post_save, sender=TeacherResponsibility)
+def notify_on_responsibility_assigned(sender, instance: TeacherResponsibility, created, **kwargs):
+    if not created:
+        return
+    try:
+        school = _school_name()
+        teacher = instance.teacher
+        teacher_name = None
+        teacher_email = None
+        if teacher and teacher.user:
+            teacher_name = teacher.user.get_full_name() or teacher.user.username
+            teacher_email = getattr(teacher.user, 'email', None)
+
+        # Compose message
+        date_part = []
+        if instance.start_date:
+            date_part.append(f"from {instance.start_date}")
+        if instance.end_date:
+            date_part.append(f"to {instance.end_date}")
+        date_str = (" " + " ".join(date_part)) if date_part else ""
+        details = f" Details: {instance.details}" if instance.details else ""
+        assigned_by = None
+        if instance.assigned_by:
+            assigned_by = instance.assigned_by.get_full_name() or instance.assigned_by.username
+        by_str = f" Assigned by: {assigned_by}." if assigned_by else ""
+
+        text = f"{school}: You have been assigned a responsibility — '{instance.responsibility}'{date_str}.{by_str}{details}"
+
+        # SMS
+        if getattr(teacher, 'phone', None):
+            try:
+                send_sms(teacher.phone, text)
+            except Exception:
+                logger.warning("Failed to send responsibility SMS to %s", teacher.phone)
+
+        # Email
+        if teacher_email:
+            try:
+                send_mail(
+                    subject=f"{school}: New responsibility assigned",
+                    message=text,
+                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@example.com'),
+                    recipient_list=[teacher_email],
+                    fail_silently=True,
+                )
+            except Exception as e:
+                logger.warning("Failed to send responsibility email to %s: %s", teacher_email, e)
+    except Exception as e:
+        # Never block DB save due to notification issues
+        logger.error("notify_on_responsibility_assigned error: %s", e)
 
 # 4) Notify teachers after timetable updates
 @receiver(post_save, sender=DefaultTimetable)
@@ -130,25 +267,39 @@ def notify_teachers_on_timetable_update(sender, instance: DefaultTimetable, **kw
     else:
         logger.warning("No teacher phone numbers found; timetable SMS skipped")
 
-    # Also notify by email when available (console backend in dev)
-    teacher_emails = list(
-        Teacher.objects.select_related('user')
-        .exclude(user__email__isnull=True)
-        .exclude(user__email__exact='')
-        .values_list('user__email', flat=True)
-    )
-    if teacher_emails:
-        try:
-            send_mail(
-                subject=f"{school}: Timetable updated",
-                message="Please review your updated schedule in the portal.",
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@example.com'),
-                recipient_list=teacher_emails,
-                fail_silently=True,
-            )
-            logger.info("Timetable email notices sent to %d teacher(s)", len(teacher_emails))
-        except Exception as e:
-            logger.error("Timetable email send failed: %s", e)
+    # Also notify by email: per-recipient so each appears in Sent with its own To:
+    try:
+        teacher_emails = list(
+            Teacher.objects.select_related('user')
+            .exclude(user__email__isnull=True)
+            .exclude(user__email__exact='')
+            .values_list('user__email', flat=True)
+        )
+        if not teacher_emails:
+            logger.warning("No teacher emails found; timetable email skipped")
+        else:
+            subject = f"{school}: Timetable updated"
+            body = "Please review your updated schedule in the portal."
+            sent = 0
+            errors = 0
+            # Reuse a single SMTP connection for efficiency
+            with get_connection() as connection:
+                for addr in teacher_emails:
+                    try:
+                        send_mail(
+                            subject=subject,
+                            message=body,
+                            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@example.com'),
+                            recipient_list=[addr],
+                            fail_silently=True,
+                            connection=connection,
+                        )
+                        sent += 1
+                    except Exception:
+                        errors += 1
+            logger.info("Timetable emails sent per-recipient: success=%d, total=%d, errors=%d", sent, len(teacher_emails), errors)
+    except Exception as e:
+        logger.error("Timetable email send (per-recipient) failed: %s", e)
 
 
 # --- Limit admin to 2 concurrent devices/sessions ---

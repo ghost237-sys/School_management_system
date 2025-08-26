@@ -1,0 +1,137 @@
+{% comment %}Partial: Available exams list with pagination. Expects exams_page (Page), q, term_id{% endcomment %}
+<div class="table-responsive mb-2">
+  <table class="table align-middle table-hover">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Term</th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Type</th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for exam in exams_page %}
+      <tr>
+        <td class="fw-semibold">{{ exam.name }}
+          {% if exam.results_published %}
+            <span class="badge bg-success ms-1">Published</span>
+          {% else %}
+            <span class="badge bg-secondary ms-1">Unpublished</span>
+          {% endif %}
+        </td>
+        <td>{{ exam.term }}</td>
+        <td>{{ exam.start_date|date:'d M Y' }}</td>
+        <td>{{ exam.end_date|date:'d M Y' }}</td>
+        <td><span class="badge bg-light text-dark border">{{ exam.get_type_display }}</span></td>
+        <td class="text-end">
+          <button type="button" class="btn btn-soft-primary btn-sm me-1" data-bs-toggle="modal" data-bs-target="#examDetailModal" data-exam-name="{{ exam.name }}" data-exam-start="{{ exam.start_date|date:'d M Y' }}" data-exam-end="{{ exam.end_date|date:'d M Y' }}" data-exam-term="{{ exam.term }}" onclick="openExamModal(this)">
+            <i class="bi bi-eye"></i>
+          </button>
+          {% if user.is_authenticated %}
+          {% if user.role == 'admin' or user.is_staff or user.is_superuser %}
+          <a href="{% url 'admin_manage_grades_entry' %}?exam={{ exam.id }}" class="btn btn-outline-primary btn-sm me-1" title="Manage grades for this exam">
+            <i class="bi bi-gear"></i>
+          </a>
+          <form method="post" action="{% url 'publish_exam_results' exam.id %}" class="d-inline" data-confirm="Publish results for {{ exam.name }}? This will notify students.">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-success btn-sm me-1" title="Publish results for this exam" {% if exam.results_published %}disabled{% endif %}>
+              <i class="bi bi-upload me-1"></i> Publish
+            </button>
+          </form>
+          <form method="post" action="{% url 'unpublish_exam_results' exam.id %}" class="d-inline" data-confirm="Unpublish results for {{ exam.name }}?">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-warning btn-sm me-1" title="Unpublish results for this exam" {% if not exam.results_published %}disabled{% endif %}>
+              <i class="bi bi-cloud-slash me-1"></i> Unpublish
+            </button>
+          </form>
+          {% endif %}
+          {% endif %}
+          <form method="post" action="{% url 'delete_exam' exam.id %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm" title="Delete" onclick="return confirm('Delete exam {{ exam.name }}?');" {% if exam.results_published %}disabled{% endif %}>
+              <i class="bi bi-trash"></i> Delete
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">No exams available.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<nav aria-label="Exams pagination" class="mt-2">
+  <ul class="pagination pagination-sm mb-0">
+    {% if exams_page.has_previous %}
+      <li class="page-item"><a class="page-link" href="#" data-page="{{ exams_page.previous_page_number }}">« Prev</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">« Prev</span></li>
+    {% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ exams_page.number }} of {{ exams_page.paginator.num_pages }}</span></li>
+    {% if exams_page.has_next %}
+      <li class="page-item"><a class="page-link" href="#" data-page="{{ exams_page.next_page_number }}">Next »</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Next »</span></li>
+    {% endif %}
+  </ul>
+</nav>
+<script>
+(function(){
+  const container = document.currentScript.closest('#availableExamsContainer');
+  if (!container) return;
+  container.querySelectorAll('a.page-link[data-page]').forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      const page = this.getAttribute('data-page');
+      const url = new URL(window.location.origin + '{% url "admin_exams_available_partial" %}');
+      const params = new URLSearchParams(window._examsQuery || window.location.search);
+      params.set('page', page);
+      url.search = params.toString();
+      fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+        .then(r => r.text())
+        .then(html => { container.innerHTML = html; })
+        .catch(() => { container.innerHTML = '<div class="alert alert-danger">Failed to load page.</div>'; });
+    });
+  });
+
+  // Intercept publish/unpublish/delete form submissions to keep the user in-tab
+  container.querySelectorAll('form[action*="/publish/"], form[action*="/unpublish/"], form[action*="/delete/"]').forEach(function(f){
+    f.addEventListener('submit', function(e){
+      const msg = this.getAttribute('data-confirm');
+      if (msg && !window.confirm(msg)) {
+        return; // cancel silently
+      }
+      e.preventDefault();
+      const form = this;
+      const action = form.getAttribute('action');
+      const csrf = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+      fetch(action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' },
+        credentials: 'same-origin',
+        body: new URLSearchParams({ 'csrfmiddlewaretoken': csrf }).toString()
+      })
+      .then(async (r) => {
+        if (!r.ok) {
+          const msg = (await r.text()) || 'Request failed';
+          throw new Error(msg);
+        }
+        // If JSON provided, we could react to it; proceed to refresh partial
+        // Reload this partial to reflect new published state
+        const url = new URL(window.location.origin + '{% url "admin_exams_available_partial" %}');
+        const params = new URLSearchParams(window._examsQuery || window.location.search);
+        url.search = params.toString();
+        return fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+      })
+      .then(r => r.text())
+      .then(html => { container.innerHTML = html; })
+      .catch(() => {
+        // Fallback: full navigation
+        window.location.href = window.location.href;
+      });
+    });
+  });
+})();
+</script>

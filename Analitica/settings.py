@@ -61,10 +61,14 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    # Render custom 404 template even in DEBUG
+    'core.middleware.NotFoundTemplateMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Redirect plain 403 responses back to previous safe page
+    'core.middleware.ForbiddenRedirectMiddleware',
 ]
 
 ROOT_URLCONF = 'Analitica.urls'
@@ -96,6 +100,12 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        # Reduce SQLITE_BUSY errors by allowing longer wait for locks
+        'OPTIONS': {
+            'timeout': 30,  # seconds
+        },
+        # Keep DB connections open briefly to reduce reconnect churn
+        'CONN_MAX_AGE': 60,
     }
 }
 
@@ -172,21 +182,27 @@ if _csrf_origins:
     CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
 else:
     CSRF_TRUSTED_ORIGINS = [
-        'https://0e225c51e670.ngrok-free.app',
+        'https://0719e873a579.ngrok-free.app',
         'https://*.ngrok-free.app',
         'http://localhost',
         'http://127.0.0.1',
     ]
+# Allow large multi-select submissions (e.g., finance messaging with many recipients)
+# Default in Django is 1000; we raise it to accommodate bulk messaging posts safely.
+DATA_UPLOAD_MAX_NUMBER_FIELDS = int(os.environ.get('DATA_UPLOAD_MAX_NUMBER_FIELDS', '20000'))
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', '52428800'))  # 50 MB
 
 # Email backend
-# For development, print emails to console. Configure SMTP below for production.
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587')) if os.environ.get('EMAIL_PORT') else None
+# IMPORTANT: In production, prefer environment variables. Fallbacks below are provided
+# at the user's request to ensure emails send from the specified Gmail by default.
+# Do NOT commit real secrets for public repos.
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').lower() == 'true'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-reply@example.com')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'sevenforksprimaryschool@gmail.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'jwuw grhy epvt lqcf')  # Gmail App Password fallback
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 # School branding used in outgoing messages
 SCHOOL_NAME = os.environ.get('SCHOOL_NAME', 'Your School')
@@ -209,7 +225,7 @@ MPESA_CONSUMER_SECRET = os.environ.get('MPESA_CONSUMER_SECRET', 'lOjIKLlnhiHXxFR
 MPESA_SHORTCODE = os.environ.get('MPESA_SHORTCODE', '174379')  # PayBill/Till number
 MPESA_PASSKEY = os.environ.get('MPESA_PASSKEY', 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919')      # For STK push password
 # Public HTTPS URL for callbacks; must be reachable by Safaricom in production
-MPESA_CALLBACK_URL = os.environ.get('MPESA_CALLBACK_URL', 'https://0e225c51e670.ngrok-free.app/mpesa-callback/')
+MPESA_CALLBACK_URL = os.environ.get('MPESA_CALLBACK_URL', 'https://0719e873a579.ngrok-free.app/mpesa-callback/')
 # Optional: C2B Validation and Confirmation URLs (non-STK PayBill flows)
 MPESA_C2B_VALIDATION_URL = os.environ.get('MPESA_C2B_VALIDATION_URL', '')
 MPESA_C2B_CONFIRMATION_URL = os.environ.get('MPESA_C2B_CONFIRMATION_URL', '')
@@ -240,4 +256,42 @@ ROLE_SESSION_LIMITS = {
 }
 
 
+
+
+# --- Caching ---
+# Use a persistent, file-based cache to ensure features that depend on cache
+# (e.g., debounce locks in `core/signals.py`) work across server reloads.
+# No external services required (works in dev and small deployments).
+CACHE_DIR = BASE_DIR / 'cache'
+try:
+    os.makedirs(CACHE_DIR, exist_ok=True)
+except Exception:
+    # If the directory cannot be created, Django will raise on startup when
+    # using FileBasedCache. We keep this guard to avoid breaking imports.
+    pass
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': CACHE_DIR,
+        'TIMEOUT': int(os.environ.get('DJANGO_CACHE_TIMEOUT', '600')),  # seconds
+        'KEY_PREFIX': os.environ.get('DJANGO_CACHE_KEY_PREFIX', 'analitica'),
+        'OPTIONS': {
+            'MAX_ENTRIES': int(os.environ.get('DJANGO_CACHE_MAX_ENTRIES', '10000')),
+        },
+    }
+}
+
+
+# --- Celery (background tasks) ---
+# Use Redis by default; override via environment if needed.
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/1')
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = False
+
+# Reasonable task defaults
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = int(os.environ.get('CELERY_WORKER_PREFETCH_MULTIPLIER', '4'))
+CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'false').lower() == 'true'  # handy for local testing without a worker
 

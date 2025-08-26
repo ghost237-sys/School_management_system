@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}M-Pesa PayBill Ledger{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="mb-0">M-Pesa PayBill (C2B) Ledger</h2>
+    <div>
+      <a href="{% url 'admin_mpesa_reconcile' %}" class="btn btn-outline-secondary">Reconcile</a>
+      <form method="post" action="{% url 'reconcile_pending_stk' %}" class="d-inline ms-2">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-primary">Auto-Reconcile Pending STK</button>
+      </form>
+    </div>
+  </div>
+
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-sm-4">
+      <input type="text" class="form-control" name="q" placeholder="Search TransID / Phone / BillRef" value="{{ q }}">
+    </div>
+    <div class="col-sm-3">
+      <input type="text" class="form-control" name="since" placeholder="Since (YYYY-MM-DD)" value="{{ since }}">
+    </div>
+    <div class="col-sm-3">
+      <input type="text" class="form-control" name="until" placeholder="Until (YYYY-MM-DD)" value="{{ until }}">
+    </div>
+    <div class="col-sm-2 d-grid">
+      <button type="submit" class="btn btn-primary">Filter</button>
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>TransID</th>
+              <th>Amount</th>
+              <th>MSISDN</th>
+              <th>BillRef</th>
+              <th>Time</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in entries %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><code>{{ e.trans_id }}</code></td>
+              <td>KES {{ e.amount|default:'-' }}</td>
+              <td>{{ e.msisdn|default:'-' }}</td>
+              <td>{{ e.bill_ref|default:'-' }}</td>
+              <td>{{ e.trans_time|default:'-' }}</td>
+              <td>{{ e.created_at|date:'Y-m-d H:i' }}</td>
+              <td>
+                <form method="post" action="{% url 'verify_payment_by_reference' %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="reference" value="{{ e.trans_id }}" />
+                  <button type="submit" class="btn btn-sm btn-success">Verify by TransID</button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="text-center text-muted py-4">No ledger entries</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="p-3 text-muted">Showing up to the latest 200 entries.</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

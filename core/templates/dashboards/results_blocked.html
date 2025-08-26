@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Results Access Restricted{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card border-warning">
+        <div class="card-header bg-warning text-dark">
+          <strong>Results Access Restricted</strong>
+        </div>
+        <div class="card-body">
+          <p class="mb-3">{{ message }}</p>
+          <ul class="mb-3">
+            <li>Please clear outstanding fees to regain access.</li>
+            <li>If you believe this is an error, contact the school office.</li>
+          </ul>
+          <div class="d-flex gap-2">
+            <a href="/student_fees/" class="btn btn-primary">View Fees</a>
+            <a href="/dashboard/" class="btn btn-secondary">Back to Dashboard</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

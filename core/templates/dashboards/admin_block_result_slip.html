@@ -77,7 +77,69 @@
         <span id="blockSearchStatus" class="text-muted small" aria-live="polite"></span>
       </div>
     </div>
+    <div class="col-12 col-lg-auto">
+      {% if request.user.role == 'admin' %}
+      <form method="get" class="d-flex align-items-center gap-2 d-print-none">
+        <input type="hidden" name="level" value="{{ level }}">
+        <input type="hidden" name="term" value="{{ selected_term.id }}">
+        <input type="hidden" name="exam" value="{{ selected_exam.id }}">
+        <label for="balanceMinInput" class="form-label m-0 small text-muted">Min Balance</label>
+        <input id="balanceMinInput" name="balance_min" type="number" step="0.01" min="0" class="form-control form-control-sm" style="width:140px" placeholder="e.g. 1000" value="{% if balance_min is not None %}{{ balance_min }}{% endif %}">
+        <div class="d-flex align-items-center gap-1">
+          <button type="button" class="btn btn-sm btn-light chip" data-val="500">500</button>
+          <button type="button" class="btn btn-sm btn-light chip" data-val="1000">1,000</button>
+          <button type="button" class="btn btn-sm btn-light chip" data-val="2000">2,000</button>
+          <button type="button" class="btn btn-sm btn-light chip" data-val="5000">5,000</button>
+        </div>
+        <div class="form-check ms-2">
+          <input class="form-check-input" type="checkbox" value="1" id="onlyBlockedCheck" name="only_blocked" {% if only_blocked %}checked{% endif %}>
+          <label class="form-check-label small" for="onlyBlockedCheck">Show only blocked</label>
+        </div>
+        <button type="submit" class="btn btn-sm btn-outline-primary">Apply</button>
+        <a class="btn btn-sm btn-outline-secondary" href="?level={{ level }}&term={{ selected_term.id }}&exam={{ selected_exam.id }}">Clear</a>
+      </form>
+      <div class="form-text small text-muted">Blocks students with balance ≥ amount. Applies instantly to student result views.</div>
+      {% else %}
+      <div class="text-muted small d-print-none">Viewing mode: You can search and browse results. Blocking controls are available to admins only.</div>
+      {% endif %}
+    </div>
   </div>
+  {% if selected_exam and classes %}
+  <div class="row g-2 mb-2 d-print-none">
+    <div class="col-auto">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body py-2 px-3">
+          <div class="small text-muted">Blocked</div>
+          <div class="fw-bold">{{ blocked_count|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-auto">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body py-2 px-3">
+          <div class="small text-muted">Avg Balance</div>
+          <div class="fw-bold">{% if avg_balance is not None %}{{ avg_balance|floatformat:0 }}{% else %}—{% endif %}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-auto">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body py-2 px-3">
+          <div class="small text-muted">Median Balance</div>
+          <div class="fw-bold">{% if median_balance is not None %}{{ median_balance|floatformat:0 }}{% else %}—{% endif %}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-auto">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body py-2 px-3">
+          <div class="small text-muted">Threshold</div>
+          <div class="fw-bold">{% if effective_threshold is not None %}{{ effective_threshold|floatformat:0 }}{% else %}<span class="text-muted">unset</span>{% endif %}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
   <div class="d-flex justify-content-start mb-2 d-print-none">
     <button class="btn btn-outline-primary btn-print" onclick="window.print()">Print All</button>
   </div>
@@ -118,7 +180,17 @@
           {% for student in all_students_ranked %}
           <tr class="result-row" data-name="{{ student.user.get_full_name|default:student.user.username }}" data-adm="{% firstof student.admission_number student.admission_no student.adm_no %}">
             <td class="sticky-rank fw-semibold">{{ ranks|get_item:student.id }}</td>
-            <td class="sticky-student fw-semibold">{{ student.user.get_full_name|default:student.user.username }}</td>
+            <td class="sticky-student fw-semibold">
+              {{ student.user.get_full_name|default:student.user.username }}
+              {% with bal=student_balances|get_item:student.id|default:0 %}
+              <div class="text-muted small">
+                Bal: {{ bal|floatformat:2 }}
+                {% if effective_threshold is not None and bal >= effective_threshold %}
+                  <span class="badge bg-danger ms-1">Blocked</span>
+                {% endif %}
+              </div>
+              {% endwith %}
+            </td>
             <td class="sticky-class">{{ student.class_group.name }}</td>
             {% for subject in subjects %}
               <td class="subject-col">
@@ -321,6 +393,19 @@
   let t; input.addEventListener('input', ()=>{ clearTimeout(t); t=setTimeout(()=>run(false), 250); });
   if(prevBtn) prevBtn.addEventListener('click', ()=>go(-1));
   if(nextBtn) nextBtn.addEventListener('click', ()=>go(1));
+})();
+</script>
+<script>
+// Preset chips for Min Balance
+(function(){
+  const chips = document.querySelectorAll('.chip');
+  const input = document.getElementById('balanceMinInput');
+  const form = input ? input.closest('form') : null;
+  chips.forEach(btn => btn.addEventListener('click', () => {
+    if(!input) return;
+    input.value = btn.getAttribute('data-val');
+    if(form) form.submit();
+  }));
 })();
 </script>
 <script>

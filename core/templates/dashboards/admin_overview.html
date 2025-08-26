@@ -240,9 +240,9 @@
           </div>
           <div class="fw-bold" style="font-size:0.9rem;">Students</div>
           <div class="fw-bold" style="font-size:1.05rem;color:#222;">{{ total_students }}</div>
-          <div class="text-muted small">
-            <span class="badge bg-primary bg-opacity-10 text-primary me-1">Boys: {{ students_boys }}</span>
-            <span class="badge bg-danger bg-opacity-10 text-danger">Girls: {{ students_girls }}</span>
+          <div class="small">
+            <span class="badge rounded-pill bg-primary text-white me-1" style="font-weight:600;">Boys: {{ students_boys }}</span>
+            <span class="badge rounded-pill bg-danger text-white" style="font-weight:600;">Girls: {{ students_girls }}</span>
           </div>
 <a href="{% url 'admin_students' %}" class="btn btn-sm btn-success mt-2 w-75"><i class="bi bi-people-fill me-1"></i>Go to Students</a>
         </div>
@@ -256,9 +256,9 @@
           </div>
           <div class="fw-bold" style="font-size:0.9rem;">Teachers</div>
           <div class="fw-bold" style="font-size:1.05rem;color:#222;">{{ total_teachers }}</div>
-          <div class="text-muted small">
-            <span class="badge bg-primary bg-opacity-10 text-primary me-1">Male: {{ teachers_male }}</span>
-            <span class="badge bg-danger bg-opacity-10 text-danger">Female: {{ teachers_female }}</span>
+          <div class="small">
+            <span class="badge rounded-pill bg-primary text-white me-1" style="font-weight:600;">Male: {{ teachers_male }}</span>
+            <span class="badge rounded-pill bg-danger text-white" style="font-weight:600;">Female: {{ teachers_female }}</span>
           </div>
 <a href="{% url 'admin_teachers' %}" class="btn btn-sm btn-primary mt-2 w-75"><i class="bi bi-person-badge-fill me-1"></i>Go to Teachers</a>
         </div>
@@ -346,12 +346,20 @@
       <!-- Responsibilities Card -->
       <div class="card flex-fill mt-4" style="min-height:unset;">
         <div class="card-body p-3" style="min-height:unset;">
-          <h6 class="card-title mb-2"><i class="bi bi-person-check text-success me-1"></i>Assigned Teacher Responsibilities</h6>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="card-title mb-0"><i class="bi bi-person-check text-success me-1"></i>Assigned Teacher Responsibilities</h6>
+            {% if show_expired %}
+              <a href="{% url 'admin_overview' %}" class="btn btn-sm btn-outline-secondary">Hide expired</a>
+            {% else %}
+              <a href="{% url 'admin_overview' %}?show_expired=1" class="btn btn-sm btn-outline-secondary">Show expired</a>
+            {% endif %}
+          </div>
           <ul class="list-group list-group-flush">
             {% for resp in responsibilities %}
               <li class="list-group-item">
                 <strong>{{ resp.teacher.user.get_full_name|default:resp.teacher.user.username }}</strong>
                 <span class="badge bg-primary ms-2">{{ resp.responsibility }}</span>
+                {% if show_expired %}<span class="badge bg-secondary ms-2">Expired</span>{% endif %}
                 {% if resp.start_date or resp.end_date %}<br>
                   <span class="text-muted small">
                     {% if resp.start_date %}Start: {{ resp.start_date|date:'Y-m-d' }}{% endif %}

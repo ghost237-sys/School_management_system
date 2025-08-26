@@ -19,68 +19,20 @@ from django.http import JsonResponse
 def send_bulk_fee_arrears_notice(request):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Invalid request method.'}, status=405)
+    # Fast path: create a job and enqueue background task
+    from .models import NotificationJob, Term
+    from .tasks import send_fee_arrears_notifications
+    from django.utils import timezone
     today = timezone.now().date()
     current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('-start_date').first()
     if not current_term:
         current_term = Term.objects.filter(start_date__lte=today, end_date__isnull=True).order_by('-start_date').first()
     if not current_term:
         current_term = Term.objects.order_by('-start_date').first()
-    all_students = Student.objects.select_related('user', 'class_group').all()
-    terms_up_to_current = Term.objects.filter(start_date__lte=current_term.start_date)
-    arrears_students = []
-    for student in all_students:
-        assignments_for_student = FeeAssignment.objects.filter(class_group=student.class_group, term__in=terms_up_to_current)
-        total_assigned = sum(a.amount for a in assignments_for_student)
-        total_paid = FeePayment.objects.filter(student=student, fee_assignment__term__start_date__lte=current_term.start_date).aggregate(total=Sum('amount_paid'))['total'] or 0
-        balance = total_assigned - total_paid
-        if balance > 0.01:
-            student.balance = balance
-            arrears_students.append(student)
-    import random
-    def generate_formal_message(student):
-        greetings = [
-            f"Dear {student.user.get_full_name() or student.user.username},",
-            "Dear Parent/Guardian,",
-            f"Greetings {student.user.get_full_name() or student.user.username},",
-            "Good day, Parent/Guardian,",
-        ]
-        name_block = f"Student Name: {student.user.get_full_name() or student.user.username}\nClass: {student.class_group.name}"
-        bodies = [
-            f"We wish to inform you that your child currently has an outstanding fee balance of Ksh. {student.balance:.2f}.",
-            f"Our records indicate an outstanding balance of Ksh. {student.balance:.2f} for your child.",
-            f"This is a polite reminder that there remains a fee balance of Ksh. {student.balance:.2f} for your child.",
-            f"Kindly note that the fee arrears for your child amount to Ksh. {student.balance:.2f}.",
-        ]
-        closing = random.choice([
-            "We kindly request that you clear this balance at your earliest convenience.",
-            "Please make arrangements to settle the outstanding amount as soon as possible.",
-            "Your prompt attention to this matter is appreciated.",
-            "Thank you for your cooperation.",
-        ])
-        signature = random.choice([
-            "\n\nBest regards,\nSchool Administration",
-            "\n\nSincerely,\nSchool Accounts Office",
-            "\n\nThank you,\nSchool Management",
-            "\n\nSchool Administration",
-        ])
-        return f"{random.choice(greetings)}\n\n{name_block}\n\n{random.choice(bodies)}\n{closing}{signature}"
-
-    sent_count = 0
-    for student in arrears_students:
-        user = student.user
-        msg = generate_formal_message(student)
-        # Email
-        if user.email:
-            from django.core.mail import send_mail
-            from django.conf import settings
-            send_mail('Fee Payment Arrears Notification', msg, settings.DEFAULT_FROM_EMAIL, [user.email])
-            sent_count += 1
-        # SMS (if phone exists)
-        if hasattr(user, 'phone') and user.phone:
-            from .messaging_utils import send_sms
-            send_sms(user.phone, msg)
-            sent_count += 1
-    return JsonResponse({'success': True, 'message': f'Fee arrears notices sent to {sent_count} recipients.'})
+    class_group_id = request.POST.get('class_group_id')
+    job = NotificationJob.objects.create(job_type='fee_arrears', status='queued', meta={'term_id': getattr(current_term, 'id', None), 'class_group_id': class_group_id})
+    send_fee_arrears_notifications.delay(job.id, getattr(current_term, 'id', None), int(class_group_id) if class_group_id else None)
+    return JsonResponse({'success': True, 'job_id': job.id, 'message': 'Arrears notices are sending in the background.'})
 
 from .models import User
 

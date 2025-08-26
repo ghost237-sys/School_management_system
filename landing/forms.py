@@ -11,6 +11,8 @@ class SiteSettingsForm(forms.ModelForm):
             "about_title", "about_text",
             "contact_email", "contact_phone", "contact_address", "footer_text",
             "facebook_url", "twitter_url", "instagram_url",
+            # Results access restriction fields
+            "restrict_results_by_fee", "fee_restriction_threshold", "fee_restriction_message",
         ]
         widgets = {
             "school_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "School Name"}),
@@ -38,6 +40,10 @@ class SiteSettingsForm(forms.ModelForm):
             "facebook_url": forms.URLInput(attrs={"class": "form-control", "placeholder": "https://facebook.com/..."}),
             "twitter_url": forms.URLInput(attrs={"class": "form-control", "placeholder": "https://x.com/..."}),
             "instagram_url": forms.URLInput(attrs={"class": "form-control", "placeholder": "https://instagram.com/..."}),
+            # Widgets for fee restriction fields
+            "restrict_results_by_fee": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "fee_restriction_threshold": forms.NumberInput(attrs={"class": "form-control", "min": 0, "max": 100}),
+            "fee_restriction_message": forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "Custom message shown when results are blocked."}),
         }
 
 

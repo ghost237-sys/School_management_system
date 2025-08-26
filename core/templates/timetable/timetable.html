@@ -100,6 +100,39 @@
     </div>
     {% endif %}
 
+    {# Show detailed scheduler report breakdown when available #}
+    {% if timetable_report %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <i class="bi bi-check-circle me-1"></i>
+                <strong>Timetable generated.</strong>
+                Placed: <span class="badge bg-success">{{ timetable_report.placed|default:0 }}</span>
+                Skipped: <span class="badge bg-danger">{{ timetable_report.skipped|default:0 }}</span>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% if timetable_report.reasons %}
+        <div class="mt-2">
+            <small class="text-muted">Reason breakdown</small>
+            <ul class="mb-0">
+                {% for reason, count in timetable_report.reasons.items %}
+                    <li>
+                        <span class="badge bg-secondary me-1">{{ count }}</span>
+                        {{ reason|title|default:'Unknown' }}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% if request.user.role == 'admin' %}
+        <div class="mt-2">
+            <small class="text-muted">Tips: Reduce skips by lowering weekly lessons for some subjects, redistributing teacher assignments, or increasing class sessions per day in <a href="{% url 'admin_period_slots' %}">Edit Session Times</a>.</small>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <!-- Class Selector -->
     <div class="row mb-3">
         <div class="col-md-6">
@@ -117,6 +150,33 @@
             </form>
         </div>
     </div>
+
+    {% if selected_class and selected_capacity and selected_required %}
+    <div class="alert alert-info d-print-none" role="alert">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <strong>Capacity vs Demand for {{ selected_class.name }}:</strong>
+                Capacity (periods × days): <span class="badge bg-primary">{{ selected_capacity }}</span>
+                Required (sum of weekly lessons): <span class="badge bg-secondary">{{ selected_required }}</span>
+                {% if capacity_diff > 0 %}
+                    <span class="ms-2 text-danger">Over-subscribed by {{ capacity_over }} slots.</span>
+                {% elif capacity_diff < 0 %}
+                    <span class="ms-2 text-success">{{ capacity_free }} free slots available.</span>
+                {% else %}
+                    <span class="ms-2">Perfectly balanced.</span>
+                {% endif %}
+            </div>
+            {% if request.user.role == 'admin' %}
+            <div>
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_period_slots' %}"><i class="bi bi-clock-history"></i> Edit Session Times</a>
+            </div>
+            {% endif %}
+        </div>
+        {% if request.user.role == 'admin' %}
+        <small class="text-muted">To reduce skips: decrease weekly lessons on some subjects (via admin > Subjects) or increase the number of sessions per day.</small>
+        {% endif %}
+    </div>
+    {% endif %}
 
 {% if selected_class %}
     <div class="card">

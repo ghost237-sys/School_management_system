@@ -23,7 +23,9 @@ class Subject(models.Model):
     department = models.ForeignKey('Department', null=True, blank=True, on_delete=models.SET_NULL, related_name='subjects')
     color = models.CharField(max_length=7, default='#007bff', help_text="Color for the timetable events")
     # Admin-configurable average number of lessons per week for this subject
-    weekly_lessons = models.PositiveIntegerField(default=3, help_text="Average lessons per week (default 3)")
+    weekly_lessons = models.PositiveIntegerField(default=3, help_text="Average/target lessons per week (default 3)")
+    # New: Admin-enforced minimum number of lessons per week (scheduler will not go below this)
+    min_weekly_lessons = models.PositiveIntegerField(default=3, help_text="Minimum lessons per week to enforce in the timetable (default 3)")
 
     def __str__(self):
         return f"{self.name} ({self.department})" if self.department else self.name
@@ -104,6 +106,12 @@ class Student(models.Model):
     def is_profile_complete(self):
         return bool(self.user.first_name and self.user.last_name)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['class_group']),
+            models.Index(fields=['phone']),
+        ]
+
 class AcademicYear(models.Model):
     year = models.CharField(max_length=10)
 
@@ -157,6 +165,13 @@ class Grade(models.Model):
     grade_letter = models.CharField(max_length=2, blank=True, null=True)
     remarks = models.TextField(blank=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['student', 'exam']),
+            models.Index(fields=['exam']),
+            models.Index(fields=['subject']),
+        ]
+
 class SubjectGradingScheme(models.Model):
     subject = models.OneToOneField(Subject, on_delete=models.CASCADE, related_name='grading_scheme')
     # Store grade boundaries as a JSON field: e.g. {"A": [80, 100], "B": [70, 79], ...}
@@ -208,6 +223,10 @@ class FeeAssignment(models.Model):
 
     class Meta:
         unique_together = ('fee_category', 'class_group', 'term')
+        indexes = [
+            models.Index(fields=['class_group', 'term']),
+            models.Index(fields=['term']),
+        ]
 
     def __str__(self):
         return f"{self.fee_category} - {self.class_group} - {self.term}"
@@ -234,6 +253,12 @@ class FeePayment(models.Model):
         ordering = ['-payment_date']
         constraints = [
             models.UniqueConstraint(fields=['reference'], name='unique_mpesa_reference')
+        ]
+        indexes = [
+            models.Index(fields=['student']),
+            models.Index(fields=['fee_assignment']),
+            models.Index(fields=['payment_date']),
+            models.Index(fields=['status']),
         ]
 
     # Link back to MpesaTransaction when available (for traceability)
@@ -263,6 +288,33 @@ class MpesaTransaction(models.Model):
 
     def __str__(self):
         return f"MpesaTX {self.checkout_request_id} ({self.status})"
+
+class MpesaC2BLedger(models.Model):
+    """Immutable ledger of PayBill (C2B) confirmations.
+
+    Stores raw details from Safaricom so that if the callback handling path
+    fails (e.g., network error, URL down), we can reconcile/verify later by
+    TransID.
+    """
+    trans_id = models.CharField(max_length=30, unique=True, db_index=True)
+    trans_time = models.CharField(max_length=20, blank=True, null=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    msisdn = models.CharField(max_length=20, blank=True, null=True)
+    bill_ref = models.CharField(max_length=100, blank=True, null=True)
+    business_short_code = models.CharField(max_length=20, blank=True, null=True)
+    third_party_trans_id = models.CharField(max_length=64, blank=True, null=True)
+    first_name = models.CharField(max_length=100, blank=True, null=True)
+    middle_name = models.CharField(max_length=100, blank=True, null=True)
+    last_name = models.CharField(max_length=100, blank=True, null=True)
+    org_account_balance = models.CharField(max_length=100, blank=True, null=True)
+    raw = models.JSONField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"C2B {self.trans_id} KES {self.amount or '-'}"
 
 class TeacherClassAssignment(models.Model):
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
@@ -450,3 +502,108 @@ class TeacherResponsibility(models.Model):
     def __str__(self):
         return f"{self.teacher.user.get_full_name() if self.teacher.user else self.teacher} - {self.responsibility}"  
 
+
+class NotificationJob(models.Model):
+    """Tracks long-running messaging/notification jobs for fast UI status polling."""
+    TYPE_CHOICES = [
+        ('exam_publish', 'Exam Publish Notifications'),
+        ('fee_arrears', 'Fee Arrears Notifications'),
+    ]
+    STATUS_CHOICES = [
+        ('queued', 'Queued'),
+        ('running', 'Running'),
+        ('done', 'Done'),
+        ('failed', 'Failed'),
+    ]
+
+    job_type = models.CharField(max_length=30, choices=TYPE_CHOICES)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='queued')
+    total = models.PositiveIntegerField(default=0)
+    processed = models.PositiveIntegerField(default=0)
+    success_count = models.PositiveIntegerField(default=0)
+    error_count = models.PositiveIntegerField(default=0)
+    meta = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['job_type']),
+            models.Index(fields=['status']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def mark_running(self, total=None):
+        if total is not None:
+            self.total = total
+        self.status = 'running'
+        self.save(update_fields=['status', 'total', 'updated_at'])
+
+    def incr(self, success=True, step=1):
+        self.processed = models.F('processed') + step
+        if success:
+            self.success_count = models.F('success_count') + step
+        else:
+            self.error_count = models.F('error_count') + step
+        self.save(update_fields=['processed', 'success_count', 'error_count', 'updated_at'])
+        # Refresh from DB to get actual values after F expressions
+        return type(self).objects.only('processed', 'success_count', 'error_count').get(pk=self.pk)
+
+    def mark_done(self):
+        self.status = 'done'
+        self.save(update_fields=['status', 'updated_at'])
+
+    def mark_failed(self, error_msg=None):
+        self.status = 'failed'
+        if error_msg:
+            self.meta = {**(self.meta or {}), 'error': error_msg}
+        self.save(update_fields=['status', 'meta', 'updated_at'])
+
+
+class GradeCommentTemplate(models.Model):
+    """
+    Admin-configurable comment text to be shown in gradebooks based on grade letter.
+    Optionally, this can be extended later to be per-subject or per-level.
+    """
+    GRADE_CHOICES = [
+        ('A', 'A'),
+        ('B', 'B'),
+        ('C', 'C'),
+        ('D', 'D'),
+        ('E', 'E'),
+        ('F', 'F'),
+    ]
+    grade_letter = models.CharField(max_length=2, choices=GRADE_CHOICES, unique=True)
+    comment = models.TextField(help_text='Comment shown in gradebooks for this grade letter')
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Grade Comment Template'
+        verbose_name_plural = 'Grade Comment Templates'
+
+    def __str__(self):
+        return f"{self.grade_letter}: {self.comment[:40]}"
+
+
+# --- Persistent Result Blocking ---
+class ResultBlock(models.Model):
+    """Persisted block record for a student's exam results.
+
+    When active=True, the student's result slip for the given exam should be blocked
+    across student-facing endpoints until an admin deactivates it.
+    """
+    student = models.ForeignKey('Student', on_delete=models.CASCADE, related_name='result_blocks')
+    exam = models.ForeignKey('Exam', on_delete=models.CASCADE, related_name='result_blocks')
+    active = models.BooleanField(default=True)
+    reason = models.CharField(max_length=255, blank=True, default='')
+    balance_threshold = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    created_by = models.ForeignKey('User', null=True, blank=True, on_delete=models.SET_NULL, related_name='created_result_blocks')
+    created_at = models.DateTimeField(auto_now_add=True)
+    cleared_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('student', 'exam')
+
+    def __str__(self):
+        return f"Block(student={self.student_id}, exam={self.exam_id}, active={self.active})"

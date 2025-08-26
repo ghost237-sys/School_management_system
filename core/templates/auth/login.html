@@ -114,61 +114,7 @@
 
 {% block content %}
 <section class="auth-hero">
-  <div class="auth-wrap">
-    <div class="bot-stage">
-      <div class="big-bot">
-        <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <!-- Shadow -->
-          <ellipse cx="200" cy="370" rx="90" ry="14" fill="#000" opacity="0.08"/>
-          <!-- Body -->
-          <g>
-            <rect x="120" y="190" width="160" height="130" rx="60" fill="#EEF3F9" stroke="#D7DFEA"/>
-            <!-- Left hand (chat side) -->
-            <g class="hand-left" fill="#EEF3F9" stroke="#D7DFEA">
-              <rect x="60" y="230" width="60" height="24" rx="12"/>
-              <circle cx="60" cy="242" r="14"/>
-            </g>
-            <!-- Right hand (HTML overlay will extend from the palm) -->
-            <g class="hand-right" fill="#EEF3F9" stroke="#D7DFEA">
-              <!-- Shoulder + palm -->
-              <rect x="280" y="230" width="60" height="24" rx="12"/>
-              <circle cx="340" cy="242" r="14"/>
-            </g>
-          </g>
-          <!-- Head -->
-          <g class="bot-head">
-            <rect x="100" y="100" width="200" height="120" rx="60" fill="#FFFFFF" stroke="#D7DFEA"/>
-            <rect x="120" y="115" width="160" height="90" rx="36" fill="#0F172A"/>
-            <!-- School logo inside face -->
-            <clipPath id="faceClip"><rect x="120" y="115" width="160" height="90" rx="36"/></clipPath>
-            <image href="{% static 'branding/logo.png' %}" x="145" y="125" width="110" height="70" preserveAspectRatio="xMidYMid meet" clip-path="url(#faceClip)" onerror="this.setAttribute('href','/media/branding/favicon.jpg')"/>
-          </g>
-          <!-- Small lights -->
-          <circle cx="220" cy="92" r="10" fill="var(--primary)"/>
-          <rect x="195" y="88" width="10" height="20" rx="5" fill="var(--primary)"/>
-        </svg>
-        
-        
-      </div>
-      <div class="bot-chat">
-        <div id="botSpeech" class="bot-speech speak">
-          <div id="botSay" role="status" aria-live="polite">Tip: Enter your username to get started.</div>
-          <div id="helpPanel" class="mt-2">
-            <ul class="steps mb-2">
-              <li><span class="num">1</span><span class="txt">Type your <strong>Username</strong> exactly as provided.</span></li>
-              <li><span class="num">2</span><span class="txt">Enter your <strong>Password</strong>. Use the eye icon to peek.</span></li>
-              <li><span class="num">3</span><span class="txt">Choose your <strong>Role</strong> (Admin, Teacher, Student, or Clerk).</span></li>
-              <li><span class="num">4</span><span class="txt">Click <strong>Login</strong>. If it’s disabled, complete required fields.</span></li>
-            </ul>
-            <div class="d-flex gap-2">
-              <button id="startGuide" class="btn btn-secondary btn-sm"><i class="bi bi-play-circle me-1"></i>Start guide</button>
-              <button id="stopGuide" class="btn btn-outline-secondary btn-sm" disabled><i class="bi bi-stop-circle me-1"></i>Stop</button>
-              <button id="toggleHelp" class="btn btn-light btn-sm"><i class="bi bi-chat-dots me-1"></i>Hide</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+  <div class="d-flex justify-content-center">
     <div class="glass-card p-4 p-md-5">
     <div class="text-center mb-3">
       <div class="mb-2">
@@ -263,14 +209,6 @@
     const spinner = submitBtn.querySelector('.spinner-border');
     const btnLabel = submitBtn.querySelector('.btn-label');
     const rememberMe = document.getElementById('rememberMe');
-    const botSay = document.getElementById('botSay');
-    const toggleHelp = document.getElementById('toggleHelp');
-    const helpPanel = document.getElementById('helpPanel');
-    const botSpeech = document.getElementById('botSpeech');
-    const startGuide = document.getElementById('startGuide');
-    const stopGuide = document.getElementById('stopGuide');
-    const stepsList = helpPanel ? helpPanel.querySelector('.steps') : null;
-    const bigBot = document.querySelector('.big-bot');
 
     if (toggle && input) {
       toggle.addEventListener('click', function(){
@@ -280,7 +218,6 @@
         this.setAttribute('aria-label', isPw ? 'Hide password' : 'Show password');
       });
 
-      // Press-and-hold peek
       const show = () => { input.setAttribute('type', 'text'); toggle.querySelector('i').className = 'bi bi-eye-slash'; };
       const hide = () => { input.setAttribute('type', 'password'); toggle.querySelector('i').className = 'bi bi-eye'; };
       toggle.addEventListener('mousedown', show);
@@ -290,7 +227,6 @@
       toggle.addEventListener('touchend', hide);
     }
 
-    // CapsLock indicator
     const capCheck = (e) => {
       if (!caps) return;
       const on = e.getModifierState && e.getModifierState('CapsLock');
@@ -299,9 +235,6 @@
     input.addEventListener('keyup', capCheck);
     input.addEventListener('keydown', capCheck);
 
-    // (strength meter removed for a simpler UI)
-
-    // Enable submit when valid
     function validate(){
       const ok = username.value.trim() && input.value.trim() && roleSelect.value;
       submitBtn.disabled = !ok;
@@ -313,7 +246,6 @@
     });
     validate();
 
-    // Loading state on submit
     const form = document.querySelector('form');
     if (form) {
       form.addEventListener('submit', function(){
@@ -323,7 +255,6 @@
       });
     }
 
-    // Remember username/role using localStorage (not password)
     try {
       const savedUser = localStorage.getItem('login_username');
       const savedRole = localStorage.getItem('login_role');
@@ -340,159 +271,10 @@
           localStorage.removeItem('login_role');
         }
       });
-      // Update stored username/role if user edits while checked
       ['input','change'].forEach(evt => {
         username.addEventListener(evt, () => { if (rememberMe.checked) localStorage.setItem('login_username', username.value.trim()); });
       });
     } catch(e) { /* storage may be blocked; ignore */ }
-
-    // Helper: typewriter tips
-    const tips = [
-      'Tip: Enter your username to get started.',
-      'Tip: Click the eye icon to check your password.',
-      'Tip: Pick the correct role before logging in.',
-      'Secure: Avoid using public devices to save credentials.'
-    ];
-    let tipIdx = 0, typing;
-    function typeLine(text){
-      if (!botSay) return;
-      botSay.textContent = '';
-      let i = 0;
-      clearInterval(typing);
-      typing = setInterval(() => {
-        botSay.textContent = text.slice(0, ++i);
-        if (i >= text.length) clearInterval(typing);
-      }, 18);
-    }
-    function cycleTips(){ tipIdx = (tipIdx + 1) % tips.length; typeLine(tips[tipIdx]); }
-    setInterval(cycleTips, 5000);
-    typeLine(tips[0]);
-
-    // Ensure speech bubble and first highlight are visible on load
-    try {
-      botSpeech.style.display = 'block';
-      helpPanel.style.display = 'block';
-      botSpeech.classList.add('speak');
-      // Default focus/highlight on username
-      username?.focus();
-      username?.classList.add('highlight');
-    } catch(e) {}
-
-    // Toggle help speech bubble (smooth animation via class)
-    toggleHelp.addEventListener('click', () => {
-      const hiddenNow = botSpeech.classList.contains('hidden');
-      if (hiddenNow) {
-        // Show bubble
-        botSpeech.classList.remove('hidden');
-        helpPanel.style.display = 'block';
-        botSpeech.classList.add('speak');
-        if (bigBot) bigBot.classList.remove('bored');
-        // Auto-resume if it was guiding before hide
-        if (wasGuiding) { resumeGuidedCycle(); }
-        else if (!isGuiding && stepsList) { stepsList.style.display = 'block'; }
-      } else {
-        // Hide bubble: stop guide and clear highlight
-        botSpeech.classList.add('hidden');
-        if (bigBot) bigBot.classList.add('bored');
-        wasGuiding = isGuiding; // remember state
-        clearInterval(guideTimer);
-        isGuiding = false;
-        clearHighlight();
-        startGuide.disabled = false; stopGuide.disabled = true;
-        if (stepsList) stepsList.style.display = 'block';
-      }
-    });
-
-    // Tap the bot to toggle bubble (hide/unhide)
-    if (bigBot) {
-      bigBot.addEventListener('click', () => {
-        const hiddenNow = botSpeech.classList.contains('hidden');
-        if (hiddenNow) {
-          // Show bubble and auto-resume if it was running
-          botSpeech.classList.remove('hidden');
-          helpPanel.style.display = 'block';
-          botSpeech.classList.add('speak');
-          bigBot.classList.remove('bored');
-          if (wasGuiding) { resumeGuidedCycle(); }
-          else if (!isGuiding && stepsList) { stepsList.style.display = 'block'; }
-        } else {
-          // Hide bubble and pause guide/highlights
-          botSpeech.classList.add('hidden');
-          bigBot.classList.add('bored');
-          wasGuiding = isGuiding; // remember if we should auto-resume
-          clearInterval(guideTimer);
-          isGuiding = false;
-          clearHighlight();
-          startGuide.disabled = false; stopGuide.disabled = true;
-          if (stepsList) stepsList.style.display = 'block';
-        }
-      });
-    }
-
-    // Guided highlight (strong red outline)
-    const steps = [
-      { el: username, say: 'Step 1: Enter your username.' },
-      { el: input, say: 'Step 2: Enter your password. Use the eye to peek.' },
-      { el: roleSelect, say: 'Step 3: Select your role.' },
-      { el: submitBtn, say: 'Step 4: Click Login to continue.' }
-    ];
-    let guideTimer = null, guideIndex = 0, isGuiding = false, wasGuiding = false;
-    const GUIDE_INTERVAL = 3000; // slower, smoother pacing
-    function clearHighlight(){ steps.forEach(s => s.el.classList.remove('highlight')); }
-    function runStep(){
-      clearHighlight();
-      const s = steps[guideIndex];
-      if (!s) return;
-      s.el.classList.add('highlight');
-      if (s.el.focus) s.el.focus();
-      typeLine(`Step ${guideIndex + 1}: ${s.say.replace(/^Step\s*\d+:\s*/i, '')}`);
-      guideIndex = (guideIndex + 1) % steps.length;
-    }
-    function resumeGuidedCycle(){
-      // Continue from current guideIndex without resetting
-      startGuide.disabled = true; stopGuide.disabled = false;
-      botSpeech.classList.add('speak');
-      if (stepsList) stepsList.style.display = 'none';
-      if (bigBot) bigBot.classList.remove('bored');
-      runStep();
-      clearInterval(guideTimer);
-      guideTimer = setInterval(runStep, GUIDE_INTERVAL);
-      isGuiding = true; wasGuiding = false;
-    }
-    function startGuidedCycle(){
-      startGuide.disabled = true; stopGuide.disabled = false;
-      botSpeech.classList.remove('hidden');
-      helpPanel.style.display = 'block';
-      botSpeech.classList.add('speak');
-      if (stepsList) stepsList.style.display = 'none'; // show only one step at a time
-      if (bigBot) bigBot.classList.remove('bored');
-      guideIndex = 0; runStep();
-      guideTimer = setInterval(runStep, GUIDE_INTERVAL);
-      isGuiding = true;
-    }
-    startGuide.addEventListener('click', () => {
-      startGuidedCycle();
-    });
-    stopGuide.addEventListener('click', () => {
-      startGuide.disabled = false; stopGuide.disabled = true;
-      clearInterval(guideTimer); clearHighlight();
-      typeLine(tips[tipIdx]);
-      botSpeech.classList.remove('speak');
-      if (stepsList) stepsList.style.display = 'block';
-      isGuiding = false;
-    });
-
-    // If the user manually focuses a field, keep the highlight consistent
-    ;[username, input, roleSelect, submitBtn].forEach(el => {
-      el.addEventListener('focus', () => {
-        clearHighlight(); el.classList.add('highlight');
-      });
-    });
-
-    // Autostart guide every time
-    setTimeout(() => {
-      startGuidedCycle();
-    }, 150);
   });
 </script>
 {% endblock %}

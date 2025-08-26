@@ -520,6 +520,35 @@
       </div>
     </div>
 
+    <div class="p-3 border-bottom">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Results Access Restriction</h5>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseResultsRestriction" aria-expanded="true" aria-controls="collapseResultsRestriction">
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </div>
+      <div id="collapseResultsRestriction" class="collapse mt-3" data-bs-parent="#websiteSettingsAccordion">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4 d-flex align-items-center">
+            <div class="form-check">
+              {{ form.restrict_results_by_fee }}
+              <label class="form-check-label">Enable fee-based restriction</label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Restriction Threshold (%)</label>
+            {{ form.fee_restriction_threshold }}
+            <div class="form-text">Block results if outstanding balance percentage is above this value.</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Restriction Message</label>
+            {{ form.fee_restriction_message }}
+            <div class="form-text">Shown to restricted users. You can include guidance on how to clear fees.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="p-3 d-flex gap-2">
       <button type="submit" name="save_settings" class="btn btn-primary">Save Changes</button>
       <a href="{% url 'landing_page' %}" class="btn btn-outline-secondary" target="_blank">View Public Site</a>

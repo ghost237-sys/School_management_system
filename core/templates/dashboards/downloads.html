@@ -7,12 +7,38 @@ document.addEventListener('DOMContentLoaded', function () {
   const iframe = document.getElementById('dl_frame');
   const downloadsContainer = document.querySelector('.downloads');
   const fallbackMs = parseInt(downloadsContainer?.dataset.timeoutMs || '12000', 10);
+  // Step log utilities
+  const stepsEl = document.getElementById('download-steps');
+  const progressBar = document.querySelector('#download-overlay .progress-bar');
+  const stages = ['Fetching files', 'Preparing download', 'Downloading', 'Downloaded'];
+  const stageToPct = { 'Fetching files': 10, 'Preparing download': 40, 'Downloading': 80, 'Downloaded': 100 };
   const showOverlay = () => { if (overlay) overlay.classList.add('show'); };
   const hideOverlay = () => { if (overlay) overlay.classList.remove('show'); };
+  // Lock/unlock page scroll when overlay toggles
+  const lockScroll = () => document.body.classList.add('no-scroll');
+  const unlockScroll = () => document.body.classList.remove('no-scroll');
   let hideTimeout = null;
   const setOverlayText = (text) => {
     const t = document.getElementById('download-text');
     if (t) t.textContent = text || 'Preparing your download…';
+  };
+
+  const resetSteps = () => {
+    if (!stepsEl) return;
+    stepsEl.querySelectorAll('li').forEach(li => { li.classList.remove('done','active'); li.classList.add('pending'); });
+    if (progressBar) progressBar.style.width = '0%';
+  };
+  const setStage = (stage) => {
+    if (!stepsEl) return;
+    const items = Array.from(stepsEl.querySelectorAll('li'));
+    const idx = stages.indexOf(stage);
+    items.forEach((li, i) => {
+      li.classList.remove('pending','active','done');
+      if (i < idx) li.classList.add('done');
+      else if (i === idx) li.classList.add('active');
+      else li.classList.add('pending');
+    });
+    if (progressBar && stageToPct[stage] != null) progressBar.style.width = stageToPct[stage] + '%';
   };
 
   const disableElems = (root) => {
@@ -43,33 +69,49 @@ document.addEventListener('DOMContentLoaded', function () {
     iframe.addEventListener('load', () => {
       // Many browsers will still fire load even for attachment responses.
       if (hideTimeout) clearTimeout(hideTimeout);
+      setStage('Downloaded');
+      setOverlayText('Downloaded');
       hideOverlay();
-      enableElems();
+      enableElems(); unlockScroll();
+      // Remove button spinner if present
+      const submitBtn = document.getElementById('dl-class-submit');
+      const sp = submitBtn && submitBtn.querySelector('.spinner-border');
+      if (sp) sp.remove();
     });
   }
 
   // Intercept all forms within downloads container and target iframe
   document.querySelectorAll('.downloads form').forEach(f => {
     f.addEventListener('submit', () => {
-      showOverlay();
+      showOverlay(); lockScroll();
+      resetSteps();
+      setStage('Fetching files');
       setOverlayText(f.getAttribute('data-dl-text') || 'Preparing your download…');
+      // quickly move to preparing
+      setTimeout(() => setStage('Preparing download'), 250);
       disableElems(f);
       if (iframe && !f.hasAttribute('target')) {
         f.setAttribute('target', 'dl_frame');
       }
+      // during submit we assume network start
+      setTimeout(() => setStage('Downloading'), 600);
       // Fallback to auto-hide in case load doesn't fire for attachments
-      hideTimeout = setTimeout(() => { hideOverlay(); enableElems(); }, fallbackMs);
+      hideTimeout = setTimeout(() => { setStage('Downloaded'); hideOverlay(); enableElems(); unlockScroll(); }, fallbackMs);
     });
   });
 
   // Intercept direct download links
   document.querySelectorAll('.downloads a.dl-link').forEach(a => {
     a.addEventListener('click', () => {
-      showOverlay();
+      showOverlay(); lockScroll();
+      resetSteps();
+      setStage('Fetching files');
       setOverlayText(a.getAttribute('data-dl-text') || a.textContent.trim() || 'Preparing your download…');
+      setTimeout(() => setStage('Preparing download'), 250);
       disableElems(a.closest('div.card-body') || undefined);
       if (iframe) a.setAttribute('target', 'dl_frame');
-      hideTimeout = setTimeout(() => { hideOverlay(); enableElems(); }, fallbackMs);
+      setTimeout(() => setStage('Downloading'), 600);
+      hideTimeout = setTimeout(() => { setStage('Downloaded'); hideOverlay(); enableElems(); }, fallbackMs);
     });
   });
 
@@ -80,11 +122,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const href = a.getAttribute('href') || '';
     // Only trigger overlay for same-window navigations to files
     if (href && (href.endsWith('.csv') || href.endsWith('.xlsx') || href.endsWith('.pdf') || a.classList.contains('dl-link'))) {
-      showOverlay();
+      showOverlay(); lockScroll();
+      resetSteps();
+      setStage('Fetching files');
       setOverlayText(a.getAttribute('data-dl-text') || a.textContent.trim() || 'Preparing your download…');
+      setTimeout(() => setStage('Preparing download'), 250);
       disableElems(a.closest('div.card-body') || undefined);
       if (iframe) a.setAttribute('target', 'dl_frame');
-      hideTimeout = setTimeout(() => { hideOverlay(); enableElems(); }, fallbackMs);
+      setTimeout(() => setStage('Downloading'), 600);
+      hideTimeout = setTimeout(() => { setStage('Downloaded'); hideOverlay(); enableElems(); unlockScroll(); }, fallbackMs);
     }
   }, true);
 
@@ -99,16 +145,70 @@ document.addEventListener('DOMContentLoaded', function () {
         const base = form.dataset.baseUrl;
         const url = base.replace('/0/', '/' + cid + '/');
         if (iframe) {
-          showOverlay();
+          showOverlay(); lockScroll();
+          resetSteps();
+          setStage('Fetching files');
           setOverlayText('Preparing your download…');
+          setTimeout(() => setStage('Preparing download'), 250);
           disableElems(form);
+          // Button spinner on
+          const submitBtn = document.getElementById('dl-class-submit');
+          if (submitBtn && !submitBtn.querySelector('.spinner-border')) {
+            const sp = document.createElement('span');
+            sp.className = 'spinner-border spinner-border-sm';
+            sp.setAttribute('role', 'status');
+            sp.setAttribute('aria-hidden', 'true');
+            submitBtn.appendChild(sp);
+          }
           iframe.src = url;
-          hideTimeout = setTimeout(() => { hideOverlay(); enableElems(); }, fallbackMs);
+          setTimeout(() => setStage('Downloading'), 600);
+          hideTimeout = setTimeout(() => { setStage('Downloaded'); hideOverlay(); enableElems(); unlockScroll(); }, fallbackMs);
         } else {
           window.location = url;
         }
+      } else {
+        // Show simple validation feedback if no class selected
+        if (select) {
+          select.classList.add('is-invalid');
+          // remove invalid state on change
+          const clearInvalid = () => { select.classList.remove('is-invalid'); select.removeEventListener('change', clearInvalid); };
+          select.addEventListener('change', clearInvalid);
+          const fb = form.querySelector('.invalid-feedback');
+          if (fb) { fb.style.display = 'block'; fb.textContent = 'Please select a class before downloading.'; }
+        }
       }
     });
+    // Disable submit button until a class is selected and maintain a fallback link
+    const submitBtn = document.getElementById('dl-class-submit');
+    const select = document.getElementById('dl-class-id');
+    const fallbackLink = document.getElementById('dl-class-fallback');
+    if (submitBtn && select) {
+      const toggle = () => {
+        const enabled = !!select.value;
+        submitBtn.disabled = !enabled;
+        if (fallbackLink) {
+          if (enabled) {
+            const base = form.dataset.baseUrl;
+            fallbackLink.href = base.replace('/0/', '/' + select.value + '/');
+            fallbackLink.style.display = '';
+          } else {
+            fallbackLink.removeAttribute('href');
+            fallbackLink.style.display = 'none';
+          }
+        }
+      };
+      toggle();
+      select.addEventListener('change', toggle);
+      // When clicking fallback, show overlay too
+      if (fallbackLink) {
+        fallbackLink.addEventListener('click', () => {
+          showOverlay();
+          setOverlayText('Preparing your download…');
+          disableElems(form);
+          hideTimeout = setTimeout(() => { hideOverlay(); enableElems(); }, fallbackMs);
+        });
+      }
+    }
   }
 
   // Rotate chevrons on expand/collapse
@@ -139,13 +239,25 @@ document.addEventListener('DOMContentLoaded', function () {
     .downloads .section-divider { margin-bottom: .5rem; }
     .downloads h1.mb-0 { font-size: 1.25rem; }
     /* Download overlay */
-    .download-overlay { position: fixed; inset: 0; background: rgba(255,255,255,.6); backdrop-filter: blur(2px); z-index: 2000; display: none; align-items: center; justify-content: center; }
+    .download-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(17,24,39,.35); backdrop-filter: blur(2px); z-index: 50000; display: none; align-items: center; justify-content: center; }
     .download-overlay.show { display: flex; }
     .download-overlay .box { background: #fff; border: 1px solid #e5e7eb; border-radius: .5rem; padding: .75rem 1rem; box-shadow: 0 8px 24px rgba(0,0,0,.08); display: flex; align-items: center; gap: .5rem; }
     .download-overlay .text { font-size: .9rem; color: #374151; }
     .downloads .btn.disabled,[aria-disabled="true"] { pointer-events: none; }
     .downloads .section-divider .btn.rotated i { transform: rotate(180deg); transition: transform .2s ease-in-out; }
     .downloads .section-divider .btn i { transition: transform .2s ease-in-out; }
+    .downloads .btn .spinner-border.spinner-border-sm { margin-left: .35rem; vertical-align: text-bottom; }
+    .downloads .is-invalid { border-color: #dc3545; }
+    .downloads .invalid-feedback { color: #dc3545; font-size: .8rem; }
+    /* Step log styles */
+    #download-steps { margin: .5rem 0 0; padding-left: 1rem; }
+    #download-steps li { position: relative; margin: .125rem 0; }
+    #download-steps li::before { content: '•'; position: absolute; left: -1rem; color: #9ca3af; }
+    #download-steps li.pending { color: #6b7280; }
+    #download-steps li.active { color: #111827; font-weight: 600; }
+    #download-steps li.done { color: #059669; }
+    /* Prevent background scroll when overlay is visible */
+    body.no-scroll { overflow: hidden !important; }
   </style>
 
   <!-- Hidden iframe target and overlay for downloads -->
@@ -159,6 +271,14 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="progress" role="progressbar" aria-label="Download progress" aria-valuemin="0" aria-valuemax="100">
         <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
       </div>
+    </div>
+    <div class="w-100 px-4 pb-3">
+      <ul id="download-steps" class="list-unstyled small mb-0">
+        <li class="pending">Fetching files</li>
+        <li class="pending">Preparing download</li>
+        <li class="pending">Downloading</li>
+        <li class="pending">Downloaded</li>
+      </ul>
     </div>
   </div>
 
@@ -546,9 +666,41 @@ document.addEventListener('DOMContentLoaded', function () {
     <div class="col-12 col-md-6 col-xl-4">
       <div class="card shadow-sm h-100">
         <div class="card-body">
-          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-filetype-xlsx"></i> Grade Upload Template</h5>
-          <p class="text-muted">Download the latest Excel template for bulk grade uploads.</p>
-          <a class="btn btn-outline-primary dl-link" href="{% url 'api_download_grade_template' %}" target="dl_frame"><i class="bi bi-cloud-arrow-down me-1"></i> grade_template.xlsx</a>
+          <h5 class="card-title d-flex align-items-center gap-2"><i class="bi bi-card-checklist"></i> Result Slips</h5>
+          <p class="text-muted">Per-student subject scores for a selected exam. Filter by class or level.</p>
+          <form class="row g-2" method="get" action="{% url 'export_result_slip_csv' %}">
+            <div class="col-12">
+              <label class="form-label small mb-1">Exam</label>
+              <select class="form-select form-select-sm" required name="exam_id">
+                <option value="" selected disabled>Select exam…</option>
+                {% for e in exams %}
+                <option value="{{ e.id }}">{{ e.name }} — {{ e.term.name }} ({{ e.term.academic_year.year }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Class</label>
+              <select class="form-select form-select-sm" name="class_id">
+                <option value="">All</option>
+                {% for c in classes %}
+                <option value="{{ c.id }}">{{ c.name }}{% if c.stream %} - {{ c.stream }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">Level</label>
+              <select class="form-select form-select-sm" name="level">
+                <option value="">All</option>
+                {% for lv in levels %}
+                <option value="{{ lv }}">{{ lv }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6 d-flex align-items-end gap-2">
+              <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-download me-1"></i> CSV</button>
+              <button type="submit" class="btn btn-outline-secondary w-100" formaction="{% url 'export_result_slip_pdf' %}"><i class="bi bi-filetype-pdf me-1"></i> PDF</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -565,8 +717,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 <option value="{{ c.id }}">{{ c.name }}{% if c.stream %} - {{ c.stream }}{% endif %}</option>
                 {% endfor %}
               </select>
-              <button type="submit" class="btn btn-secondary"><i class="bi bi-download"></i></button>
+              <button id="dl-class-submit" type="submit" class="btn btn-secondary"><i class="bi bi-download"></i></button>
+              <a id="dl-class-fallback" href="#" target="_blank" class="btn btn-link btn-sm" style="display:none">Open in new tab</a>
             </div>
+            <div class="invalid-feedback d-block" style="display:none"></div>
           </form>
         </div>
       </div>
