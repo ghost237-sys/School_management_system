@@ -7,19 +7,19 @@ DEBUG = True
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    '0719e873a579.ngrok-free.app',  # <-- Current ngrok domain
+    'a1ef3ee75902.ngrok-free.app',  # <-- Current ngrok domain
     '.ngrok-free.app',  # <-- Allow any ngrok subdomain
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://0719e873a579.ngrok-free.app',
+    'https://a1ef3ee75902.ngrok-free.app',
     'https://*.ngrok-free.app',  # <-- Trust any ngrok subdomain for CSRF
 ]
 
 MPESA_CONSUMER_KEY = 'EXGFqWiPKTmwUrCGfKmHbUzj43Ikge7ekz5GVSbdzAk37L0j'
 MPESA_CONSUMER_SECRET = 'lOjIKLlnhiHXxFRDkfkv9m8pm80ZJhNGQpcuuq3ktdyx9GAKk8pP8Aw4VlLRVnU1'
 MPESA_SECURITY_CREDENTIAL = 'MAVwHpewRUL/DCazjHl9tFC50Aa+lBq1wusfpEYL4118SkIxFa9fttEN24kO1wjKlhl3msXzX9jGuK0ra2W9XNVgRgAA4p1DzW8eAtg4OKKoMAzZ25GXBuDJFaniFsokK7oBouxwq9OWuS4M8g2aYb+6RGO3+vEYUvT3a6M8n5KD8wGk7wGlOXlHKfICEGcaWHb9XMEhaix9l97leFQePUS1XXiKVhlXTTb1Qey9xkCzZXOXbtY4cz/qMT4wKXlwzm4aCpUYJVajrZCRYsZv6L8H/s331f9D/PX+DQ1oLjwjVGptx8SwfZrYOe9s3pHpgyTw4dUyou5Rub+OSwQETg=='
-MPESA_SHORTCODE = '174379'
+MPESA_SHORTCODE = '600996'
 MPESA_PASSKEY = 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
 MPESA_INITIATOR_NAME = '<YOUR_INITIATOR_NAME>'
 MPESA_ACCOUNT_NUMBER = '710092'
@@ -28,7 +28,7 @@ MPESA_ENVIRONMENT = 'sandbox'  # or 'production' for live
 
 # Public callback URL used by Safaricom for STK push callbacks
 # Ensure this matches your active tunnel/domain
-MPESA_CALLBACK_URL = 'https://0719e873a579.ngrok-free.app/mpesa-callback/'
+MPESA_CALLBACK_URL = 'https://a1ef3ee75902.ngrok-free.app/mpesa-callback/'
 
 INSTALLED_APPS = [
     'django.contrib.admin',

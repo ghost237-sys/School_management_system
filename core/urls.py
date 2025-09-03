@@ -1,7 +1,10 @@
 from django.urls import path, include
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
-from . import views, views_admin_messaging, views_finance_messaging
+from . import views, views_admin_messaging, views_finance_messaging, views_pocket_money
+from . import views_auth_extras
+from . import views_c2b
+from . import views_receipts
 from . import views_lock
 from django.views.generic.base import RedirectView
 from django.conf import settings
@@ -15,18 +18,15 @@ from core.views_teacher_messaging import teacher_messaging
 from core.views_clerk_messaging import clerk_messaging
 urlpatterns = [
     path('', include('core.urls_payment_verification')),
+    # Safaricom Daraja C2B callbacks
+    path('mpesa/c2b/validation/', views_c2b.c2b_validation, name='mpesa_c2b_validation'),
+    path('mpesa/c2b/confirmation/', views_c2b.c2b_confirmation, name='mpesa_c2b_confirmation'),
     path('mpesa-callback/', views.mpesa_callback, name='mpesa_callback'),
-  path('mpesa/c2b/validation/', views.mpesa_c2b_validation, name='mpesa_c2b_validation'),
-  path('mpesa/c2b/confirmation/', views.mpesa_c2b_confirmation, name='mpesa_c2b_confirmation'),
+    path('mpesa-callback/ping/', views.mpesa_callback_ping, name='mpesa_callback_ping'),
     # Redirect custom admin-like paths BEFORE django admin catch-all
   path('admin/period-slots/', RedirectView.as_view(url='/admin_period_slots/', permanent=False)),
-  path('admin/fees/mpesa/reconcile/', views.admin_mpesa_reconcile, name='admin_mpesa_reconcile'),
-  path('admin/fees/mpesa/ledger/', views.admin_c2b_ledger, name='admin_c2b_ledger'),
-  path('admin/fees/mpesa/', views.admin_mpesa_all, name='admin_mpesa_all'),
-  path('admin/fees/mpesa/log-file/', views.admin_payment_log_file, name='admin_payment_log_file'),
-  # Custom admin-like view for block result slip must come BEFORE Django admin catch-all
+    # Custom admin-like view for block result slip must come BEFORE Django admin catch-all
   path('admin/block_result_slip/', views.admin_block_result_slip, name='admin_block_result_slip'),
-  path('admin/', admin.site.urls),
     path('api/', include('core.timetable_urls')),
     path('timetable/', timetable_view, name='timetable_view'),
     path('timetable/auto-generate/', views.timetable_auto_generate, name='timetable_auto_generate'),
@@ -36,12 +36,27 @@ urlpatterns = [
     path('teacher_messaging/', teacher_messaging, name='teacher_messaging'),
     path('clerk_messaging/', clerk_messaging, name='clerk_messaging'),
     path('finance_messaging/', views_finance_messaging.finance_messaging_page, name='finance_messaging_page'),
+    path('finance_messaging/resend-failed/', views_finance_messaging.resend_failed_sms, name='finance_resend_failed_sms'),
 
-    # General Login/Logout
-    path('login/', views.custom_login_view, name='login'),
+    # General Login/Logout (wrap login to send idle email link when applicable)
+    path('login/', views_auth_extras.login_with_idle_link, name='login'),
     path('logout/', views.custom_logout_view, name='logout'),
+    # One-time idle login link consumer
+    path('auth/idle-login/<str:token>/', views_auth_extras.idle_login, name='idle_login'),
+    # Email confirmation login link consumer (admin & clerk)
+    path('auth/email-login/<str:token>/', views_auth_extras.email_login_confirm, name='email_login_confirm'),
+    # Polling endpoint for device continuation
+    path('auth/login-status/<str:request_id>/', views_auth_extras.login_status, name='login_status'),
+    # OTP endpoints for sensitive actions
+    path('auth/send-action-otp/', views_auth_extras.send_action_otp, name='send_action_otp'),
+    path('auth/verify-action-otp/', views_auth_extras.verify_action_otp, name='verify_action_otp'),
+    # Session/device management
+    path('auth/sessions/', views_auth_extras.session_devices, name='session_devices'),
+    path('auth/sessions/revoke/<str:key>/', views_auth_extras.revoke_session, name='revoke_session'),
     # Auth utility endpoints
     path('auth/verify-password/', views_lock.verify_password, name='verify_password'),
+    # Assistant widget/API (namespaced) for base template chat widget URL reverses
+    path('assistant/', include(('assistant.urls', 'assistant'), namespace='assistant')),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('', include('landing.urls')),
 
@@ -112,6 +127,10 @@ urlpatterns = [
     path('admin_messaging/load_messages/', views_admin_messaging.load_messages, name='admin_load_messages'),
     path('admin_messaging/mark_read/', views_admin_messaging.mark_read, name='admin_mark_read'),
     path('admin_messaging/conversation_action/', views_admin_messaging.conversation_action, name='admin_conversation_action'),
+    # Admin/Clerk M-Pesa pages (custom, not Django admin)
+    path('admin/fees/mpesa/', views.admin_mpesa_all, name='admin_mpesa_all'),
+    path('admin/fees/mpesa/ledger/', views.admin_c2b_ledger, name='admin_c2b_ledger'),
+    path('admin/fees/mpesa/reconcile/', views.admin_mpesa_reconcile, name='admin_mpesa_reconcile'),
     path('admin_events/', views.admin_events, name='admin_events'),
     path('downloads/', views.downloads, name='downloads'),
     # Export/Downloads API (Admin)
@@ -137,10 +156,24 @@ urlpatterns = [
     path('admin_payment_messages/', views_admin_messaging.admin_payment_messages, name='admin_payment_messages'),
     path('admin_payment_messages/logs/', views_admin_messaging.admin_payment_logs, name='admin_payment_logs'),
 
+    # Pocket Money Management URLs
+    path('pocket-money/', views_pocket_money.pocket_money_list, name='pocket_money_list'),
+    path('pocket-money/add/', views_pocket_money.pocket_money_add, name='pocket_money_add'),
+    path('pocket-money/edit/<int:transaction_id>/', views_pocket_money.pocket_money_edit, name='pocket_money_edit'),
+    path('pocket-money/delete/<int:transaction_id>/', views_pocket_money.pocket_money_delete, name='pocket_money_delete'),
+    path('pocket-money/student-balance/<int:student_id>/', views_pocket_money.student_pocket_money_balance, name='student_pocket_money_balance'),
+    path('pocket-money/student/<int:student_id>/', views_pocket_money.pocket_money_student_summary, name='pocket_money_student_summary'),
+    path('pocket-money/search-students/', views_pocket_money.search_students_ajax, name='search_students_ajax'),
+
+    # Receipt Views
+    path('fees/payment/<int:payment_id>/receipt/', views_receipts.fee_payment_receipt, name='fee_payment_receipt'),
+    path('pocket-money/receipt/<int:transaction_id>/', views_receipts.pocket_money_receipt, name='pocket_money_receipt'),
+
     # Teacher URLs
     path('teacher_class_result_slip/<int:class_id>/', views.teacher_class_result_slip, name='teacher_class_result_slip'),
     path('teacher_dashboard/<int:teacher_id>/', views.teacher_dashboard, name='teacher_dashboard'),
     path('teacher_messaging/', teacher_messaging, name='teacher_messaging'),
+    path('teacher/lesson-plans/', views.teacher_lesson_plans, name='teacher_lesson_plans'),
     path('teacher/<int:teacher_id>/profile/', views.teacher_profile, name='teacher_profile'),
     path('teacher/<int:teacher_id>/timetable/', views.teacher_timetable, name='teacher_timetable'),
     path('teacher/<int:teacher_id>/attendance/', views.manage_attendance, name='manage_attendance'),
@@ -149,7 +182,10 @@ urlpatterns = [
     path('teacher/<int:teacher_id>/grades/<int:class_id>/<int:subject_id>/<int:exam_id>/', views.input_grades, name='input_grades'),
     path('teacher/<int:teacher_id>/results/<int:class_id>/<int:subject_id>/<int:exam_id>/', views.exam_results, name='exam_results'),
     path('teacher/<int:teacher_id>/upload-grades/', views.upload_grades, name='upload_grades'),
+    path('teacher/<int:teacher_id>/download-grade-template/', views.download_grade_template, name='download_grade_template'),
+    path('teacher/<int:teacher_id>/download-minimal-grade-template/', views.download_minimal_grade_template, name='download_minimal_grade_template'),
     path('teacher/<int:teacher_id>/gradebook/', views.gradebook, name='gradebook'),
+    path('downloads/failed-grades.csv', views.download_failed_grades, name='download_failed_grades'),
 
     # Student URLs
     path('student_profile/<int:student_id>/', views.student_profile, name='student_profile'),

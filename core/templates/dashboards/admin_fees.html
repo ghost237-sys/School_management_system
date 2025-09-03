@@ -138,6 +138,70 @@
         margin-bottom: 1.25rem !important;
     }
 </style>
+<!-- Dark-mode overrides for this page-specific styles -->
+<style>
+    /* Neutralize bright gradient background in dark mode */
+    [data-theme="dark"] body {
+        background: var(--bg) !important;
+        animation: none !important;
+    }
+    /* Cards and glass effects */
+    [data-theme="dark"] .glass-card,
+    [data-theme="dark"] .card {
+        background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
+        border-color: var(--border) !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,.25) !important;
+    }
+    /* Dashboard hero */
+    [data-theme="dark"] .dashboard-hero {
+        background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
+        color: var(--text) !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,.25) !important;
+    }
+    [data-theme="dark"] .dashboard-hero-content h2 { color: var(--text) !important; }
+    [data-theme="dark"] .dashboard-hero-content p { color: var(--muted) !important; }
+    [data-theme="dark"] .dashboard-hero-icon { box-shadow: none !important; }
+    /* Section divider tones */
+    [data-theme="dark"] .section-divider .divider-icon {
+        background: color-mix(in srgb, var(--primary) 18%, var(--surface)) !important;
+        color: var(--text) !important;
+        box-shadow: none !important;
+    }
+    [data-theme="dark"] .section-divider .divider-title { color: var(--text) !important; }
+    /* Forms */
+    [data-theme="dark"] .form-control,
+    [data-theme="dark"] select {
+        background: color-mix(in srgb, var(--surface) 92%, transparent) !important;
+        color: var(--text) !important;
+        border-color: var(--border) !important;
+    }
+    [data-theme="dark"] .form-control:focus,
+    [data-theme="dark"] select:focus {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent) !important;
+        background: color-mix(in srgb, var(--surface) 92%, transparent) !important;
+    }
+    /* Tables & list areas */
+    [data-theme="dark"] .table {
+        background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
+        color: var(--text) !important;
+        box-shadow: none !important;
+    }
+    [data-theme="dark"] .table-title { color: var(--text) !important; }
+    /* Chart container */
+    [data-theme="dark"] .chart-container {
+        background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
+        box-shadow: none !important;
+    }
+    /* Scroll containers around tables */
+    [data-theme="dark"] .card-body > div[style*="overflow-y: auto"],
+    [data-theme="dark"] .card-body > div[style*="overflow-y:auto"] {
+        background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
+        border-color: var(--border) !important;
+        box-shadow: none !important;
+    }
+</style>
+<style>
     .analytics-section {
         margin-top: 2rem;
     }
@@ -383,6 +447,110 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // --- Optional Charges Tab helpers ---
+    const enableOptionalChargesHelpers = () => {
+        const selectAllBtn = document.getElementById('select-all-students');
+        const deselectAllBtn = document.getElementById('deselect-all-students');
+        // Try common id first, then fallbacks matching field name ending with 'students'
+        let studentsSelect = document.getElementById('id_students');
+        if (!studentsSelect) {
+            studentsSelect = document.querySelector('select[name$="students"]');
+        }
+        if (!studentsSelect) {
+            // As a last resort, pick the first multiple select inside Optional Charges card
+            const card = document.querySelector('#optional-charges .card-body');
+            studentsSelect = card ? card.querySelector('select[multiple]') : null;
+        }
+        const filterInput = document.getElementById('student-filter');
+        if (studentsSelect && selectAllBtn && deselectAllBtn) {
+            selectAllBtn.addEventListener('click', () => {
+                for (const opt of studentsSelect.options) opt.selected = true;
+            });
+            deselectAllBtn.addEventListener('click', () => {
+                for (const opt of studentsSelect.options) opt.selected = false;
+            });
+        }
+
+        // Live filtering of students multiselect (rebuild options from snapshot)
+        if (studentsSelect && filterInput) {
+            const normalize = s => (s||'').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            // Snapshot all options once
+            const allOptions = Array.from(studentsSelect.options).map(o => ({
+                value: o.value,
+                text: o.text,
+                key: normalize(o.text)
+            }));
+
+            let debounceTimer = null;
+            const applyFilter = (q) => {
+                const term = normalize(q);
+                const terms = term ? term.split(/\s+/).filter(Boolean) : [];
+                // Preserve selected values across rebuild
+                const selectedValues = new Set(Array.from(studentsSelect.selectedOptions).map(o => o.value));
+                const frag = document.createDocumentFragment();
+                allOptions.forEach(o => {
+                    const matches = !terms.length || terms.every(t => o.key.includes(t));
+                    if (matches) {
+                        const opt = new Option(o.text, o.value, false, selectedValues.has(o.value));
+                        frag.appendChild(opt);
+                    }
+                });
+                studentsSelect.innerHTML = '';
+                studentsSelect.appendChild(frag);
+                studentsSelect.selectedIndex = -1;
+            };
+
+            const onType = function(){
+                if (debounceTimer) clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => applyFilter(this.value), 80);
+            };
+            filterInput.addEventListener('input', onType);
+            filterInput.addEventListener('keyup', onType);
+            // Initialize (no filter) so internal snapshot and selection sync is consistent
+            applyFilter('');
+        }
+
+        const applyBtn = document.getElementById('oc-apply-class');
+        const clearBtn = document.getElementById('oc-clear-class');
+        const classSelect = document.getElementById('id_class_group');
+        if (applyBtn && classSelect) {
+            applyBtn.addEventListener('click', () => {
+                const url = new URL(window.location.href);
+                if (classSelect.value) url.searchParams.set('oc_class', classSelect.value);
+                else url.searchParams.delete('oc_class');
+                url.hash = '#optional-charges';
+                window.location.href = url.toString();
+            });
+        }
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('oc_class');
+                url.hash = '#optional-charges';
+                window.location.href = url.toString();
+            });
+        }
+    };
+
+    // Persist active tab via hash
+    const feesTabEl = document.getElementById('feesTab');
+    // Always enable once on load so listeners exist even before tab activation
+    enableOptionalChargesHelpers();
+    if (feesTabEl) {
+        feesTabEl.addEventListener('shown.bs.tab', function (event) {
+            const target = event.target.getAttribute('data-bs-target');
+            if (target) window.location.hash = target;
+            if (target === '#optional-charges') enableOptionalChargesHelpers();
+        });
+        // Activate tab from hash on load
+        const hash = window.location.hash;
+        if (hash) {
+            const trigger = document.querySelector(`[data-bs-target="${hash}"]`);
+            if (trigger) new bootstrap.Tab(trigger).show();
+            if (hash === '#optional-charges') enableOptionalChargesHelpers();
+        }
+    }
 });
 </script>
 {% endblock %}
@@ -393,6 +561,10 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="dashboard-hero-icon">
                 <i class="bi bi-speedometer2"></i>
             </div>
+
+      
+
+      
             <div class="dashboard-hero-content">
                 <h2>Fee Management Dashboard</h2>
                 <p>Manage, assign, and review school fees with clarity and ease. See trends, assign fees, and track payments all in one place.</p>
@@ -425,6 +597,11 @@ document.addEventListener('DOMContentLoaded', function() {
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="assign-fees-tab" data-bs-toggle="tab" data-bs-target="#assign-fees" type="button" role="tab" aria-controls="assign-fees" aria-selected="false">
           <i class="bi bi-people-fill me-1"></i> Assign Fees
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="optional-charges-tab" data-bs-toggle="tab" data-bs-target="#optional-charges" type="button" role="tab" aria-controls="optional-charges" aria-selected="false">
+          <i class="bi bi-bag-plus me-1"></i> Optional Charges
         </button>
       </li>
       <li class="nav-item" role="presentation">
@@ -538,6 +715,51 @@ document.addEventListener('DOMContentLoaded', function() {
                   </div>
                   <button type="submit" class="btn btn-primary" name="assign_fee"><i class="bi bi-check2-circle me-1"></i>Assign Fee</button>
                 </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Optional Charges Tab -->
+      <div class="tab-pane fade" id="optional-charges" role="tabpanel" aria-labelledby="optional-charges-tab">
+        <div class="section-divider"><span class="divider-icon"><i class="bi bi-bag-plus"></i></span><span class="divider-title">Optional Charges Enrollment</span></div>
+        <div class="row mb-4">
+          <div class="col-md-8">
+            <div class="card glass-card">
+              <div class="card-header bg-warning text-dark"><i class="bi bi-bag-plus me-2"></i>Enroll Students to Optional Offer</div>
+              <div class="card-body">
+                <form method="post">
+                  {% csrf_token %}
+                  <div class="mb-3">
+                    {{ optional_enroll_form.offer.label_tag }}
+                    {{ optional_enroll_form.offer }}
+                  </div>
+                  <div class="mb-3 d-flex align-items-end gap-2">
+                    <div class="flex-grow-1">
+                      {{ optional_enroll_form.class_group.label_tag }}
+                      {{ optional_enroll_form.class_group }}
+                    </div>
+                    <div class="mb-2">
+                      <button type="button" class="btn btn-outline-primary" id="oc-apply-class"><i class="bi bi-funnel me-1"></i> Apply</button>
+                      <button type="button" class="btn btn-outline-secondary" id="oc-clear-class">Clear</button>
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    {{ optional_enroll_form.students.label_tag }}
+                    <div class="input-group mb-2">
+                      <span class="input-group-text"><i class="bi bi-search"></i></span>
+                      <input type="text" class="form-control" id="student-filter" placeholder="Search students..." autocomplete="off" spellcheck="false">
+                    </div>
+                    {{ optional_enroll_form.students }}
+                    <div class="mt-2">
+                      <button type="button" class="btn btn-sm btn-outline-success" id="select-all-students">Select All</button>
+                      <button type="button" class="btn btn-sm btn-outline-danger" id="deselect-all-students">Deselect All</button>
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-primary" name="enroll_optional"><i class="bi bi-check2-circle me-1"></i>Enroll Selected</button>
+                </form>
+                <small class="text-muted d-block mt-2">Eligibility rule: Students with fee balance above the configured threshold cannot be enrolled.</small>
               </div>
             </div>
           </div>
@@ -672,19 +894,13 @@ document.addEventListener('DOMContentLoaded', function() {
               <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-phone me-2"></i>M-Pesa Tools</span>
                 <div class="d-flex gap-2">
-                  <a href="{% url 'admin_mpesa_all' %}" class="btn btn-sm btn-light"><i class="bi bi-list-task me-1"></i> All Transactions</a>
-                  <a href="{% url 'admin_c2b_ledger' %}" class="btn btn-sm btn-outline-light"><i class="bi bi-journal-text me-1"></i> C2B Ledger</a>
-                  <a href="{% url 'admin_payment_log_file' %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-warning"><i class="bi bi-file-earmark-text me-1"></i> View Log File</a>
                   <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#verifyPaymentModal"><i class="bi bi-check2-circle me-1"></i> Verify by Reference</button>
                 </div>
               </div>
               <div class="card-body">
-                <p class="mb-2 text-muted">Use these tools to manage M-Pesa payments, including transactions paid outside the website. The ledger captures all PayBill confirmations to prevent loss during callback issues.</p>
+                <p class="mb-2 text-muted">Use this tool to verify M-Pesa payments by reference where needed.</p>
                 <ul class="mb-0">
-                  <li><strong>All Transactions</strong> shows STK Push and PayBill (C2B) entries with filters and quick verify.</li>
-                  <li><strong>C2B Ledger</strong> lists raw Safaricom confirmations (TransID, MSISDN, Bill Ref, Amount).</li>
-                  <li><strong>View Log File</strong> opens the raw callback log for deeper troubleshooting.</li>
-                  <li><strong>Verify by Reference</strong> approves or reconstructs a payment using TransID from the ledger.</li>
+                  <li><strong>Verify by Reference</strong> approves or reconstructs a payment using a valid M-Pesa reference.</li>
                 </ul>
               </div>
             </div>

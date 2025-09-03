@@ -211,6 +211,7 @@ class SubjectComponent(models.Model):
 class FeeCategory(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
+    is_optional = models.BooleanField(default=False, help_text="If checked, this category is optional and can be excluded from mandatory fee calculations.")
 
     def __str__(self):
         return self.name
@@ -237,7 +238,7 @@ class FeePayment(models.Model):
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
     ]
-    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='fee_payments')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='fee_payments', null=True, blank=True)
     fee_assignment = models.ForeignKey(FeeAssignment, on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
     payment_date = models.DateTimeField(auto_now_add=True)
@@ -247,7 +248,8 @@ class FeePayment(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')  # Verification status
 
     def __str__(self):
-        return f"{self.student} paid {self.amount_paid} for {self.fee_assignment} on {self.payment_date}"
+        s = str(self.student) if self.student else "Unassigned"
+        return f"{s} paid {self.amount_paid} for {self.fee_assignment} on {self.payment_date}"
 
     class Meta:
         ordering = ['-payment_date']
@@ -290,31 +292,106 @@ class MpesaTransaction(models.Model):
         return f"MpesaTX {self.checkout_request_id} ({self.status})"
 
 class MpesaC2BLedger(models.Model):
-    """Immutable ledger of PayBill (C2B) confirmations.
+    """Raw C2B PayBill confirmations ledger.
 
-    Stores raw details from Safaricom so that if the callback handling path
-    fails (e.g., network error, URL down), we can reconcile/verify later by
-    TransID.
+    Stores essential fields from Safaricom Daraja C2B confirmation callbacks
+    and the raw payload for reconciliation and auditing.
     """
     trans_id = models.CharField(max_length=30, unique=True, db_index=True)
-    trans_time = models.CharField(max_length=20, blank=True, null=True)
+    trans_time = models.CharField(max_length=20, null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    msisdn = models.CharField(max_length=20, blank=True, null=True)
-    bill_ref = models.CharField(max_length=100, blank=True, null=True)
-    business_short_code = models.CharField(max_length=20, blank=True, null=True)
-    third_party_trans_id = models.CharField(max_length=64, blank=True, null=True)
-    first_name = models.CharField(max_length=100, blank=True, null=True)
-    middle_name = models.CharField(max_length=100, blank=True, null=True)
-    last_name = models.CharField(max_length=100, blank=True, null=True)
-    org_account_balance = models.CharField(max_length=100, blank=True, null=True)
-    raw = models.JSONField(blank=True, null=True)
+    msisdn = models.CharField(max_length=20, null=True, blank=True)
+    bill_ref = models.CharField(max_length=100, null=True, blank=True)
+    business_short_code = models.CharField(max_length=20, null=True, blank=True)
+    third_party_trans_id = models.CharField(max_length=64, null=True, blank=True)
+    first_name = models.CharField(max_length=100, null=True, blank=True)
+    middle_name = models.CharField(max_length=100, null=True, blank=True)
+    last_name = models.CharField(max_length=100, null=True, blank=True)
+    org_account_balance = models.CharField(max_length=100, null=True, blank=True)
+    raw = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"C2B {self.trans_id} KES {self.amount or '-'}"
+        return f"C2B {self.trans_id} {self.amount}"
+
+"""
+Optional Charges Module
+-----------------------
+Separate from fee management. Used for items like school trips, uniforms, clubs, etc.
+Only enrolled students are eligible, and payments are tracked independently of fees.
+"""
+
+class OptionalChargeCategory(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+class OptionalOffer(models.Model):
+    category = models.ForeignKey('OptionalChargeCategory', on_delete=models.CASCADE, related_name='offers')
+    term = models.ForeignKey('Term', on_delete=models.CASCADE, related_name='optional_offers')
+    class_group = models.ForeignKey('Class', on_delete=models.SET_NULL, null=True, blank=True, related_name='optional_offers')
+    title = models.CharField(max_length=150)
+    description = models.TextField(blank=True, null=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    due_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['term']),
+        ]
+
+    def __str__(self):
+        scope = self.class_group.name if self.class_group else 'All Classes'
+        return f"{self.title} ({scope}, {self.term})"
+
+class StudentOptionalCharge(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    offer = models.ForeignKey('OptionalOffer', on_delete=models.CASCADE, related_name='enrollments')
+    student = models.ForeignKey('Student', on_delete=models.CASCADE, related_name='optional_charges')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('offer', 'student')
+        indexes = [
+            models.Index(fields=['offer']),
+            models.Index(fields=['student']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"{self.student} -> {self.offer.title} ({self.status})"
+
+class OptionalChargePayment(models.Model):
+    student_optional_charge = models.ForeignKey('StudentOptionalCharge', on_delete=models.CASCADE, related_name='payments')
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_date = models.DateTimeField(auto_now_add=True)
+    method = models.CharField(max_length=50, blank=True, null=True)
+    reference = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    mpesa_transaction = models.ForeignKey('MpesaTransaction', on_delete=models.SET_NULL, null=True, blank=True, related_name='optional_payments')
+
+    class Meta:
+        ordering = ['-payment_date']
+        indexes = [
+            models.Index(fields=['payment_date']),
+        ]
+
+    def __str__(self):
+        return f"OC Payment {self.amount_paid} for {self.student_optional_charge}"
 
 class TeacherClassAssignment(models.Model):
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
@@ -607,3 +684,98 @@ class ResultBlock(models.Model):
 
     def __str__(self):
         return f"Block(student={self.student_id}, exam={self.exam_id}, active={self.active})"
+
+
+# --- Pocket Money Management ---
+class PocketMoney(models.Model):
+    """Tracks pocket money transactions for students, separate from fees."""
+    TRANSACTION_TYPE_CHOICES = [
+        ('deposit', 'Deposit'),
+        ('withdrawal', 'Withdrawal'),
+        ('adjustment', 'Adjustment'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='pocket_money_transactions')
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPE_CHOICES)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    description = models.TextField(blank=True, null=True, help_text='Optional description for the transaction')
+    transaction_date = models.DateTimeField(auto_now_add=True)
+    processed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='processed_pocket_money')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='approved')
+    reference = models.CharField(max_length=100, blank=True, null=True, help_text='Reference number or receipt')
+    
+    class Meta:
+        ordering = ['-transaction_date']
+        indexes = [
+            models.Index(fields=['student']),
+            models.Index(fields=['transaction_date']),
+            models.Index(fields=['transaction_type']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.student} - {self.get_transaction_type_display()} KES {self.amount} on {self.transaction_date.strftime('%Y-%m-%d')}"
+    
+    @property
+    def signed_amount(self):
+        """Returns the amount with proper sign based on transaction type."""
+        if self.transaction_type == 'withdrawal':
+            return -self.amount
+        return self.amount
+
+
+# --- Lesson Planning ---
+class LessonPlan(models.Model):
+    """Persistent lesson plan allowing many plans per teacher/subject/class.
+
+    Rich text fields store HTML generated by the editor. Time split is optional.
+    Soft-delete fields allow undo and audit while keeping history.
+    """
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name='lesson_plans')
+    class_group = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='lesson_plans')
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='lesson_plans')
+
+    plan_date = models.DateField(null=True, blank=True)
+    term = models.ForeignKey(Term, on_delete=models.SET_NULL, null=True, blank=True, related_name='lesson_plans')
+
+    topic = models.CharField(max_length=255, blank=True, default='')
+    subtopic = models.CharField(max_length=255, blank=True, default='')
+    # Optional sequential number for the lesson (e.g., 1, 2, 3 ...)
+    lesson_number = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    duration_minutes = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    duration_text = models.CharField(max_length=50, blank=True, default='')
+
+    objectives = models.TextField(blank=True, default='')
+    methods = models.TextField(blank=True, default='')
+    aids = models.TextField(blank=True, default='')
+    assessment = models.TextField(blank=True, default='')
+
+    opening_time = models.PositiveIntegerField(null=True, blank=True)
+    main_time = models.PositiveIntegerField(null=True, blank=True)
+    closing_time = models.PositiveIntegerField(null=True, blank=True)
+
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='lesson_plans_deleted')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['teacher']),
+            models.Index(fields=['class_group']),
+            models.Index(fields=['subject']),
+            models.Index(fields=['plan_date']),
+            models.Index(fields=['term']),
+            models.Index(fields=['is_deleted']),
+        ]
+
+    def __str__(self):
+        return f"{self.plan_date or ''} {self.class_group} {self.subject} - {self.topic}".strip()

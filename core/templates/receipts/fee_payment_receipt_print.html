@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fee Payment Receipt</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --text:#111; --muted:#666; --border:#dcdcdc; --light:#f6f8fa; }
+    html, body { margin:0; padding:0; color:var(--text); font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif; }
+    /* Page */
+    @page { size: A4; margin: 12mm; }
+    @media print { html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    .page { width: 100%; box-sizing: border-box; }
+
+    /* Header */
+    .header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:10px; }
+    .logo { height:48px; flex-shrink:0; }
+    .school-details { font-size:12px; line-height:1.4; }
+    .school-details h1 { font-size:20px; margin:0 0 4px 0; font-weight:bold; }
+    .title { line-height:1.2; text-align:right; flex-shrink:0; }
+    .title h1 { font-size:18px; margin:0; font-weight:bold; }
+    .title small { color:var(--muted); }
+
+    /* Two columns */
+    .row { display:flex; justify-content:space-between; gap:12px; margin-bottom:10px; }
+    .col { flex:1; }
+    .label { font-weight:600; font-size:12px; margin-bottom:2px; }
+    .muted { color:var(--muted); font-size:12px; }
+
+    /* Info table */
+    table.meta { width:100%; border-collapse:collapse; margin-bottom:12px; }
+    table.meta th { text-align:left; width:200px; padding:4px 6px; background:var(--light); border:1px solid var(--border); font-weight:600; }
+    table.meta td { padding:4px 6px; border:1px solid var(--border); }
+
+    /* Breakdown */
+    table.grid { width:100%; border-collapse:collapse; }
+    table.grid thead th { background:var(--light); border:1px solid var(--border); padding:6px; font-size:12px; text-align:left; }
+    table.grid td { border:1px solid var(--border); padding:6px; font-size:12px; }
+    .right { text-align:right; }
+    tfoot th { background:var(--light); }
+
+    /* Footer */
+    .footer { margin-top:10px; color:var(--muted); font-size:12px; display:flex; justify-content:space-between; }
+
+    /* Single-page safety */
+    .page { page-break-inside: avoid; }
+    table, thead, tbody, tfoot, tr, td, th { page-break-inside: avoid; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      {% if site_settings and site_settings.logo %}
+        <img class="logo" src="{{ site_settings.logo.url }}" alt="Logo">
+      {% endif %}
+      <div class="school-details">
+        {% if site_settings.school_name %}<h1>{{ site_settings.school_name }}</h1>{% endif %}
+        {% if site_settings.contact_address %}<div>{{ site_settings.contact_address }}</div>{% endif %}
+        {% if site_settings.contact_phone or site_settings.contact_email %}
+        <div class="muted">
+          {% if site_settings.contact_phone %}Phone: {{ site_settings.contact_phone }}{% endif %}
+          {% if site_settings.contact_phone and site_settings.contact_email %} | {% endif %}
+          {% if site_settings.contact_email %}Email: {{ site_settings.contact_email }}{% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="title">
+        <h1>Fee Payment Receipt</h1>
+        <small>Generated {{ generated_at|date:'Y-m-d H:i' }}{% if relevant_term %} • {{ relevant_term.name }} {{ relevant_term.academic_year.year }}{% endif %}</small>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="label">Payer</div>
+        <div>{{ payment.student.user.get_full_name|default:payment.student.user.username }}</div>
+        <div class="muted">Adm: {{ payment.student.admission_no }}{% if payment.student.class_group %} • Class: {{ payment.student.class_group }}{% endif %}</div>
+      </div>
+      <div class="col" style="text-align:right">
+        <div class="label">Receipt No.</div>
+        <div>{{ payment.reference|default:'N/A' }}</div>
+        <div class="muted">Date: {{ payment.payment_date|date:'Y-m-d H:i' }}</div>
+      </div>
+    </div>
+
+    <table class="meta">
+      <tbody>
+        <tr>
+          <th>Amount Paid</th>
+          <td>KES {{ payment.amount_paid|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <th>Payment Method</th>
+          <td>{{ payment.payment_method|default:'N/A' }}</td>
+        </tr>
+        <tr>
+          <th>Status</th>
+          <td>{{ payment.get_status_display }}</td>
+        </tr>
+        {% if payment.phone_number %}
+        <tr>
+          <th>Phone Number</th>
+          <td>{{ payment.phone_number }}</td>
+        </tr>
+        {% endif %}
+        {% if payment.mpesa_transaction %}
+        <tr>
+          <th>M-Pesa Checkout ID</th>
+          <td>{{ payment.mpesa_transaction.checkout_request_id }}</td>
+        </tr>
+        <tr>
+          <th>M-Pesa Receipt</th>
+          <td>{{ payment.mpesa_transaction.mpesa_receipt }}</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <h3 style="font-size:13px; margin:8px 0;">Term Fee Breakdown</h3>
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th class="right">Assigned</th>
+          <th class="right">Paid Before</th>
+          <th class="right">This Payment</th>
+          <th class="right">Paid After</th>
+          <th class="right">Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in assignment_rows %}
+        <tr>
+          <td>{{ row.category }}</td>
+          <td class="right">KES {{ row.assigned|floatformat:2 }}</td>
+          <td class="right">KES {{ row.paid_before|floatformat:2 }}</td>
+          <td class="right">KES {{ row.this_payment|floatformat:2 }}</td>
+          <td class="right">KES {{ row.paid_after|floatformat:2 }}</td>
+          <td class="right">KES {{ row.balance|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="muted">No fee assignments found for this term.</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th>Total</th>
+          <th class="right">KES {{ assigned_total|floatformat:2 }}</th>
+          <th></th>
+          <th></th>
+          <th class="right">KES {{ paid_total_after|floatformat:2 }}</th>
+          <th class="right">KES {{ balance_total|floatformat:2 }}</th>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="footer">
+      <div>Processed on {{ generated_at|date:'Y-m-d H:i' }}</div>
+      <div>Served by: {% if payment.mpesa_transaction and payment.mpesa_transaction.updated_at %}{{ payment.mpesa_transaction.updated_at|date:'Y-m-d H:i' }}{% else %}{{ payment.payment_date|date:'Y-m-d H:i' }}{% endif %}</div>
+    </div>
+  </div>
+</body>
+<script>
+  window.addEventListener('load', function(){
+    setTimeout(function(){ window.print(); }, 50);
+  });
+</script>
+</html>

@@ -81,6 +81,7 @@
       <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'timetable_view' %}active{% endif %}" href="{% url 'timetable_view' %}"><i class="bi bi-calendar3 me-2"></i>Timetable</a></li>
       {% if teacher %}
       <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name in 'manage_grades,input_grades,exam_results' %}active{% endif %}" href="{% url 'manage_grades' teacher_id=teacher.id %}"><i class="bi bi-card-checklist me-2"></i>Exams</a></li>
+      <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'teacher_lesson_plans' %}active{% endif %}" href="{% url 'teacher_lesson_plans' %}"><i class="bi bi-journal-text me-2"></i>Lesson Plans</a></li>
       <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'upload_grades' %}active{% endif %}" href="{% url 'upload_grades' teacher_id=teacher.id %}"><i class="bi bi-upload me-2"></i>Upload Grades</a></li>
       <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'manage_attendance' %}active{% endif %}" href="{% url 'manage_attendance' teacher_id=teacher.id %}"><i class="bi bi-clipboard-check me-2"></i>Attendance</a></li>
       <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'teacher_profile' %}active{% endif %}" href="{% url 'teacher_profile' teacher_id=teacher.id %}"><i class="bi bi-person-circle me-2"></i>Profile</a></li>
@@ -136,6 +137,12 @@
             <a class="nav-link {% if request.resolver_match.url_name in 'manage_grades,input_grades,exam_results' %}active{% endif %}" href="{% url 'manage_grades' teacher_id=teacher.id %}" {% if request.resolver_match.url_name in 'manage_grades,input_grades,exam_results' %}aria-current="page"{% endif %}>
                 <div class="sb-nav-link-icon"><i class="bi bi-card-checklist"></i></div>
                 Exams
+            </a>
+        </li>
+        <li class="nav-item mb-2">
+            <a class="nav-link {% if request.resolver_match.url_name == 'teacher_lesson_plans' %}active{% endif %}" href="{% url 'teacher_lesson_plans' %}" {% if request.resolver_match.url_name == 'teacher_lesson_plans' %}aria-current="page"{% endif %}>
+                <div class="sb-nav-link-icon"><i class="bi bi-journal-text"></i></div>
+                Lesson Plans
             </a>
         </li>
         {% endif %}

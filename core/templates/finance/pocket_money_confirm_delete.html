@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Delete Pocket Money Transaction{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="card-title mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Confirm Delete
+                    </h4>
+                </div>
+                
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-warning me-2"></i>
+                        <strong>Warning:</strong> This action cannot be undone.
+                    </div>
+                    
+                    <p>Are you sure you want to delete this pocket money transaction?</p>
+                    
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title">Transaction Details</h6>
+                            <div class="row">
+                                <div class="col-sm-4"><strong>Student:</strong></div>
+                                <div class="col-sm-8">{{ transaction.student.full_name }} ({{ transaction.student.admission_no }})</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-4"><strong>Class:</strong></div>
+                                <div class="col-sm-8">{{ transaction.student.class_group|default:"N/A" }}</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-4"><strong>Type:</strong></div>
+                                <div class="col-sm-8">
+                                    <span class="badge bg-{% if transaction.transaction_type == 'deposit' %}success{% elif transaction.transaction_type == 'withdrawal' %}danger{% else %}warning{% endif %}">
+                                        {{ transaction.get_transaction_type_display }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-4"><strong>Amount:</strong></div>
+                                <div class="col-sm-8">
+                                    <span class="{% if transaction.transaction_type == 'withdrawal' %}text-danger{% else %}text-success{% endif %}">
+                                        {% if transaction.transaction_type == 'withdrawal' %}-{% endif %}KES {{ transaction.amount|floatformat:2 }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-4"><strong>Date:</strong></div>
+                                <div class="col-sm-8">{{ transaction.transaction_date|date:"Y-m-d H:i" }}</div>
+                            </div>
+                            {% if transaction.reference %}
+                            <div class="row">
+                                <div class="col-sm-4"><strong>Reference:</strong></div>
+                                <div class="col-sm-8">{{ transaction.reference }}</div>
+                            </div>
+                            {% endif %}
+                            {% if transaction.description %}
+                            <div class="row">
+                                <div class="col-sm-4"><strong>Description:</strong></div>
+                                <div class="col-sm-8">{{ transaction.description }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <form method="post" class="mt-3">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'pocket_money_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash me-1"></i>Delete Transaction
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -61,6 +61,7 @@
               <div class="mt-2">
                 <a class="btn btn-sm btn-primary" href="{% url 'admin_fees' %}"><i class="bi bi-gear me-1"></i> Manage Fees</a>
                 <a class="btn btn-sm btn-success ms-2" href="{% url 'admin_payment' %}"><i class="bi bi-cash-stack me-1"></i> Record Payment</a>
+                <a class="btn btn-sm btn-warning ms-2" href="{% url 'pocket_money_list' %}"><i class="fas fa-coins me-1"></i> Pocket Money</a>
                 <a class="btn btn-sm btn-info ms-2" href="{% url 'finance_analytics' %}"><i class="bi bi-graph-up-arrow me-1"></i> Finance Analytics</a>
               </div>
             </div>
@@ -136,6 +137,11 @@
                   {% else %}
                     <span class="badge bg-success">Approved</span>
                   {% endif %}
+                  <div>
+                    <a class="btn btn-sm btn-outline-secondary mt-1" href="{% url 'fee_payment_receipt' p.id %}">
+                      <i class="bi bi-receipt"></i> Receipt
+                    </a>
+                  </div>
                 </div>
               </div>
               {% endfor %}

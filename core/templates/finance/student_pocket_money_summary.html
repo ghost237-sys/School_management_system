@@ -1,0 +1,246 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ student.full_name }} - Pocket Money Summary{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex flex-column flex-md-row align-items-md-center justify-content-md-between">
+                    <div>
+                        <h4 class="card-title mb-1">
+                            <i class="fas fa-user-circle me-2"></i>{{ student.full_name }} - Pocket Money Summary
+                        </h4>
+                        <small class="text-muted">Admission No: {{ student.admission_no }} | Class: {{ student.class_group|default:"N/A" }}</small>
+                    </div>
+                    <div class="mt-2 mt-md-0">
+                        <a href="{% url 'pocket_money_list' %}" class="btn btn-outline-secondary me-2">
+                            <i class="fas fa-arrow-left me-1"></i>Back to List
+                        </a>
+                        <a href="{% url 'pocket_money_add' %}?student={{ student.id }}" class="btn btn-primary me-2">
+                            <i class="fas fa-plus me-1"></i>Add Transaction
+                        </a>
+                        <button type="button" class="btn btn-outline-primary me-2" onclick="window.print()">
+                            <i class="fas fa-print me-1"></i>Print
+                        </button>
+                        <button type="button" class="btn btn-outline-success" id="exportCsvBtn">
+                            <i class="fas fa-file-csv me-1"></i>Export CSV
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Balance Summary -->
+                    <style>
+                        .stat-card{border:none;border-radius:14px;color:#fff;box-shadow:0 8px 20px rgba(0,0,0,.08);transition:transform .15s ease, box-shadow .15s ease}
+                        .stat-card:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(0,0,0,.12)}
+                        .grad-primary{background:linear-gradient(135deg,#2563eb,#60a5fa)}
+                        .grad-success{background:linear-gradient(135deg,#059669,#34d399)}
+                        .grad-danger{background:linear-gradient(135deg,#dc2626,#f87171)}
+                        .grad-warning{background:linear-gradient(135deg,#d97706,#fbbf24)}
+                        .table thead.sticky-head th{position:sticky;top:0;z-index:1;background:#111827;color:#fff}
+                        @media print{#exportCsvBtn,.card-header .btn{display:none!important}.table thead.sticky-head th{background:#000!important}}
+                    </style>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <div class="card stat-card grad-primary">
+                                <div class="card-body text-center">
+                                    <div class="mb-1"><i class="fas fa-wallet fa-lg"></i></div>
+                                    <div class="small opacity-75">Current Balance</div>
+                                    <div class="h3 mb-0">KES {{ current_balance|floatformat:2 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <div class="card stat-card grad-success">
+                                <div class="card-body text-center">
+                                    <div class="mb-1"><i class="fas fa-arrow-down fa-lg"></i></div>
+                                    <div class="small opacity-75">Total Deposits</div>
+                                    <div class="h3 mb-0">KES {{ total_deposits|floatformat:2 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <div class="card stat-card grad-danger">
+                                <div class="card-body text-center">
+                                    <div class="mb-1"><i class="fas fa-arrow-up fa-lg"></i></div>
+                                    <div class="small opacity-75">Total Withdrawals</div>
+                                    <div class="h3 mb-0">KES {{ total_withdrawals|floatformat:2 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <div class="card stat-card grad-warning">
+                                <div class="card-body text-center">
+                                    <div class="mb-1"><i class="fas fa-list fa-lg"></i></div>
+                                    <div class="small opacity-75">Total Transactions</div>
+                                    <div class="h3 mb-0">{{ total_transactions }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Table Tools -->
+                    <div class="row align-items-center mb-3">
+                        <div class="col-12 col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" id="txnFilter" class="form-control" placeholder="Filter transactions (type, reference, description)...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Transactions History -->
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover" id="txnTable">
+                            <thead class="table-dark sticky-head">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Reference</th>
+                                    <th>Description</th>
+                                    <th>Processed By</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for transaction in page_obj %}
+                                <tr>
+                                    <td>{{ transaction.transaction_date|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if transaction.transaction_type == 'deposit' %}success{% elif transaction.transaction_type == 'withdrawal' %}danger{% else %}warning{% endif %}">
+                                            {{ transaction.get_transaction_type_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="{% if transaction.transaction_type == 'withdrawal' %}text-danger{% else %}text-success{% endif %}">
+                                            {% if transaction.transaction_type == 'withdrawal' %}-{% endif %}KES {{ transaction.amount|floatformat:2 }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{% if transaction.status == 'approved' %}success{% elif transaction.status == 'pending' %}warning{% else %}danger{% endif %}">
+                                            {{ transaction.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if transaction.reference %}
+                                            <span class="me-2">{{ transaction.reference }}</span>
+                                            <button class="btn btn-sm btn-outline-secondary" onclick="copyRef('{{ transaction.reference }}')" title="Copy">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if transaction.description %}
+                                            <span title="{{ transaction.description }}">
+                                                {{ transaction.description|truncatechars:50 }}
+                                            </span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ transaction.processed_by.get_full_name|default:transaction.processed_by.username }}</td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'pocket_money_edit' transaction.id %}" 
+                                               class="btn btn-sm btn-outline-primary" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'pocket_money_delete' transaction.id %}" 
+                                               class="btn btn-sm btn-outline-danger" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center py-4">
+                                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                        <p class="text-muted">No pocket money transactions found for this student.</p>
+                                        <a href="{% url 'pocket_money_add' %}?student={{ student.id }}" class="btn btn-primary">
+                                            <i class="fas fa-plus me-1"></i>Add First Transaction
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if page_obj.has_other_pages %}
+                    <nav aria-label="Transactions pagination">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in page_obj.paginator.page_range %}
+                                {% if page_obj.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    // Client-side filter
+    (function(){
+        const input = document.getElementById('txnFilter');
+        const table = document.getElementById('txnTable');
+        if(!input || !table) return;
+        input.addEventListener('input', function(){
+            const q = this.value.trim().toLowerCase();
+            table.querySelectorAll('tbody tr').forEach(tr => {
+                const txt = tr.innerText.toLowerCase();
+                tr.style.display = txt.includes(q) ? '' : 'none';
+            });
+        });
+    })();
+
+    // Copy reference helper
+    function copyRef(val){
+        navigator.clipboard.writeText(val).then(()=>{
+            // Optional: small toast
+        });
+    }
+
+    // Export CSV of current table (respecting filter)
+    document.getElementById('exportCsvBtn')?.addEventListener('click', function(){
+        const rows = Array.from(document.querySelectorAll('#txnTable thead tr, #txnTable tbody tr')).filter(r=>r.style.display!=="none");
+        const csv = rows.map(tr => Array.from(tr.querySelectorAll('th,td')).map(td => '"'+td.innerText.replaceAll('"','""').trim()+'"').join(',')).join('\n');
+        const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `pocket_money_{{ student.admission_no }}.csv`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+</script>
+{% endblock %}

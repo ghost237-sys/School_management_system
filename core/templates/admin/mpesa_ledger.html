@@ -24,7 +24,15 @@
     <div class="col-sm-3">
       <input type="text" class="form-control" name="until" placeholder="Until (YYYY-MM-DD)" value="{{ until }}">
     </div>
-    <div class="col-sm-2 d-grid">
+    <div class="col-sm-1">
+      <select class="form-select" name="page_size">
+        <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+        <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+        <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+        <option value="200" {% if page_size == 200 %}selected{% endif %}>200</option>
+      </select>
+    </div>
+    <div class="col-sm-1 d-grid">
       <button type="submit" class="btn btn-primary">Filter</button>
     </div>
   </form>
@@ -69,7 +77,32 @@
           </tbody>
         </table>
       </div>
-      <div class="p-3 text-muted">Showing up to the latest 200 entries.</div>
+      <div class="p-3 d-flex justify-content-between align-items-center">
+        <div class="text-muted">Page {{ page_obj.number }} of {{ paginator.num_pages }} ({{ paginator.count }} total)</div>
+        {% if paginator.num_pages > 1 %}
+        <nav>
+          <ul class="pagination mb-0">
+            {% with qparam='&q='|add:q|urlencode %}{% endwith %}
+            {% with sparam='&since='|add:since|urlencode %}{% endwith %}
+            {% with uparam='&until='|add:until|urlencode %}{% endwith %}
+            {% with psize='&page_size='|add:page_size %}{% endwith %}
+            <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+              <a class="page-link" href="?page=1{{ qparam }}{{ sparam }}{{ uparam }}{{ psize }}">First</a>
+            </li>
+            <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}{{ qparam }}{{ sparam }}{{ uparam }}{{ psize }}">Prev</a>
+            </li>
+            <li class="page-item disabled"><span class="page-link">{{ page_obj.number }}</span></li>
+            <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}{{ qparam }}{{ sparam }}{{ uparam }}{{ psize }}">Next</a>
+            </li>
+            <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+              <a class="page-link" href="?page={{ paginator.num_pages }}{{ qparam }}{{ sparam }}{{ uparam }}{{ psize }}">Last</a>
+            </li>
+          </ul>
+        </nav>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>

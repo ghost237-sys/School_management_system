@@ -1,0 +1,447 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Pocket Money Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex flex-column flex-md-row justify-content-md-between align-items-md-center">
+                    <h4 class="card-title mb-2 mb-md-0">
+                        <i class="fas fa-coins me-2"></i>Pocket Money Management
+                    </h4>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'pocket_money_add' %}" class="btn btn-primary">
+                            <i class="fas fa-plus me-1"></i>Add Transaction
+                        </a>
+                        <a href="{% url 'pocket_money_list' %}" class="btn btn-outline-secondary" title="Refresh">
+                            <i class="fas fa-rotate"></i>
+                        </a>
+                        <a href="{% url 'pocket_money_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-1"></i>Clear Filters
+                        </a>
+                        <button class="btn btn-outline-success" id="exportCsvBtn">
+                            <i class="fas fa-file-csv me-1"></i>Export CSV
+                        </button>
+                        <button class="btn btn-outline-primary" id="printBtn">
+                            <i class="fas fa-print me-1"></i>Print
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Summary Statistics -->
+                    <style>
+                        .stat-card{border:none;border-radius:14px;color:#fff;box-shadow:0 8px 20px rgba(0,0,0,.08);transition:transform .15s ease, box-shadow .15s ease}
+                        .stat-card:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(0,0,0,.12)}
+                        .grad-success{background:linear-gradient(135deg,#059669,#34d399)}
+                        .grad-danger{background:linear-gradient(135deg,#dc2626,#f87171)}
+                        .grad-info{background:linear-gradient(135deg,#0891b2,#67e8f9)}
+                        .grad-secondary{background:linear-gradient(135deg,#374151,#9ca3af)}
+                        .table thead.sticky-head th{position:sticky;top:0;z-index:1;background:#111827;color:#fff}
+                        /* Print-only cleanup: show a simple list */
+                        @media print{
+                            /* hide page header, buttons, stats, charts, filters, selection, pagination */
+                            .sidebar, .navbar, header, footer, .footer, .breadcrumb{display:none!important}
+                            .card-header{display:none!important}
+                            .no-print{display:none!important}
+                            #exportCsvBtn,#printBtn{display:none!important}
+                            /* make table simple */
+                            .table thead.sticky-head th{position:static!important; background:#fff!important; color:#000!important}
+                            /* hide checkbox and actions columns */
+                            #txnTable th:first-child, #txnTable td:first-child, #txnTable th:last-child, #txnTable td:last-child{display:none!important}
+                            /* compact spacing */
+                            .table td, .table th{padding:6px 8px!important}
+                            /* avoid unnecessary shadows/borders */
+                            .card{box-shadow:none!important}
+                            /* neutralize UI colors to plain text */
+                            .badge{background:transparent!important; color:#000!important; border:none!important; padding:0!important; font-weight:400!important}
+                            .text-success,.text-danger,.text-muted{color:#000!important}
+                            a{color:#000!important; text-decoration:none!important}
+                            /* hide small sublines like admission number */
+                            td small{display:none!important}
+                            /* show plain numeric amount without KES label */
+                            td.pm-amount > span{display:none!important}
+                            td.pm-amount::after{content: attr(data-plain-amount);}
+                            /* remove row striping */
+                            .table-striped > tbody > tr:nth-of-type(odd){background-color:transparent!important}
+                        }
+                    </style>
+                    <div class="row g-3 mb-4 no-print">
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <div class="card stat-card grad-success">
+                                <div class="card-body text-center">
+                                    <div class="mb-1"><i class="fas fa-arrow-down fa-lg"></i></div>
+                                    <div class="small opacity-75">Total Deposits</div>
+                                    <div class="h3 mb-0">KES {{ total_deposits|floatformat:2 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <div class="card stat-card grad-danger">
+                                <div class="card-body text-center">
+                                    <div class="mb-1"><i class="fas fa-arrow-up fa-lg"></i></div>
+                                    <div class="small opacity-75">Total Withdrawals</div>
+                                    <div class="h3 mb-0">KES {{ total_withdrawals|floatformat:2 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <div class="card stat-card grad-info">
+                                <div class="card-body text-center">
+                                    <div class="mb-1"><i class="fas fa-scale-balanced fa-lg"></i></div>
+                                    <div class="small opacity-75">Net Balance</div>
+                                    <div class="h3 mb-0">KES {{ net_balance|floatformat:2 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <div class="card stat-card grad-secondary">
+                                <div class="card-body text-center">
+                                    <div class="mb-1"><i class="fas fa-list fa-lg"></i></div>
+                                    <div class="small opacity-75">Total Transactions</div>
+                                    <div class="h3 mb-0">{{ total_transactions }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Visualizations -->
+                    <div class="row g-3 mb-4 no-print">
+                        <div class="col-12 col-lg-8">
+                            <div class="card">
+                                <div class="card-body" style="height: 260px;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <strong>Daily Trend (Deposits vs Withdrawals)</strong>
+                                    </div>
+                                    <canvas id="trendChart" style="height: 200px; width: 100%;"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-4">
+                            <div class="card">
+                                <div class="card-body" style="height: 260px;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <strong>Breakdown</strong>
+                                    </div>
+                                    <canvas id="breakdownChart" style="height: 200px; width: 100%;"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filters and Search -->
+                    <div class="row mb-3 no-print">
+                        <div class="col-12">
+                            <form method="get" class="row g-3">
+                                <div class="col-md-2">
+                                    {{ filter_form.student }}
+                                </div>
+                                <div class="col-md-2">
+                                    {{ filter_form.transaction_type }}
+                                </div>
+                                <div class="col-md-2">
+                                    {{ filter_form.status }}
+                                </div>
+                                <div class="col-md-2">
+                                    {{ filter_form.date_from }}
+                                </div>
+                                <div class="col-md-2">
+                                    {{ filter_form.date_to }}
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="submit" class="btn btn-outline-primary">
+                                        <i class="fas fa-filter me-1"></i>Filter
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Search Bar -->
+                    <div class="row mb-3 no-print">
+                        <div class="col-md-6">
+                            <form method="get" class="d-flex">
+                                {% for key, value in request.GET.items %}
+                                    {% if key != 'search' and key != 'page' %}
+                                        <input type="hidden" name="{{ key }}" value="{{ value }}">
+                                    {% endif %}
+                                {% endfor %}
+                                <input type="text" name="search" class="form-control" 
+                                       placeholder="Search by student name, admission no, reference..." 
+                                       value="{{ search_query }}">
+                                <button type="submit" class="btn btn-outline-secondary ms-2">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </form>
+                        </div>
+                        <div class="col-md-6 d-flex justify-content-md-end mt-3 mt-md-0">
+                            <div class="input-group" style="max-width: 360px;">
+                                <span class="input-group-text"><i class="fas fa-filter"></i></span>
+                                <input id="quickFilter" type="text" class="form-control" placeholder="Quick filter (client-side)">
+                            </div>
+                        </div>
+                        {% if search_query or request.GET %}
+                        
+                        {% endif %}
+                    </div>
+
+                    <!-- Transactions Table -->
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover" id="txnTable">
+                            <thead class="table-dark sticky-head">
+                                <tr>
+                                    <th><input type="checkbox" id="selectAll"></th>
+                                    <th>Date</th>
+                                    <th>Student</th>
+                                    <th>Class</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Reference</th>
+                                    <th>Processed By</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for transaction in page_obj %}
+                                <tr data-date="{{ transaction.transaction_date|date:'Y-m-d' }}" data-type="{{ transaction.transaction_type }}" data-status="{{ transaction.status }}" data-amount="{{ transaction.amount|floatformat:2 }}">
+                                    <td>
+                                        <input type="checkbox" class="rowCheck">
+                                    </td>
+                                    <td>{{ transaction.transaction_date|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        <a href="{% url 'pocket_money_student_summary' transaction.student.id %}" 
+                                           class="text-decoration-none">
+                                            {{ transaction.student.full_name }}
+                                            <small class="text-muted d-block">{{ transaction.student.admission_no }}</small>
+                                        </a>
+                                    </td>
+                                    <td>{{ transaction.student.class_group|default:"N/A" }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if transaction.transaction_type == 'deposit' %}success{% elif transaction.transaction_type == 'withdrawal' %}danger{% else %}warning{% endif %}">
+                                            {{ transaction.get_transaction_type_display }}
+                                        </span>
+                                    </td>
+                                    <td class="pm-amount" data-plain-amount="{% if transaction.transaction_type == 'withdrawal' %}-{% endif %}{{ transaction.amount|floatformat:2 }}">
+                                        <span class="{% if transaction.transaction_type == 'withdrawal' %}text-danger{% else %}text-success{% endif %}">
+                                            {% if transaction.transaction_type == 'withdrawal' %}-{% endif %}KES {{ transaction.amount|floatformat:2 }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{% if transaction.status == 'approved' %}success{% elif transaction.status == 'pending' %}warning{% else %}danger{% endif %}">
+                                            {{ transaction.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if transaction.reference %}
+                                            <span class="me-2">{{ transaction.reference }}</span>
+                                            <button class="btn btn-sm btn-outline-secondary" onclick="copyRef('{{ transaction.reference }}')" title="Copy">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ transaction.processed_by.get_full_name|default:transaction.processed_by.username }}</td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'pocket_money_edit' transaction.id %}" 
+                                               class="btn btn-sm btn-outline-primary" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'pocket_money_receipt' transaction.id %}"
+                                               class="btn btn-sm btn-outline-secondary" title="Receipt">
+                                                <i class="bi bi-receipt"></i>
+                                            </a>
+                                            <a href="{% url 'pocket_money_delete' transaction.id %}" 
+                                               class="btn btn-sm btn-outline-danger" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="9" class="text-center py-4">
+                                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                        <p class="text-muted">No pocket money transactions found.</p>
+                                        <a href="{% url 'pocket_money_add' %}" class="btn btn-primary">
+                                            <i class="fas fa-plus me-1"></i>Add First Transaction
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-2 no-print">
+                        <div id="selectedSummary" class="text-muted small">0 selected • Total: KES 0.00</div>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-success btn-sm" id="exportSelectedBtn"><i class="fas fa-file-export me-1"></i>Export Selected</button>
+                            <button class="btn btn-outline-secondary btn-sm" id="clearSelectionBtn">Clear Selection</button>
+                        </div>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if page_obj.has_other_pages %}
+                    <nav class="no-print" aria-label="Transactions pagination">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">Previous</a>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in page_obj.paginator.page_range %}
+                                {% if page_obj.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">Next</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+    // Print
+    document.getElementById('printBtn')?.addEventListener('click', () => window.print());
+
+    // Copy reference helper
+    function copyRef(val){
+        navigator.clipboard.writeText(val);
+    }
+
+    // Quick filter (client-side)
+    (function(){
+        const input = document.getElementById('quickFilter');
+        const table = document.getElementById('txnTable');
+        if(!input || !table) return;
+        input.addEventListener('input', function(){
+            const q = this.value.trim().toLowerCase();
+            table.querySelectorAll('tbody tr').forEach(tr => {
+                const txt = tr.innerText.toLowerCase();
+                tr.style.display = txt.includes(q) ? '' : 'none';
+            });
+            updateCharts();
+            updateSelectionSummary();
+        });
+    })();
+
+    // Selection & summary
+    const selectAll = document.getElementById('selectAll');
+    const tableEl = document.getElementById('txnTable');
+    function updateSelectionSummary(){
+        const checks = tableEl ? Array.from(tableEl.querySelectorAll('tbody .rowCheck')) : [];
+        let count = 0; let total = 0;
+        checks.forEach(ch => {
+            const tr = ch.closest('tr');
+            if (tr.style.display === 'none') return;
+            if (ch.checked){
+                count++;
+                const amt = parseFloat(tr.dataset.amount || '0');
+                const type = tr.dataset.type;
+                total += (type === 'withdrawal') ? -amt : amt;
+            }
+        });
+        const el = document.getElementById('selectedSummary');
+        if (el) el.textContent = `${count} selected • Total: KES ${total.toFixed(2)}`;
+    }
+    selectAll?.addEventListener('change', () => {
+        tableEl.querySelectorAll('tbody .rowCheck').forEach(ch => { if (ch.closest('tr').style.display !== 'none') ch.checked = selectAll.checked; });
+        updateSelectionSummary();
+    });
+    tableEl?.addEventListener('change', (e)=>{
+        if (e.target.classList.contains('rowCheck')) updateSelectionSummary();
+    });
+    document.getElementById('clearSelectionBtn')?.addEventListener('click', ()=>{
+        tableEl.querySelectorAll('tbody .rowCheck').forEach(ch => ch.checked = false);
+        selectAll.checked = false; updateSelectionSummary();
+    });
+
+    // CSV export (visible rows)
+    function exportRows(rows, filename){
+        const csv = rows.map(tr => Array.from(tr.querySelectorAll('th,td')).slice(1, -1) // skip checkbox and actions
+            .map(td => '"'+td.innerText.replaceAll('"','""').trim()+'"').join(',')).join('\n');
+        const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+    document.getElementById('exportCsvBtn')?.addEventListener('click', function(){
+        const rows = Array.from(document.querySelectorAll('#txnTable tbody tr')).filter(r=>r.style.display!=="none");
+        exportRows(rows, 'pocket_money_list.csv');
+    });
+    document.getElementById('exportSelectedBtn')?.addEventListener('click', function(){
+        const rows = Array.from(document.querySelectorAll('#txnTable tbody tr')).filter(r=>r.querySelector('.rowCheck')?.checked);
+        if (rows.length === 0) return; exportRows(rows, 'pocket_money_selected.csv');
+    });
+
+    // Charts from visible rows
+    let trendChart, breakdownChart;
+    function gatherData(){
+        const visibleRows = Array.from(document.querySelectorAll('#txnTable tbody tr')).filter(r=>r.style.display!=="none");
+        const byDate = {};
+        const byType = {deposit:0, withdrawal:0};
+        const byStatus = {approved:0, pending:0, rejected:0};
+        visibleRows.forEach(tr => {
+            const date = tr.dataset.date; const type = tr.dataset.type; const status = tr.dataset.status; let amt = Number(tr.dataset.amount);
+            if (!isFinite(amt)) amt = 0;
+            if (!byDate[date]) byDate[date] = {dep:0, with:0};
+            if (type === 'withdrawal'){ byDate[date].with += amt; } else if (type === 'deposit'){ byDate[date].dep += amt; }
+            if (byType[type] !== undefined) byType[type] += amt;
+            if (byStatus[status] !== undefined) byStatus[status] += 1;
+        });
+        let dates = Object.keys(byDate).sort();
+        // Keep only last 14 days to reduce render cost and improve fit
+        if (dates.length > 14) dates = dates.slice(dates.length - 14);
+        const depSeries = dates.map(d => byDate[d].dep);
+        const withSeries = dates.map(d => byDate[d].with);
+        return {dates, depSeries, withSeries, byType, byStatus};
+    }
+    function updateCharts(){
+        const {dates, depSeries, withSeries, byType, byStatus} = gatherData();
+        const singlePoint = dates.length <= 1;
+        const pr = singlePoint ? 3 : 0;
+        if (!dates.length) { try { console.debug('PocketMoney charts: no visible rows'); } catch(e){} }
+        const tc = document.getElementById('trendChart').getContext('2d');
+        const bc = document.getElementById('breakdownChart').getContext('2d');
+        if (trendChart) trendChart.destroy(); if (breakdownChart) breakdownChart.destroy();
+        trendChart = new Chart(tc, {type:'line', data:{labels:dates, datasets:[
+            {label:'Deposits', data:depSeries, borderColor:'#10b981', backgroundColor:'rgba(16,185,129,.12)', tension:.25, fill:!singlePoint, pointRadius:pr, borderWidth:2},
+            {label:'Withdrawals', data:withSeries, borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,.12)', tension:.25, fill:!singlePoint, pointRadius:pr, borderWidth:2}
+        ]}, options:{
+            responsive:true,
+            maintainAspectRatio:false,
+            animation:{duration:200},
+            parsing:false,
+            spanGaps:true,
+            plugins:{legend:{display:true}},
+            scales:{x:{grid:{display:false}}, y:{beginAtZero:true}}
+        }});
+        breakdownChart = new Chart(bc, {type:'doughnut', data:{labels:['Deposits','Withdrawals'], datasets:[{data:[byType.deposit, byType.withdrawal], backgroundColor:['#10b981','#ef4444'], borderWidth:0}]} , options:{plugins:{legend:{position:'bottom'}}, animation:{duration:200}}});
+    }
+    // Initial render (robust): run on DOM ready, window load, and once more after a short delay
+    function initialRender(){ updateCharts(); updateSelectionSummary(); }
+    document.addEventListener('DOMContentLoaded', initialRender);
+    window.addEventListener('load', ()=>{ initialRender(); setTimeout(initialRender, 250); });
+</script>
+{% endblock %}

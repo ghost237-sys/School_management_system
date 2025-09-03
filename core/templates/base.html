@@ -63,7 +63,28 @@
         .sidebar-custom .nav-link .bi {opacity:.95}
         .sidebar-custom .nav-link.active {background:var(--sidebar-active)!important;color:#fff!important;font-weight:600;}
         .sidebar-custom .nav-link:hover,
-        .sidebar-custom .nav-link:focus {background:var(--sidebar-hover)!important;color:#fff!important;transform: translateX(2px);}        
+        .sidebar-custom .nav-link:focus {background:var(--sidebar-hover)!important;color:#fff!important;transform: translateX(2px);}
+
+        /* Desktop collapse behavior */
+        @media (min-width: 768px) {
+            /* Old floating toggle (hidden by default to prefer edge handle) */
+            .sidebar-collapse-btn { display: none; }
+
+            /* Edge handle toggle */
+            .sidebar-edge-handle { position: fixed; top: 50%; left: 220px; transform: translate(-50%, -50%); z-index: 1050; width: 18px; height: 44px; display: grid; place-items: center; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-left: none; border-radius: 0 10px 10px 0; box-shadow: var(--shadow); cursor: pointer; }
+            .sidebar-edge-handle .bi { font-size: 1rem; }
+            .sidebar-edge-handle:hover { background: color-mix(in srgb, var(--surface) 92%, transparent); }
+            .sidebar-collapsed .sidebar-edge-handle { left: 64px; border-left: 1px solid var(--border); border-right: none; border-radius: 10px 0 0 10px; }
+
+            .sidebar-collapsed .sidebar-custom { width: 64px !important; min-width: 64px !important; }
+            .sidebar-collapsed .sidebar-custom h4 { display: none !important; }
+            .sidebar-collapsed .sidebar-custom .nav-link { justify-content: center; padding-left: .5rem; padding-right: .5rem; overflow: hidden; white-space: nowrap; }
+            .sidebar-collapsed .sidebar-custom .nav-link .bi, 
+            .sidebar-collapsed .sidebar-custom .nav-link .fas { margin-right: 0 !important; }
+            .sidebar-collapsed .sidebar-custom .btn-toggle { justify-content: center !important; }
+            .sidebar-collapsed .sidebar-custom .btn-toggle .bi-chevron-down { display: none !important; }
+            .sidebar-collapsed .sidebar-custom .collapse { display: none !important; }
+        }
 
         /* Main card wrapper */
         .main-content-card { background: var(--surface); border-radius:14px; box-shadow: var(--shadow); min-height:100vh; display:flex; flex-direction:column; border:1px solid var(--border); }
@@ -138,6 +159,71 @@
         .nav-tabs { border-color: var(--border); }
         .nav-tabs .nav-link { border-color: var(--border); }
 
+        /* Dark-mode component polishing */
+        [data-theme="dark"] .card,
+        [data-theme="dark"] .modal-content,
+        [data-theme="dark"] .dropdown-menu { background: color-mix(in srgb, var(--surface) 96%, transparent); color: var(--text); border-color: var(--border); }
+        [data-theme="dark"] .dropdown-item { color: var(--text); }
+        [data-theme="dark"] .dropdown-item:hover { background: color-mix(in srgb, var(--primary) 16%, var(--surface)); color: var(--text); }
+        [data-theme="dark"] .list-group-item { background: color-mix(in srgb, var(--surface) 96%, transparent); color: var(--text); border-color: var(--border); }
+        [data-theme="dark"] .list-group-item-action:hover,
+        [data-theme="dark"] .list-group-item-action:focus { background: color-mix(in srgb, var(--primary) 12%, var(--surface)); color: var(--text); }
+        [data-theme="dark"] .list-group-item.active { background: color-mix(in srgb, var(--primary) 22%, var(--surface)); border-color: color-mix(in srgb, var(--primary) 26%, var(--border)); color: var(--text); }
+        [data-theme="dark"] .list-group-flush > .list-group-item { background: color-mix(in srgb, var(--surface) 96%, transparent); border-color: var(--border); }
+        [data-theme="dark"] .list-group-numbered > .list-group-item::before { background: color-mix(in srgb, var(--primary) 22%, var(--surface)); color: var(--text); border: 1px solid var(--border); }
+        /* Simple lists */
+        [data-theme="dark"] .list-unstyled li,
+        [data-theme="dark"] .list-inline-item { color: var(--text); }
+        [data-theme="dark"] .list-unstyled li a { color: var(--text); }
+        [data-theme="dark"] .list-unstyled li a:hover { color: color-mix(in srgb, var(--primary) 80%, var(--text)); }
+        [data-theme="dark"] .table { color: var(--text); border-color: var(--border); }
+        [data-theme="dark"] .table thead th { background: color-mix(in srgb, var(--primary) 12%, var(--surface)); border-bottom-color: var(--border); }
+        [data-theme="dark"] .table-striped tbody tr:nth-of-type(odd) { background-color: color-mix(in srgb, var(--bg) 75%, var(--surface)); }
+        [data-theme="dark"] .table-hover tbody tr:hover { background: color-mix(in srgb, var(--secondary) 10%, var(--surface)); }
+        [data-theme="dark"] .form-control,
+        [data-theme="dark"] .form-select,
+        [data-theme="dark"] .input-group-text { background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--text); border-color: var(--border); }
+        [data-theme="dark"] .form-control::placeholder { color: var(--muted); }
+        [data-theme="dark"] .btn-outline-secondary { color: var(--text); border-color: var(--border); }
+        [data-theme="dark"] .btn-outline-secondary:hover { background: color-mix(in srgb, var(--surface) 85%, transparent); }
+        [data-theme="dark"] .sidebar-edge-handle { background: color-mix(in srgb, var(--surface) 96%, transparent); color: var(--text); border-color: var(--border); }
+        [data-theme="dark"] .nav-link { color: #e2e8f0; }
+
+        /* Utilities & components often hardcoded to light palette */
+        [data-theme="dark"] .bg-white,
+        [data-theme="dark"] .bg-light { background: color-mix(in srgb, var(--surface) 96%, transparent) !important; border-color: var(--border) !important; }
+        [data-theme="dark"] .text-dark { color: var(--text) !important; }
+        [data-theme="dark"] .text-muted { color: var(--muted) !important; }
+        [data-theme="dark"] .border, [data-theme="dark"] .border-top, [data-theme="dark"] .border-bottom, [data-theme="dark"] .border-start, [data-theme="dark"] .border-end { border-color: var(--border) !important; }
+
+        /* Alerts & badges */
+        [data-theme="dark"] .alert { background: color-mix(in srgb, var(--surface) 94%, transparent); color: var(--text); border-color: var(--border); }
+        [data-theme="dark"] .alert-primary { background: color-mix(in srgb, var(--primary) 16%, var(--surface)); }
+        [data-theme="dark"] .alert-success { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+        [data-theme="dark"] .alert-danger { background: color-mix(in srgb, var(--danger) 16%, var(--surface)); }
+        [data-theme="dark"] .badge.bg-light { background: color-mix(in srgb, var(--surface) 85%, transparent) !important; color: var(--text) !important; }
+
+        /* Pagination */
+        [data-theme="dark"] .page-link { background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--text); border-color: var(--border); }
+        [data-theme="dark"] .page-link:hover { background: color-mix(in srgb, var(--primary) 12%, var(--surface)); }
+        [data-theme="dark"] .page-item.active .page-link { background: color-mix(in srgb, var(--primary) 22%, var(--surface)); border-color: color-mix(in srgb, var(--primary) 22%, var(--border)); }
+
+        /* Offcanvas, backdrops, accordion */
+        [data-theme="dark"] .offcanvas, [data-theme="dark"] .accordion-item { background: color-mix(in srgb, var(--surface) 96%, transparent); color: var(--text); border-color: var(--border); }
+        [data-theme="dark"] .accordion-button { background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--text); }
+        [data-theme="dark"] .accordion-button:not(.collapsed) { background: color-mix(in srgb, var(--primary) 12%, var(--surface)); color: var(--text); }
+        [data-theme="dark"] .modal-backdrop, [data-theme="dark"] .offcanvas-backdrop { background: rgba(0,0,0,.6); }
+
+        /* Navbars or top bars if used */
+        [data-theme="dark"] .navbar, [data-theme="dark"] .breadcrumb { background: color-mix(in srgb, var(--surface) 96%, transparent); border-color: var(--border); }
+
+        /* Tables bordered */
+        [data-theme="dark"] .table-bordered, [data-theme="dark"] .table-bordered > :not(caption) > * { border-color: var(--border); }
+
+        /* Form check/checkbox/radio accent color */
+        [data-theme="dark"] input[type="checkbox"],
+        [data-theme="dark"] input[type="radio"] { accent-color: var(--primary); }
+
         @media (max-width: 900px) { html, body { font-size: 12px; } }
         /* Mobile: ensure no sidebar width is reserved */
         @media (max-width: 767.98px) {
@@ -149,6 +235,7 @@
             /* Mobile header visible only on small screens */
             .mobile-header { display: flex !important; align-items: center; justify-content: space-between; padding: .75rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1030; }
             .mobile-header .btn { padding: .4rem .6rem; }
+            .sidebar-collapse-btn { display: none !important; }
         }
         /* Desktop: hide mobile header */
         @media (min-width: 768px) { .mobile-header { display: none !important; } }
@@ -197,6 +284,12 @@
         </div>
     </div>
     <div class="d-flex" style="min-height: 100vh;">
+        {% if user.is_authenticated %}
+        <!-- Desktop sidebar edge handle toggle -->
+        <button id="sidebarEdgeHandle" class="sidebar-edge-handle no-print" type="button" aria-label="Toggle sidebar" title="Toggle sidebar">
+            <i id="sidebarEdgeIcon" class="bi bi-chevron-left"></i>
+        </button>
+        {% endif %}
         <!-- Sidebar: admin or teacher -->
         {% if user.is_authenticated and user.role == 'admin' %}
         <nav class="sidebar-custom p-3 d-flex flex-column justify-content-between" style="width: 220px; min-height: 100vh; background: var(--sidebar-gradient);">
@@ -628,6 +721,268 @@
         }
     })();
     </script>
+    
+    <!-- Global Confirmation Modal -->
+    <div class="modal fade" id="globalConfirmModal" tabindex="-1" aria-labelledby="globalConfirmLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="globalConfirmLabel">Please Confirm</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p id="globalConfirmText" class="mb-3">Are you sure you want to proceed?</p>
+            <div id="globalConfirmAckWrap" class="form-check d-none">
+              <input class="form-check-input" type="checkbox" id="globalConfirmAck">
+              <label class="form-check-label" for="globalConfirmAck">I understand this action may be irreversible.</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" id="globalConfirmProceed" class="btn btn-danger" disabled>Proceed</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    // Generic confirmation handler: attach to elements/forms with [data-confirm]
+    (function(){
+      document.addEventListener('DOMContentLoaded', function(){
+        var modalEl = document.getElementById('globalConfirmModal');
+        if (!modalEl) return;
+        var modal = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(modalEl) : null;
+        var textEl = document.getElementById('globalConfirmText');
+        var ackWrap = document.getElementById('globalConfirmAckWrap');
+        var ack = document.getElementById('globalConfirmAck');
+        var proceedBtn = document.getElementById('globalConfirmProceed');
+
+        var pendingAction = null; // function to run when confirmed
+
+        function openConfirm(options){
+          var msg = options && options.message ? options.message : 'Are you sure you want to proceed?';
+          var requireAck = !!(options && options.requireAck);
+          textEl.textContent = msg;
+          if (requireAck) {
+            ack.checked = false;
+            ackWrap.classList.remove('d-none');
+            proceedBtn.disabled = true;
+          } else {
+            ackWrap.classList.add('d-none');
+            proceedBtn.disabled = false;
+          }
+          pendingAction = options && options.action ? options.action : null;
+          if (modal) modal.show();
+        }
+
+        if (ack) {
+          ack.addEventListener('change', function(){
+            if (!ackWrap.classList.contains('d-none')) {
+              proceedBtn.disabled = !this.checked;
+            }
+          });
+        }
+
+        if (proceedBtn) {
+          proceedBtn.addEventListener('click', function(){
+            if (modal) modal.hide();
+            var fn = pendingAction; pendingAction = null;
+            if (typeof fn === 'function') {
+              // Defer slightly to allow modal to close cleanly
+              setTimeout(fn, 30);
+            }
+          });
+        }
+
+        // Delegate clicks on elements with data-confirm
+        document.body.addEventListener('click', function(e){
+          var el = e.target.closest('[data-confirm]');
+          if (!el) return;
+          // If element is a submit button inside a form, we'll intercept submit instead to preserve semantics
+          if (el.tagName === 'BUTTON' && el.type === 'submit') return;
+          e.preventDefault();
+          var msg = el.getAttribute('data-confirm') || 'Proceed?';
+          var requireAck = el.getAttribute('data-confirm-ack') === '1';
+          var href = el.getAttribute('href');
+          openConfirm({
+            message: msg,
+            requireAck: requireAck,
+            action: function(){
+              if (href) { window.location.href = href; return; }
+              // If it's a button not a link, attempt to click it again with a flag to bypass
+              el.setAttribute('data-confirm-bypassed','1');
+              el.click();
+            }
+          });
+        }, true);
+
+        // Intercept submits on forms with data-confirm (skip if OTP already verified)
+        document.body.addEventListener('submit', function(e){
+          var form = e.target.closest('form[data-confirm]');
+          if (!form) return;
+          if (form.getAttribute('data-otp-verified') === '1') { return; }
+          if (form.getAttribute('data-confirm-bypassed') === '1') { form.removeAttribute('data-confirm-bypassed'); return; }
+          e.preventDefault();
+          var msg = form.getAttribute('data-confirm') || 'Proceed?';
+          var requireAck = form.getAttribute('data-confirm-ack') === '1';
+          openConfirm({
+            message: msg,
+            requireAck: requireAck,
+            action: function(){
+              form.setAttribute('data-confirm-bypassed','1');
+              form.submit();
+            }
+          });
+        }, true);
+      });
+    })();
+    </script>
+
+    <!-- OTP Modal -->
+    <div class="modal fade" id="otpModal" tabindex="-1" aria-labelledby="otpModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="otpModalLabel">Enter Verification Code</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-2">We sent a 6-digit verification code to your email{% if user and user.profile_phone %}, and phone{% endif %}.</p>
+            <div class="mb-3">
+              <label for="otpCode" class="form-label">Code</label>
+              <input type="text" inputmode="numeric" pattern="\\d{6}" maxlength="6" class="form-control" id="otpCode" placeholder="123456">
+              <div id="otpError" class="text-danger small mt-1"></div>
+            </div>
+            <button type="button" class="btn btn-link p-0" id="otpResendBtn">Resend code</button>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="otpVerifyBtn">
+              <span class="spinner-border spinner-border-sm d-none me-2" role="status" aria-hidden="true"></span>
+              Verify & Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    // OTP flow for elements/forms with [data-otp="1"]
+    (function(){
+      document.addEventListener('DOMContentLoaded', function(){
+        var modalEl = document.getElementById('otpModal');
+        if (!modalEl) return;
+        var modal = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(modalEl) : null;
+        var codeInput = document.getElementById('otpCode');
+        var errorEl = document.getElementById('otpError');
+        var verifyBtn = document.getElementById('otpVerifyBtn');
+        var resendBtn = document.getElementById('otpResendBtn');
+        var spinner = verifyBtn ? verifyBtn.querySelector('.spinner-border') : null;
+
+        var pendingAction = null; // a function to execute after verification
+        var pendingForm = null;   // a form to submit after verification
+
+        function setLoading(isLoading){
+          if (!verifyBtn || !spinner) return;
+          verifyBtn.disabled = isLoading;
+          spinner.classList.toggle('d-none', !isLoading);
+        }
+
+        async function api(path, body){
+          const csrf = (document.querySelector('input[name="csrfmiddlewaretoken"]')||{}).value || '';
+          const res = await fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify(body||{})
+          });
+          const data = await res.json().catch(()=>({ok:false,error:'Invalid response'}));
+          return { ok: res.ok && !!data.ok, data };
+        }
+
+        async function requestCode(context){
+          errorEl.textContent = '';
+          await api("{% url 'send_action_otp' %}", { context: context||'' });
+        }
+
+        async function verifyCode(code, context){
+          return api("{% url 'verify_action_otp' %}", { code: code, context: context||'' });
+        }
+
+        function startOtpFlow(opts){
+          // opts: { action: fn?, form: HTMLFormElement?, context: string }
+          pendingAction = opts && opts.action ? opts.action : null;
+          pendingForm = opts && opts.form ? opts.form : null;
+          requestCode(opts && opts.context);
+          codeInput.value = '';
+          errorEl.textContent = '';
+          if (modal) modal.show();
+          setTimeout(function(){ codeInput && codeInput.focus(); }, 60);
+        }
+
+        if (verifyBtn){
+          verifyBtn.addEventListener('click', async function(){
+            errorEl.textContent = '';
+            var code = (codeInput.value||'').trim();
+            if (!/^\d{6}$/.test(code)) { errorEl.textContent = 'Enter the 6-digit code.'; return; }
+            setLoading(true);
+            try {
+              var ctx = pendingForm && pendingForm.getAttribute('data-otp-context') || '';
+              var res = await verifyCode(code, ctx);
+              if (res.ok) {
+                if (modal) modal.hide();
+                if (pendingForm) {
+                  pendingForm.setAttribute('data-otp-verified','1');
+                  // If there's a confirm requirement, submit will pass through due to guard
+                  pendingForm.submit();
+                } else if (typeof pendingAction === 'function') {
+                  pendingAction();
+                }
+              } else {
+                errorEl.textContent = (res.data && res.data.error) || 'Invalid code';
+              }
+            } catch(e){
+              errorEl.textContent = 'Network error. Try again.';
+            } finally {
+              setLoading(false);
+            }
+          });
+        }
+
+        if (resendBtn){
+          resendBtn.addEventListener('click', function(){
+            var ctx = pendingForm && pendingForm.getAttribute('data-otp-context') || '';
+            requestCode(ctx);
+          });
+        }
+
+        // Intercept clicks on elements with data-otp="1" that are not submit buttons
+        document.body.addEventListener('click', function(e){
+          var el = e.target.closest('[data-otp="1"]');
+          if (!el) return;
+          if (el.tagName === 'BUTTON' && el.type === 'submit') return; // handled by submit branch
+          e.preventDefault();
+          startOtpFlow({
+            action: function(){
+              var href = el.getAttribute('href');
+              if (href) { window.location.href = href; }
+            },
+            context: el.getAttribute('data-otp-context') || ''
+          });
+        }, true);
+
+        // Intercept form submits for forms with data-otp
+        document.body.addEventListener('submit', function(e){
+          var form = e.target.closest('form[data-otp="1"]');
+          if (!form) return;
+          if (form.getAttribute('data-otp-verified') === '1') return; // already verified
+          e.preventDefault();
+          startOtpFlow({ form: form, context: form.getAttribute('data-otp-context') || '' });
+        }, true);
+      });
+    })();
+    </script>
+    </script>
     <!-- Global responsiveness helpers -->
     <script>
     (function(){
@@ -651,6 +1006,59 @@
                 if (document.documentElement.classList.contains('mobile-menu-opened')) closeMenu(); else openMenu();
             }); }
             if (backdrop){ backdrop.addEventListener('click', closeMenu); }
+
+            // Desktop sidebar collapse toggle (edge handle)
+            var desktopBtn = document.getElementById('sidebarEdgeHandle');
+            var desktopIcon = document.getElementById('sidebarEdgeIcon');
+            var STORAGE_KEY = 'sidebar_collapsed';
+            function applyCollapsedState(collapsed){
+                if (collapsed) document.documentElement.classList.add('sidebar-collapsed');
+                else document.documentElement.classList.remove('sidebar-collapsed');
+                if (desktopIcon){ desktopIcon.className = collapsed ? 'bi bi-chevron-right' : 'bi bi-chevron-left'; }
+            }
+            try {
+                var saved = localStorage.getItem(STORAGE_KEY);
+                applyCollapsedState(saved === '1');
+            } catch(e){}
+            if (desktopBtn){
+                desktopBtn.addEventListener('click', function(){
+                    var nowCollapsed = !document.documentElement.classList.contains('sidebar-collapsed');
+                    applyCollapsedState(nowCollapsed);
+                    try { localStorage.setItem(STORAGE_KEY, nowCollapsed ? '1' : '0'); } catch(e){}
+                });
+            }
+
+            // If sidebar is collapsed and a user clicks a sidebar item,
+            // first unfold the sidebar and do not navigate on that initial click.
+            var sidebar = document.querySelector('.sidebar-custom');
+            if (sidebar){
+                sidebar.addEventListener('click', function(e){
+                    var target = e.target;
+                    // normalize to the actionable element (anchor or button)
+                    var actionable = target.closest('a.nav-link, button.btn-toggle');
+                    if (!actionable) return;
+                    var isCollapsed = document.documentElement.classList.contains('sidebar-collapsed');
+                    if (isCollapsed) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        applyCollapsedState(false);
+                        try { localStorage.setItem(STORAGE_KEY, '0'); } catch(err){}
+                        // If it was a toggle button, open its collapse shortly after expand
+                        if (actionable.matches('button.btn-toggle')) {
+                            var targetSel = actionable.getAttribute('data-bs-target');
+                            if (targetSel) {
+                                setTimeout(function(){
+                                    var el = document.querySelector(targetSel);
+                                    if (el && typeof bootstrap !== 'undefined') {
+                                        try { new bootstrap.Collapse(el, { toggle: true }); } catch(_e){}
+                                    }
+                                }, 50);
+                            }
+                        }
+                        return false;
+                    }
+                }, true);
+            }
         });
     })();
     </script>

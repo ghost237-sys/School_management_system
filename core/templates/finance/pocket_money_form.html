@@ -1,0 +1,374 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-0">
+                        <i class="fas fa-coins me-2"></i>{{ title }}
+                    </h4>
+                </div>
+                
+                <div class="card-body">
+                    <form method="post" id="pocketMoneyForm">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="student_search" class="form-label">Student *</label>
+                                    <div class="position-relative">
+                                        <input type="text" id="student_search" class="form-control" 
+                                               placeholder="Type student name or admission number..." 
+                                               autocomplete="off">
+                                        <div id="search_spinner" class="position-absolute top-50 end-0 translate-middle-y me-3" style="display: none;">
+                                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                                <span class="visually-hidden">Searching...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="student_suggestions" class="dropdown-menu w-100" style="display: none; max-height: 300px; overflow-y: auto;">
+                                        <!-- Search suggestions will appear here -->
+                                    </div>
+                                    <input type="hidden" id="{{ form.student.id_for_label }}" name="{{ form.student.name }}" value="{{ form.student.value|default:'' }}">
+                                    <div id="selected_student_info" class="mt-2" style="display: none;">
+                                        <div class="card bg-light">
+                                            <div class="card-body py-2">
+                                                <div class="row align-items-center">
+                                                    <div class="col">
+                                                        <strong id="selected_student_name"></strong>
+                                                        <small class="text-muted d-block" id="selected_student_details"></small>
+                                                    </div>
+                                                    <div class="col-auto">
+                                                        <span class="badge bg-primary" id="selected_student_balance">KES 0.00</span>
+                                                    </div>
+                                                    <div class="col-auto">
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearStudentSelection()">
+                                                            <i class="fas fa-times"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% if form.student.errors %}
+                                        <div class="text-danger small">{{ form.student.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.transaction_type.id_for_label }}" class="form-label">Transaction Type *</label>
+                                    {{ form.transaction_type }}
+                                    {% if form.transaction_type.errors %}
+                                        <div class="text-danger small">{{ form.transaction_type.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.amount.id_for_label }}" class="form-label">Amount (KES) *</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">KES</span>
+                                        {{ form.amount }}
+                                    </div>
+                                    {% if form.amount.errors %}
+                                        <div class="text-danger small">{{ form.amount.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.reference.id_for_label }}" class="form-label">Reference/Receipt No.</label>
+                                    {{ form.reference }}
+                                    {% if form.reference.errors %}
+                                        <div class="text-danger small">{{ form.reference.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                                <div class="text-danger small">{{ form.description.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Student Balance Info (shown when student is selected) -->
+                        <div id="studentBalanceInfo" class="alert alert-info" style="display: none;">
+                            <h6><i class="fas fa-info-circle me-2"></i>Student Balance Information</h6>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <strong>Current Balance:</strong><br>
+                                    <span id="currentBalance" class="h5 text-primary">KES 0.00</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Total Deposits:</strong><br>
+                                    <span id="totalDeposits" class="text-success">KES 0.00</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Total Withdrawals:</strong><br>
+                                    <span id="totalWithdrawals" class="text-danger">KES 0.00</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Class:</strong><br>
+                                    <span id="studentClass">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'pocket_money_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>Back to List
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>{{ action }} Transaction
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const studentSearch = document.getElementById('student_search');
+    const studentHidden = document.getElementById('{{ form.student.id_for_label }}');
+    const suggestions = document.getElementById('student_suggestions');
+    const spinner = document.getElementById('search_spinner');
+    const selectedInfo = document.getElementById('selected_student_info');
+    const balanceInfo = document.getElementById('studentBalanceInfo');
+    
+    let searchTimeout;
+    let selectedStudent = null;
+    
+    // Auto-search functionality
+    studentSearch.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        if (query.length < 2) {
+            suggestions.style.display = 'none';
+            spinner.style.display = 'none';
+            return;
+        }
+        
+        // Clear previous timeout
+        clearTimeout(searchTimeout);
+        
+        // Show spinner
+        spinner.style.display = 'block';
+        
+        // Debounce search
+        searchTimeout = setTimeout(() => {
+            searchStudents(query);
+        }, 150);
+    });
+    
+    // Search students via AJAX
+    function searchStudents(query) {
+        console.log('Searching for:', query); // Debug log
+        fetch(`/pocket-money/search-students/?q=${encodeURIComponent(query)}`)
+            .then(response => {
+                console.log('Response status:', response.status); // Debug log
+                return response.json();
+            })
+            .then(data => {
+                console.log('Search results:', data); // Debug log
+                spinner.style.display = 'none';
+                displaySuggestions(data.students);
+            })
+            .catch(error => {
+                spinner.style.display = 'none';
+                console.error('Error searching students:', error);
+                suggestions.style.display = 'none';
+            });
+    }
+    
+    // Display search suggestions (no balance in suggestion for speed)
+    function displaySuggestions(students) {
+        suggestions.innerHTML = '';
+        
+        if (students.length === 0) {
+            suggestions.innerHTML = '<div class="dropdown-item text-muted">No students found</div>';
+            suggestions.style.display = 'block';
+            return;
+        }
+        
+        students.forEach(student => {
+            const item = document.createElement('div');
+            item.className = 'dropdown-item d-flex justify-content-between align-items-center';
+            item.style.cursor = 'pointer';
+            
+            item.innerHTML = `
+                <div>
+                    <strong>${student.name}</strong>
+                    <small class="text-muted d-block">${student.admission_no} • ${student.class_group}</small>
+                </div>
+            `;
+            
+            item.addEventListener('click', () => selectStudent(student));
+            suggestions.appendChild(item);
+        });
+        
+        suggestions.style.display = 'block';
+    }
+    
+    // Select a student
+    function selectStudent(student) {
+        selectedStudent = student;
+        studentHidden.value = student.id;
+        studentSearch.value = student.display_text;
+        suggestions.style.display = 'none';
+        
+        // Update selected student info
+        document.getElementById('selected_student_name').textContent = student.name;
+        document.getElementById('selected_student_details').textContent = 
+            `${student.admission_no} • ${student.class_group}`;
+        
+        // Set temporary loading state for balance until fetched
+        const balanceElement = document.getElementById('selected_student_balance');
+        balanceElement.textContent = 'Loading...';
+        balanceElement.className = 'badge bg-secondary';
+        
+        selectedInfo.style.display = 'block';
+        
+        // Load detailed balance info
+        loadStudentBalance(student.id);
+    }
+    
+    // Clear student selection
+    window.clearStudentSelection = function() {
+        selectedStudent = null;
+        studentHidden.value = '';
+        studentSearch.value = '';
+        selectedInfo.style.display = 'none';
+        balanceInfo.style.display = 'none';
+        suggestions.style.display = 'none';
+    };
+    
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!studentSearch.contains(e.target) && !suggestions.contains(e.target)) {
+            suggestions.style.display = 'none';
+        }
+    });
+    
+    // Function to load detailed student balance
+    function loadStudentBalance(studentId) {
+        if (!studentId) {
+            balanceInfo.style.display = 'none';
+            return;
+        }
+        
+        fetch(`/pocket-money/student-balance/${studentId}/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Persist balance on selectedStudent for validation
+                    if (selectedStudent && selectedStudent.id === studentId) {
+                        selectedStudent.balance = data.balance;
+                    }
+                    document.getElementById('currentBalance').textContent = `KES ${data.balance.toFixed(2)}`;
+                    document.getElementById('totalDeposits').textContent = `KES ${data.deposits.toFixed(2)}`;
+                    document.getElementById('totalWithdrawals').textContent = `KES ${data.withdrawals.toFixed(2)}`;
+                    document.getElementById('studentClass').textContent = data.class_group;
+                    const badge = document.getElementById('selected_student_balance');
+                    badge.textContent = `KES ${data.balance.toFixed(2)}`;
+                    badge.className = `badge bg-${data.balance >= 0 ? 'primary' : 'danger'}`;
+                    balanceInfo.style.display = 'block';
+                } else {
+                    balanceInfo.style.display = 'none';
+                    console.error('Error loading student balance:', data.error);
+                }
+            })
+            .catch(error => {
+                balanceInfo.style.display = 'none';
+                console.error('Error loading student balance:', error);
+            });
+    }
+    
+    // Load existing student if editing
+    const existingStudentId = '{{ form.student.value|default:"" }}';
+    if (existingStudentId) {
+        // If editing, load the selected student
+        fetch('/pocket-money/student-balance/' + existingStudentId + '/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const studentData = {
+                        id: parseInt(existingStudentId),
+                        name: data.student_name,
+                        admission_no: data.admission_no,
+                        class_group: data.class_group,
+                        balance: data.balance,
+                        display_text: data.student_name + ' - ' + data.admission_no + ' (' + data.class_group + ')'
+                    };
+                    selectStudent(studentData);
+                }
+            });
+    }
+    
+    // Enforce withdrawal <= current balance (client-side)
+    const amountInput = document.getElementById('{{ form.amount.id_for_label }}');
+    const typeSelect = document.getElementById('{{ form.transaction_type.id_for_label }}');
+
+    function applyMaxForWithdrawal(){
+        if (typeSelect.value === 'withdrawal' && selectedStudent && typeof selectedStudent.balance === 'number'){
+            amountInput.max = String(selectedStudent.balance);
+        } else {
+            amountInput.removeAttribute('max');
+        }
+    }
+
+    typeSelect.addEventListener('change', applyMaxForWithdrawal);
+
+    // Update max after balance loads
+    const _loadStudentBalanceOrig = loadStudentBalance;
+    loadStudentBalance = function(studentId){
+        _loadStudentBalanceOrig(studentId);
+        // defer apply after fetch completes
+        setTimeout(applyMaxForWithdrawal, 300);
+    }
+
+    // Form validation
+    document.getElementById('pocketMoneyForm').addEventListener('submit', function(e) {
+        const amount = parseFloat(amountInput.value);
+        const transactionType = typeSelect.value;
+        
+        if (!studentHidden.value) {
+            e.preventDefault();
+            alert('Please select a student.');
+            studentSearch.focus();
+            return;
+        }
+        
+        if (amount <= 0) {
+            e.preventDefault();
+            alert('Amount must be greater than zero.');
+            return;
+        }
+        
+        // Hard block withdrawals that exceed current balance
+        if (transactionType === 'withdrawal' && selectedStudent && typeof selectedStudent.balance === 'number' && amount > selectedStudent.balance) {
+            e.preventDefault();
+            alert(`Withdrawal cannot exceed current balance (KES ${selectedStudent.balance.toFixed(2)}).`);
+            return;
+        }
+    });
+});
+</script>
+{% endblock %}

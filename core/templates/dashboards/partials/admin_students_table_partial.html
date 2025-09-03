@@ -27,7 +27,10 @@
               <i class="bi bi-pencil-square"></i> Edit
             </a>
             {% if student.user %}
-            <a href="{% url 'delete_user' student.user.id %}" class="btn btn-outline-danger">
+            <a href="{% url 'delete_user' student.user.id %}"
+               class="btn btn-outline-danger"
+               data-confirm="Delete this user and remove their account? This cannot be undone."
+               data-confirm-ack="1">
               <i class="bi bi-trash"></i> Delete
             </a>
             {% endif %}

@@ -44,11 +44,16 @@ class Command(BaseCommand):
                             promoted_name = f"Grade {new_level}{suffix}"
                         else:
                             promoted_name = student.class_group.name
-                        try:
-                            new_class = Class.objects.get(level=new_level, name=promoted_name)
+                        # Resolve target class safely even if duplicates exist
+                        qs = Class.objects.filter(level=new_level, name=promoted_name).order_by('id')
+                        if qs.exists():
+                            if qs.count() > 1:
+                                self.stdout.write(self.style.WARNING(
+                                    f'Multiple classes found for level {new_level} and name {promoted_name}; choosing the earliest created.'))
+                            new_class = qs.first()
                             student.class_group = new_class
                             student.save()
-                        except Class.DoesNotExist:
+                        else:
                             self.stdout.write(self.style.WARNING(
                                 f'No class found for level {new_level} and name {promoted_name}'))
 

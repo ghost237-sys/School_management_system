@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Pocket Money Receipt</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --text:#111; --muted:#666; --border:#dcdcdc; --light:#f6f8fa; }
+    html, body { margin:0; padding:0; color:var(--text); font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif; }
+    @page { size: A4; margin: 12mm; }
+    @media print { html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    .page { width: 100%; box-sizing: border-box; page-break-inside: avoid; }
+
+    /* Header */
+    .header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:10px; }
+    .logo { height:48px; flex-shrink:0; }
+    .school-details { font-size:12px; line-height:1.4; }
+    .school-details h1 { font-size:20px; margin:0 0 4px 0; font-weight:bold; }
+    .title { line-height:1.2; text-align:right; flex-shrink:0; }
+    .title h1 { font-size:18px; margin:0; font-weight:bold; }
+    .title small { color:var(--muted); }
+
+    /* Info */
+    .row { display:flex; justify-content:space-between; gap:12px; margin-bottom:10px; }
+    .col { flex:1; }
+    .label { font-weight:600; font-size:12px; margin-bottom:2px; }
+    .muted { color:var(--muted); font-size:12px; }
+
+    /* Meta table */
+    table.meta { width:100%; border-collapse:collapse; }
+    table.meta th { text-align:left; width:200px; padding:6px 8px; background:var(--light); border:1px solid var(--border); font-weight:600; }
+    table.meta td { padding:6px 8px; border:1px solid var(--border); }
+    .amount { font-size: 1.1em; font-weight: bold; }
+
+    /* Footer */
+    .footer { margin-top:20px; color:var(--muted); font-size:12px; display:flex; justify-content:space-between; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      {% if site_settings and site_settings.logo %}
+        <img class="logo" src="{{ site_settings.logo.url }}" alt="Logo">
+      {% endif %}
+      <div class="school-details">
+        {% if site_settings.school_name %}<h1>{{ site_settings.school_name }}</h1>{% endif %}
+        {% if site_settings.contact_address %}<div>{{ site_settings.contact_address }}</div>{% endif %}
+        {% if site_settings.contact_phone or site_settings.contact_email %}
+        <div class="muted">
+          {% if site_settings.contact_phone %}Phone: {{ site_settings.contact_phone }}{% endif %}
+          {% if site_settings.contact_phone and site_settings.contact_email %} | {% endif %}
+          {% if site_settings.contact_email %}Email: {{ site_settings.contact_email }}{% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="title">
+        <h1>Pocket Money Receipt</h1>
+        <small>Generated {{ generated_at|date:'Y-m-d H:i' }}</small>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="label">Student</div>
+        <div>{{ transaction.student.user.get_full_name|default:transaction.student.user.username }}</div>
+        <div class="muted">Adm: {{ transaction.student.admission_no }}{% if transaction.student.class_group %} • Class: {{ transaction.student.class_group }}{% endif %}</div>
+      </div>
+      <div class="col" style="text-align:right">
+        <div class="label">Transaction No.</div>
+        <div>PM-{{ transaction.id }}</div>
+        <div class="muted">Date: {{ transaction.transaction_date|date:'Y-m-d H:i' }}</div>
+      </div>
+    </div>
+
+    <table class="meta">
+      <tbody>
+        <tr>
+          <th>Transaction Type</th>
+          <td>{{ transaction.get_transaction_type_display }}</td>
+        </tr>
+        <tr>
+          <th>Amount</th>
+          <td class="amount">KES {{ transaction.amount|floatformat:2 }}</td>
+        </tr>
+        {% if transaction.description %}
+        <tr>
+          <th>Description</th>
+          <td>{{ transaction.description }}</td>
+        </tr>
+        {% endif %}
+        <tr>
+          <th>Status</th>
+          <td>{{ transaction.get_status_display }}</td>
+        </tr>
+        {% if transaction.processed_by %}
+        <tr>
+          <th>Processed By</th>
+          <td>{{ transaction.processed_by.get_full_name|default:transaction.processed_by.username }}</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <div class="footer">
+      <div>Printed on {{ generated_at|date:'Y-m-d H:i' }}</div>
+      <div>Thank you.</div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('load', function(){
+      setTimeout(function(){ window.print(); }, 50);
+    });
+  </script>
+</body>
+</html>

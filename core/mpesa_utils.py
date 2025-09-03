@@ -2,6 +2,7 @@ import requests
 import base64
 from django.conf import settings
 from datetime import datetime
+from urllib.parse import urlsplit, urlunsplit
 
 def get_mpesa_access_token():
     """Fetch an OAuth access token from Daraja.
@@ -44,8 +45,9 @@ def initiate_stk_push(phone_number, amount, account_ref, transaction_desc):
             'error': 'Unable to obtain M-Pesa access token. Check credentials/network.',
         }
     print("[M-PESA] Access token acquired")
-    shortcode = settings.MPESA_SHORTCODE
-    passkey = settings.MPESA_PASSKEY
+    # Use STK-specific credentials when provided (sandbox default shortcode is 174379)
+    shortcode = getattr(settings, 'MPESA_STK_SHORTCODE', None) or getattr(settings, 'MPESA_SHORTCODE')
+    passkey = getattr(settings, 'MPESA_STK_PASSKEY', None) or getattr(settings, 'MPESA_PASSKEY')
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     data_to_encode = shortcode + passkey + timestamp
     password = base64.b64encode(data_to_encode.encode()).decode('utf-8')
@@ -56,7 +58,7 @@ def initiate_stk_push(phone_number, amount, account_ref, transaction_desc):
     )
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
     # Prefer a configurable callback URL from settings; fall back to current ngrok URL if not set
-    callback_url = getattr(settings, 'MPESA_CALLBACK_URL', None) or "https://0719e873a579.ngrok-free.app/mpesa-callback/"
+    callback_url = getattr(settings, 'MPESA_CALLBACK_URL', None) or "https://a3f71df1ab1a.ngrok-free.app/mpesa-callback/"
     payload = {
         "BusinessShortCode": shortcode,
         "Password": password,
@@ -91,8 +93,9 @@ def query_stk_status(checkout_request_id):
     Returns parsed JSON from Daraja, or {'error': ...} on failure.
     """
     access_token = get_mpesa_access_token()
-    shortcode = settings.MPESA_SHORTCODE
-    passkey = settings.MPESA_PASSKEY
+    # Use the same STK-specific credentials as used during initiate
+    shortcode = getattr(settings, 'MPESA_STK_SHORTCODE', None) or getattr(settings, 'MPESA_SHORTCODE')
+    passkey = getattr(settings, 'MPESA_STK_PASSKEY', None) or getattr(settings, 'MPESA_PASSKEY')
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     data_to_encode = shortcode + passkey + timestamp
     password = base64.b64encode(data_to_encode.encode()).decode('utf-8')
@@ -113,3 +116,65 @@ def query_stk_status(checkout_request_id):
     except requests.RequestException as e:
         return {"error": str(e)}
 
+def _derive_base_from_callback(callback_url: str) -> str:
+    """Return scheme://netloc from a full URL; '' if invalid."""
+    try:
+        parts = urlsplit(callback_url or '')
+        if parts.scheme and parts.netloc:
+            return urlunsplit((parts.scheme, parts.netloc, '', '', ''))
+    except Exception:
+        pass
+    return ''
+
+def register_c2b_urls():
+    """Register C2B Validation and Confirmation URLs with Safaricom Daraja.
+
+    Uses settings:
+    - MPESA_SHORTCODE
+    - MPESA_C2B_VALIDATION_URL (optional)
+    - MPESA_C2B_CONFIRMATION_URL (optional)
+    - MPESA_CALLBACK_URL (used to derive base when specific C2B URLs are not set)
+    Returns parsed JSON on success/failure details.
+    """
+    token = get_mpesa_access_token()
+    if not token:
+        return {"error": "Missing/invalid access token"}
+
+    shortcode = getattr(settings, 'MPESA_SHORTCODE', None)
+    if not shortcode:
+        return {"error": "MPESA_SHORTCODE not configured"}
+
+    # Determine URLs
+    val_url = getattr(settings, 'MPESA_C2B_VALIDATION_URL', '') or None
+    conf_url = getattr(settings, 'MPESA_C2B_CONFIRMATION_URL', '') or None
+    if not (val_url and conf_url):
+        base = _derive_base_from_callback(getattr(settings, 'MPESA_CALLBACK_URL', ''))
+        if base:
+            val_url = val_url or f"{base}/mpesa/c2b/validation/"
+            conf_url = conf_url or f"{base}/mpesa/c2b/confirmation/"
+    if not (val_url and conf_url):
+        return {"error": "Validation/Confirmation URLs not configured and base could not be derived"}
+
+    api_url = (
+        "https://sandbox.safaricom.co.ke/mpesa/c2b/v1/registerurl"
+        if getattr(settings, 'MPESA_ENVIRONMENT', 'sandbox') == 'sandbox'
+        else "https://api.safaricom.co.ke/mpesa/c2b/v1/registerurl"
+    )
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    payload = {
+        "ShortCode": shortcode,
+        "ResponseType": "Completed",
+        "ConfirmationURL": conf_url,
+        "ValidationURL": val_url,
+    }
+    try:
+        resp = requests.post(api_url, json=payload, headers=headers, timeout=20)
+        try:
+            data = resp.json()
+        except Exception:
+            data = {"error": "Invalid JSON response", "raw": resp.text}
+        data["request"] = payload
+        data["status_code"] = resp.status_code
+        return data
+    except requests.RequestException as e:
+        return {"error": str(e)}

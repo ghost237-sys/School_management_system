@@ -8,86 +8,52 @@
   /* Hero gradient backdrop */
   .auth-hero {
     min-height: 100vh;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 85%, #fff) 0%, var(--bg) 100%);
+    background:
+      radial-gradient(1200px 480px at 10% -10%, rgba(59,130,246,.08), transparent 60%),
+      radial-gradient(900px 420px at 110% 0%, rgba(99,102,241,.06), transparent 60%),
+      linear-gradient(180deg, color-mix(in srgb, var(--bg) 90%, #fff) 0%, var(--bg) 100%);
     display: grid; place-items: center; padding: 2rem; overflow: hidden;
   }
 
   /* Glass card */
   .glass-card {
     position: relative; z-index: 1;
-    width: 100%; max-width: 420px;
-    border-radius: 14px; border: 1px solid var(--border);
-    background: var(--surface);
-    box-shadow: 0 8px 24px rgba(15,23,42,.06);
+    width: 100%; max-width: 480px;
+    border-radius: 16px; border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+    background: color-mix(in srgb, var(--surface) 96%, #ffffff 4%);
+    box-shadow: 0 10px 28px rgba(15,23,42,.06), 0 2px 6px rgba(15,23,42,.04);
     backdrop-filter: blur(10px) saturate(140%);
     opacity: 0; transform: translateY(8px);
     animation: enter .35s ease forwards;
   }
   @keyframes enter { to { opacity: 1; transform: translateY(0) } }
-  .brand-title { font-weight: 800; letter-spacing: .4px; }
-  .subtitle { color: var(--muted); font-size: .95rem }
+  .brand-title { font-weight: 800; letter-spacing: .2px; }
+  .subtitle { color: var(--muted); font-size: .96rem }
 
   /* Inputs with icons */
-  .input-icon .input-group-text { border-right: 0; }
+  .input-icon .input-group-text { border-right: 0; background: color-mix(in srgb, var(--surface) 92%, #fff); }
   .input-icon .form-control { border-left: 0; }
-  .input-icon .form-control:focus { z-index: 2; }
+  .input-icon .form-control:focus { z-index: 2; box-shadow: 0 0 0 .15rem rgba(59,130,246,.15); }
 
   /* Primary gradient button */
   .btn-gradient {
     background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 92%, black) 0%, var(--secondary) 100%);
-    border: none; color: #fff; box-shadow: 0 8px 20px rgba(31,111,235,.22);
+    border: none; color: #fff; box-shadow: 0 10px 22px rgba(31,111,235,.22);
+    transition: transform .04s ease, filter .2s ease;
   }
-  .btn-gradient:hover { filter: brightness(.96); }
+  .btn-gradient:hover { filter: brightness(.97); }
+  .btn-gradient:active { transform: translateY(1px); }
 
   /* Small links */
   .muted-link { color: var(--muted); text-decoration: none; }
   .muted-link:hover { color: var(--text); text-decoration: underline; }
 
-  @media (max-width: 480px) { .glass-card { border-radius: 14px } }
+  @media (max-width: 480px) { .glass-card { border-radius: 14px; max-width: 94vw } }
 
   /* CapsLock indicator */
   .caps-indicator { display:none; font-size:.8rem; color: var(--danger); }
 
-  /* (simplified) */
-
-  /* Two-column layout with a big robot */
-  .auth-wrap { display:grid; grid-template-columns: minmax(320px, 540px) 420px; gap: 2rem; align-items: center; }
-  @media (max-width: 992px) { .auth-wrap { grid-template-columns: 1fr; } }
-
-  .bot-stage { display:flex; align-items:center; gap:1rem; justify-content:space-between; flex-direction: row-reverse; position: relative; z-index: 3; }
-  .big-bot { position: relative; width: 360px; max-width: 42vw; aspect-ratio: 1/1; z-index: 3; margin-right: 0; cursor: pointer; }
-  @media (max-width: 1200px) { .big-bot { width: 300px } }
-  @media (max-width: 992px) { .bot-stage { justify-content:center } .big-bot { margin-right: 0 } }
-  .big-bot svg { width:100%; height:100%; filter: drop-shadow(0 10px 28px rgba(15,23,42,.12)); }
-  .big-bot .hand-right { transform-origin: 78% 58%; transform-box: fill-box; animation: hand-wave 3s ease-in-out infinite; transition: transform .28s ease; }
-  .big-bot .hand-left { transform-origin: 22% 58%; transform-box: fill-box; transition: transform .28s ease; }
-  .big-bot .bot-head { transform-origin: 50% 38%; transform-box: fill-box; transition: transform .28s ease; }
-  @keyframes hand-wave { 0%,100%{ transform: rotate(0deg) } 50%{ transform: rotate(-8deg) } }
-
-  /* (pointer removed per request) */
-
-  .bot-chat { max-width: 360px; margin-left: 0; margin-right: 12px; }
-  .bot-speech { position: relative; background: var(--surface); border:1px solid var(--border); border-radius: .75rem; padding:.75rem .9rem; box-shadow: 0 10px 22px rgba(15,23,42,.10); transition: opacity .28s ease, transform .28s ease, box-shadow .2s ease, border-color .2s ease; }
-  /* Comic bubble during guide */
-  .bot-speech.speak { border: 2px solid #ef4444; box-shadow: 0 8px 20px rgba(239,68,68,.08); }
-  .bot-speech.speak::before { content:""; position: absolute; right: -14px; top: 36px; width: 0; height: 0; border-left: 16px solid #ef4444; border-top: 10px solid transparent; border-bottom: 10px solid transparent; }
-  .bot-speech.speak::after { content:""; position: absolute; right: -12px; top: 37px; width: 0; height: 0; border-left: 14px solid var(--surface); border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
-  /* Show speech bubble by default */
-  #botSpeech { display:block }
-  .bot-speech.hidden { opacity: 0; transform: translateY(6px) scale(.985); pointer-events: none; }
-  #botSay { color: var(--muted); font-size:.9rem; }
-
-  /* Bored pose when help is hidden */
-  .big-bot.bored .hand-right { animation: none; transform: rotate(65deg) translateY(6px); transition: transform .25s ease; }
-  .big-bot.bored .hand-left { transform: rotate(-65deg) translateY(6px); transition: transform .25s ease; }
-  .big-bot.bored .bot-head { transform: rotate(20deg) translateX(12px) translateY(2px); transition: transform .25s ease; }
-
-  /* Collapsible help panel */
-  #helpPanel { display:none; border:1px solid var(--border); border-radius:.8rem; padding: .75rem; background: color-mix(in srgb, var(--surface) 96%, transparent); }
-  .steps { list-style:none; padding-left:0; margin:0 }
-  .steps li { display:flex; align-items:flex-start; gap:.6rem; padding:.4rem 0 }
-  .steps .num { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-weight:600; font-size:.8rem; color:#fff; background: var(--primary) }
-  .steps .txt { color: var(--muted); font-size:.92rem }
+  /* Trimmed out old illustration/help styles for a cleaner look */
 
   /* Glow highlight for guided steps (soft blue aura) */
   .highlight {
@@ -138,6 +104,18 @@
       {% endfor %}
     {% endif %}
 
+    {% if request_id %}
+      <div id="emailLinkNotice" class="alert alert-info d-flex align-items-center" role="alert">
+        <div>
+          We've sent a confirmation link to your email. Please click Accept on that device. This page will continue automatically.
+        </div>
+      </div>
+      <div class="text-center mb-3">
+        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Waiting…</span></div>
+      </div>
+      <div id="reqMeta" data-request-id="{{ request_id }}" hidden></div>
+    {% endif %}
+
     <form method="post" action="{% url 'login' %}" autocomplete="on">
       {% csrf_token %}
 
@@ -182,7 +160,7 @@
       </div>
 
       <div class="d-grid gap-2">
-        <button id="submitBtn" type="submit" class="btn btn-primary py-2" disabled>
+        <button id="submitBtn" type="submit" class="btn btn-gradient py-2" disabled>
           <span class="btn-label">Login</span>
           <span class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true"></span>
         </button>
@@ -275,6 +253,42 @@
         username.addEventListener(evt, () => { if (rememberMe.checked) localStorage.setItem('login_username', username.value.trim()); });
       });
     } catch(e) { /* storage may be blocked; ignore */ }
+
+    // Device continuation: poll login status when waiting for email confirmation
+    (function(){
+      const meta = document.getElementById('reqMeta');
+      if (!meta) return;
+      const rid = meta.getAttribute('data-request-id');
+      if (!rid) return;
+      const endpoint = `{% url 'login_status' 'REQUEST_ID_PLACEHOLDER' %}`.replace('REQUEST_ID_PLACEHOLDER', rid);
+      let timer = null;
+      const manageUrl = "{% url 'session_devices' %}";
+      const dashboardUrl = "{% url 'dashboard' %}";
+      async function poll(){
+        try {
+          const res = await fetch(endpoint, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data && data.ok) {
+            clearInterval(timer);
+            // Show confirmed notice and link to manage sessions before redirecting
+            const notice = document.getElementById('emailLinkNotice');
+            if (notice) {
+              notice.classList.remove('alert-info');
+              notice.classList.add('alert-success');
+              notice.innerHTML = 'You have confirmed. You can manage your sessions in settings or <a class="fw-semibold text-decoration-underline" style="color:#0d6efd" href="' + manageUrl + '">view logged-in devices</a>. Redirecting…';
+            }
+            setTimeout(function(){
+              window.location.href = data.redirect || dashboardUrl;
+            }, 1500);
+          }
+        } catch(e) { /* ignore transient errors */ }
+      }
+      // Start polling every 2 seconds
+      timer = setInterval(poll, 2000);
+      // Immediate first poll
+      poll();
+    })();
   });
 </script>
 {% endblock %}

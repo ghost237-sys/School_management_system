@@ -6,7 +6,7 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h3 mb-0 text-gray-800">Input Grades</h1>
+            <h1 class="h3 mb-0 text-body">Input Grades</h1>
             <p class="mb-0 text-muted">For: {{ class_group.name }} / {{ subject.name }} / {{ exam.name }}</p>
         </div>
         <a href="{% url 'manage_grades' teacher_id=teacher.id %}" class="btn btn-sm btn-secondary">Change Selection</a>
@@ -29,7 +29,7 @@
                     <table class="table table-striped table-hover">
                         <thead class="table-dark">
                             <tr>
-                                <th style="width: 10%;">Student ID</th>
+                                <th style="width: 15%;">Admission No</th>
                                 <th style="width: 40%;">Student Name</th>
                                 <th style="width: 20%;">Score</th>
                                 <th style="width: 30%;">Remarks</th>
@@ -38,7 +38,7 @@
                         <tbody>
                             {% for student in students %}
                             <tr>
-                                <td>{{ student.id }}</td>
+                                <td>{{ student.admission_no }}</td>
                                 <td>{{ student.user.get_full_name|default:student.user.username }}</td>
                                 <td>
                                     <input type="number" step="0.01" name="score_{{ student.id }}" class="form-control" value="{% if student.grade %}{{ student.grade.score }}{% endif %}">

@@ -9,6 +9,12 @@
   .code-pane {background:#0f172a; color:#d1e3ff; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:.9rem; line-height:1.45; max-height: 65vh; overflow:auto; padding:1rem;}
   .btn-outline-light {border-color:#93c5fd33; color:#e2e8f0;}
   .btn-outline-light:hover {background:#1e293b; color:#fff;}
+  /* Dark-mode overrides */
+  [data-theme="dark"] .finance-hero { background: color-mix(in srgb, var(--primary) 35%, var(--surface)); color: var(--text); }
+  [data-theme="dark"] .card { background: color-mix(in srgb, var(--surface) 96%, transparent); border-color: var(--border); }
+  [data-theme="dark"] .code-wrap { border-color: var(--border); }
+  [data-theme="dark"] .badge.bg-light { background: color-mix(in srgb, var(--surface) 88%, transparent) !important; color: var(--text) !important; border-color: var(--border) !important; }
+  [data-theme="dark"] .text-muted { color: var(--muted) !important; }
 </style>
 
 <div class="container mt-4">

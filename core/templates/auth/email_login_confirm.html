@@ -1,0 +1,54 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Confirm Login</title>
+  <link rel="stylesheet" href="{% static 'admin/css/base.css' %}">
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:#f7f7f7; font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .card { background:#fff; border-radius:12px; padding:28px; max-width:520px; width:100%; box-shadow:0 10px 30px rgba(0,0,0,.08); }
+    h1 { font-size:1.25rem; margin:0 0 10px; }
+    p { color:#444; line-height:1.5; }
+    .actions { display:flex; gap:12px; margin-top:18px; }
+    button, .btn { border:0; border-radius:8px; padding:10px 14px; cursor:pointer; }
+    .accept { background:#2e7d32; color:#fff; }
+    .decline { background:#b71c1c; color:#fff; }
+    small { color:#777; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    {% if accepted %}
+      <h1>Login Confirmed</h1>
+      <p>
+        You have confirmed this login request. You can now return to your original device; it will continue automatically.
+      </p>
+      <p>
+        You can manage your sessions in your account by adjusting your settings. You may also view and revoke logged-in devices here:
+      </p>
+      <div class="actions">
+        <a href="{% url 'session_devices' %}" class="btn accept">Manage Sessions</a>
+        <a href="{% url 'login' %}" class="btn">Back to Login</a>
+      </div>
+      <p><small>For your security, only confirm logins you initiated.</small></p>
+    {% else %}
+      <h1>Confirm Login Request</h1>
+      <p>
+        An attempt to log in to your {{ role|title }} account ({{ email }}) was made. If this was you,
+        click Accept to continue. Otherwise, click Decline.
+      </p>
+      <form method="post" action="">
+        {% csrf_token %}
+        <input type="hidden" name="token" value="{{ token }}" />
+        <div class="actions">
+          <button type="submit" name="action" value="accept" class="accept">Accept and Continue</button>
+          <button type="submit" name="action" value="decline" class="decline">Decline</button>
+        </div>
+      </form>
+      <p><small>This link expires in 15 minutes.</small></p>
+    {% endif %}
+  </div>
+</body>
+</html>

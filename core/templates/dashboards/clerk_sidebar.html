@@ -2,50 +2,67 @@
 <nav class="sidebar-custom p-3 d-flex flex-column justify-content-between" style="width: 220px; min-height: 100vh; background: var(--sidebar-gradient);">
   <h4 class="mb-4" style="font-size:1.3rem; color: #fff;">Finance Desk</h4>
   <ul class="nav nav-pills flex-column mb-auto">
+    <!-- Dashboard -->
     <li class="nav-item mb-2">
       <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'clerk_overview' %}active{% endif %}" href="{% url 'clerk_overview' %}">
-        <i class="bi bi-cash-coin me-2"></i> Overview
+        <i class="bi bi-speedometer2 me-2"></i> Dashboard
       </a>
     </li>
+
+    <!-- Payments group -->
     <li class="nav-item mb-2">
-      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_fees' %}active{% endif %}" href="{% url 'admin_fees' %}">
-        <i class="bi bi-wallet2 me-2"></i> Fees & Billing
-      </a>
+      <button class="btn btn-toggle align-items-center rounded collapsed w-100 text-start nav-link d-flex justify-content-between" data-bs-toggle="collapse" data-bs-target="#paymentsMenu" aria-expanded="{% if request.resolver_match.url_name == 'admin_c2b_ledger' or request.resolver_match.url_name == 'admin_mpesa_all' or request.resolver_match.url_name == 'admin_mpesa_reconcile' or request.resolver_match.url_name == 'pocket_money_list' or request.resolver_match.url_name == 'admin_payment_logs' %}true{% else %}false{% endif %}">
+        <span><i class="bi bi-cash-coin me-2"></i> Payments</span>
+        <i class="bi bi-chevron-down"></i>
+      </button>
+      <div class="collapse {% if request.resolver_match.url_name == 'admin_c2b_ledger' or request.resolver_match.url_name == 'admin_mpesa_all' or request.resolver_match.url_name == 'admin_mpesa_reconcile' or request.resolver_match.url_name == 'pocket_money_list' or request.resolver_match.url_name == 'admin_payment_logs' %}show{% endif %}" id="paymentsMenu">
+        <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small ms-3 mt-2">
+          <li><a class="nav-link {% if request.resolver_match.url_name == 'admin_c2b_ledger' or request.resolver_match.url_name == 'admin_mpesa_all' or request.resolver_match.url_name == 'admin_mpesa_reconcile' %}active{% endif %}" href="{% url 'admin_c2b_ledger' %}"><i class="bi bi-phone me-2"></i>M-Pesa (C2B)</a></li>
+          <li><a class="nav-link {% if request.resolver_match.url_name == 'pocket_money_list' %}active{% endif %}" href="{% url 'pocket_money_list' %}"><i class="fas fa-coins me-2"></i>Pocket Money</a></li>
+          <li><a class="nav-link {% if request.resolver_match.url_name == 'admin_payment_logs' %}active{% endif %}" href="{% url 'admin_payment_logs' %}"><i class="bi bi-receipt me-2"></i>Payment Logs</a></li>
+        </ul>
+      </div>
     </li>
+
+    <!-- Messages group -->
     <li class="nav-item mb-2">
-      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_payment_logs' %}active{% endif %}" href="{% url 'admin_payment_logs' %}">
-        <i class="bi bi-receipt me-2"></i> Payment Logs
-      </a>
+      <button class="btn btn-toggle align-items-center rounded collapsed w-100 text-start nav-link d-flex justify-content-between" data-bs-toggle="collapse" data-bs-target="#messagesMenu" aria-expanded="{% if request.resolver_match.url_name == 'finance_messaging_page' or request.resolver_match.url_name == 'clerk_messaging' %}true{% else %}false{% endif %}">
+        <span><i class="bi bi-chat-left-text me-2"></i> Messages</span>
+        <i class="bi bi-chevron-down"></i>
+      </button>
+      <div class="collapse {% if request.resolver_match.url_name == 'finance_messaging_page' or request.resolver_match.url_name == 'clerk_messaging' %}show{% endif %}" id="messagesMenu">
+        <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small ms-3 mt-2">
+          <li><a class="nav-link {% if request.resolver_match.url_name == 'finance_messaging_page' %}active{% endif %}" href="{% url 'finance_messaging_page' %}"><i class="bi bi-chat-left-text me-2"></i>Finance Messaging</a></li>
+          <li><a class="nav-link {% if request.resolver_match.url_name == 'clerk_messaging' %}active{% endif %}" href="{% url 'clerk_messaging' %}"><i class="bi bi-chat-dots me-2"></i>Clerk Messaging</a></li>
+        </ul>
+      </div>
     </li>
+
+    <!-- School Fees group -->
     <li class="nav-item mb-2">
-      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_mpesa_all' %}active{% endif %}" href="{% url 'admin_mpesa_all' %}">
-        <i class="bi bi-phone me-2"></i> M-Pesa: All Transactions
-      </a>
+      <button class="btn btn-toggle align-items-center rounded collapsed w-100 text-start nav-link d-flex justify-content-between" data-bs-toggle="collapse" data-bs-target="#schoolFeesMenu" aria-expanded="{% if request.resolver_match.url_name == 'admin_fees' %}true{% else %}false{% endif %}">
+        <span><i class="bi bi-wallet2 me-2"></i> School Fees</span>
+        <i class="bi bi-chevron-down"></i>
+      </button>
+      <div class="collapse {% if request.resolver_match.url_name == 'admin_fees' %}show{% endif %}" id="schoolFeesMenu">
+        <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small ms-3 mt-2">
+          <li><a class="nav-link {% if request.resolver_match.url_name == 'admin_fees' %}active{% endif %}" href="{% url 'admin_fees' %}"><i class="bi bi-wallet2 me-2"></i>Fees & Billing</a></li>
+        </ul>
+      </div>
     </li>
+
+    <!-- Downloads group -->
     <li class="nav-item mb-2">
-      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'admin_c2b_ledger' %}active{% endif %}" href="{% url 'admin_c2b_ledger' %}">
-        <i class="bi bi-journal-text me-2"></i> M-Pesa: C2B Ledger
-      </a>
-    </li>
-    <li class="nav-item mb-2">
-      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'finance_messaging_page' %}active{% endif %}" href="{% url 'finance_messaging_page' %}">
-        <i class="bi bi-chat-left-text me-2"></i> Finance Messaging
-      </a>
-    </li>
-    <li class="nav-item mb-2">
-      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'clerk_messaging' %}active{% endif %}" href="{% url 'clerk_messaging' %}">
-        <i class="bi bi-chat-dots me-2"></i> Clerk Messaging
-      </a>
-    </li>
-    <li class="nav-item mb-2">
-      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'export_fee_payments_csv' %}active{% endif %}" href="{% url 'export_fee_payments_csv' %}">
-        <i class="bi bi-filetype-csv me-2"></i> Export Payments (CSV)
-      </a>
-    </li>
-    <li class="nav-item mb-2">
-      <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'export_fee_payments_pdf' %}active{% endif %}" href="{% url 'export_fee_payments_pdf' %}">
-        <i class="bi bi-filetype-pdf me-2"></i> Export Payments (PDF)
-      </a>
+      <button class="btn btn-toggle align-items-center rounded collapsed w-100 text-start nav-link d-flex justify-content-between" data-bs-toggle="collapse" data-bs-target="#downloadsMenu" aria-expanded="{% if request.resolver_match.url_name == 'export_fee_payments_csv' or request.resolver_match.url_name == 'export_fee_payments_pdf' %}true{% else %}false{% endif %}">
+        <span><i class="bi bi-download me-2"></i> Downloads</span>
+        <i class="bi bi-chevron-down"></i>
+      </button>
+      <div class="collapse {% if request.resolver_match.url_name == 'export_fee_payments_csv' or request.resolver_match.url_name == 'export_fee_payments_pdf' %}show{% endif %}" id="downloadsMenu">
+        <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small ms-3 mt-2">
+          <li><a class="nav-link {% if request.resolver_match.url_name == 'export_fee_payments_csv' %}active{% endif %}" href="{% url 'export_fee_payments_csv' %}"><i class="bi bi-filetype-csv me-2"></i>Export Payments (CSV)</a></li>
+          <li><a class="nav-link {% if request.resolver_match.url_name == 'export_fee_payments_pdf' %}active{% endif %}" href="{% url 'export_fee_payments_pdf' %}"><i class="bi bi-filetype-pdf me-2"></i>Export Payments (PDF)</a></li>
+        </ul>
+      </div>
     </li>
   </ul>
   <div class="mt-auto">

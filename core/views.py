@@ -5,7 +5,9 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, Sum, Avg, Count, DecimalField
 from django.urls import reverse
-from django.http import HttpResponse, HttpResponseForbidden, JsonResponse, HttpResponse
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse, HttpResponse, Http404
+from django.core.cache import cache
+import uuid
 from django.template.loader import render_to_string
 from django.conf import settings
 from landing.forms import SiteSettingsForm, GalleryImageForm, CategoryForm, CategoryMediaForm
@@ -31,7 +33,9 @@ from .models import (
     User, Student, Teacher, Class, Subject, Exam, Term, Grade, 
     FeeCategory, FeeAssignment, FeePayment, Event, Deadline, 
     TeacherClassAssignment, Department, AcademicYear, Notification,
-    PeriodSlot, DefaultTimetable, Attendance, MpesaTransaction, MpesaC2BLedger,
+    PeriodSlot, DefaultTimetable, Attendance, MpesaTransaction,
+    MpesaC2BLedger,
+    SubjectGradingScheme,
     GradeCommentTemplate,
 )
 from .forms import (
@@ -41,6 +45,7 @@ from .forms import (
 from django.contrib.auth.decorators import user_passes_test
 from django.db.models.functions import Length
 from django.db.models import Sum
+from django.core.paginator import Paginator
 import csv
 import os
 from django.conf import settings
@@ -996,6 +1001,7 @@ def admin_payment_callback_logs(request):
 @user_passes_test(is_admin_or_clerk)
 def admin_mpesa_reconcile(request):
     """Admin page to reconcile M-Pesa transactions and pending FeePayments."""
+    # enabled: reconciliation tools for admins and clerks
     action = request.POST.get('action') if request.method == 'POST' else None
     if action == 'query_tx':
         checkout_id = request.POST.get('checkout_request_id')
@@ -1144,9 +1150,15 @@ def admin_c2b_ledger(request):
 
     Supports GET filters: q (search in trans_id, msisdn, bill_ref), since (ISO date), until (ISO date).
     """
+    # enabled: allow admins and clerks to view C2B ledger
     q = request.GET.get('q', '').strip()
     since = request.GET.get('since', '').strip()
     until = request.GET.get('until', '').strip()
+    page = request.GET.get('page', '1')
+    try:
+        page_size = int(request.GET.get('page_size', '50'))
+    except ValueError:
+        page_size = 50
 
     entries = MpesaC2BLedger.objects.all().order_by('-created_at')
     if q:
@@ -1171,12 +1183,16 @@ def admin_c2b_ledger(request):
         except Exception:
             pass
 
-    entries = entries[:200]
+    paginator = Paginator(entries, page_size)
+    page_obj = paginator.get_page(page)
     return render(request, 'admin/mpesa_ledger.html', {
-        'entries': entries,
+        'entries': page_obj,
+        'paginator': paginator,
+        'page_obj': page_obj,
         'q': q,
         'since': since,
         'until': until,
+        'page_size': page_size,
     })
 
 @login_required(login_url='login')
@@ -1186,6 +1202,7 @@ def admin_mpesa_all(request):
 
     GET filters: q (TransID/MSISDN/BillRef), since (ISO), until (ISO)
     """
+    # enabled: combined M-Pesa view for admins and clerks
     q = request.GET.get('q', '').strip()
     since = request.GET.get('since', '').strip()
     until = request.GET.get('until', '').strip()
@@ -1241,6 +1258,7 @@ def admin_mpesa_all(request):
 @user_passes_test(is_admin_or_clerk)
 def admin_payment_log_file(request):
     """Serve the raw payment callback log file to admin/clerk."""
+    raise Http404()
     log_path = os.path.join(settings.BASE_DIR, 'payment_callback_logs.txt')
     if not os.path.exists(log_path):
         raise Http404('Log file not found')
@@ -2241,33 +2259,126 @@ def upload_grades(request, teacher_id):
                 workbook = openpyxl.load_workbook(file)
                 sheet = workbook.active
 
-                # Create a mapping of student names to student objects for efficient lookup
+                # Create mappings for efficient lookup
                 students_in_class = Student.objects.filter(class_group=class_group).select_related('user')
-                student_map = {s.user.get_full_name().strip().lower(): s for s in students_in_class}
-
+                def _norm_name(stu: Student):
+                    raw = (stu.user.get_full_name() or getattr(stu, 'full_name', None) or stu.user.username or '').strip().lower()
+                    return raw
+                names_list = [_norm_name(s) for s in students_in_class]
                 # Check for duplicate names within the class, which would make lookups ambiguous
-                from collections import Counter
-                name_counts = Counter(student_map.keys())
-                duplicates = [name for name, count in name_counts.items() if count > 1]
-                if duplicates:
-                    messages.error(request, f"Upload failed. The following student names are duplicated in the class: {', '.join(duplicates)}. Please resolve this issue before uploading.")
-                    return redirect('upload_grades', teacher_id=teacher.id)
+                name_counts = {}
+                for s in students_in_class:
+                    nm = _norm_name(s)
+                    name_counts[nm] = name_counts.get(nm, 0) + 1
+
+                # Build maps after duplicate check
+                student_map = {_norm_name(s): s for s in students_in_class}
+                # Admission number map (string uppercased/stripped)
+                adm_map = {str(getattr(s, 'admission_no', '')).strip().upper(): s for s in students_in_class if getattr(s, 'admission_no', None)}
+
+                total_rows = 0
+                saved_count = 0
+                unknown_count = 0
+                invalid_score_count = 0
+                over_cap_count = 0
+                failed_rows = []
+                error_msgs = []
+                log_msgs = []
+                matched_by_adm = 0
+                matched_by_name = 0
 
                 for i, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
                     if not row or row[0] is None:
                         continue  # Skip empty rows
+                    total_rows += 1
 
-                    student_name, score = row[0], row[1]
-                    student_name = str(student_name).strip().lower()
+                    # Supported formats:
+                    #   A) [Admission No, Score]
+                    #   B) [Admission No, Student Name, Score]
+                    #   C) [Admission No, Student Name, Subject, Grade]
+                    #   D) [Name, Score]  (legacy fallback)
+                    admission_no = None
+                    score_cell = None
+                    try:
+                        # If first column looks like an admission value, treat as Admission-first template
+                        first_col = row[0]
+                        if first_col is not None and str(first_col).strip() != '':
+                            # Heuristic: admission numbers are typically alphanumeric like S00500 or numeric
+                            # We'll trust the sheet: when using Admission-first templates, Column A is admission
+                            # Detect if remaining cells provide a score in D, then C, then B
+                            admission_no = str(first_col).strip().upper()
+                            # Pick first non-empty among [3], [2], [1]
+                            score_candidates = []
+                            if len(row) > 3:
+                                score_candidates.append(row[3])
+                            if len(row) > 2:
+                                score_candidates.append(row[2])
+                            if len(row) > 1:
+                                score_candidates.append(row[1])
+                            score_cell = next((c for c in score_candidates if c not in (None, '')), None)
+                        else:
+                            # Legacy Name-first two-column template
+                            admission_no = None
+                            score_cell = row[1] if len(row) > 1 else None
+                    except Exception:
+                        score_cell = row[1] if len(row) > 1 else None
 
-                    student = student_map.get(student_name)
-
-                    if not student:
-                        messages.error(request, f"Error on row {i}: Student '{row[0]}' not found in this class.")
-                        continue
+                    student = None
+                    if admission_no:
+                        student = adm_map.get(admission_no)
+                        if not student:
+                            error_msgs.append(f"Error on row {i}: Admission No '{admission_no}' not found in this class.")
+                            unknown_count += 1
+                            failed_rows.append({'row': i, 'admission_no': admission_no, 'name': str(row[1]) if len(row) > 1 else '', 'reason': 'Unknown admission'})
+                            continue
+                        else:
+                            matched_by_adm += 1
+                    else:
+                        # Fallback to name matching (legacy template)
+                        student_name = str(row[0]).strip().lower()
+                        # If multiple students share this normalized name, mark as ambiguous
+                        if name_counts.get(student_name, 0) > 1:
+                            error_msgs.append(f"Error on row {i}: Student name '{row[0]}' is duplicated in this class. Please use Admission No.")
+                            unknown_count += 1
+                            failed_rows.append({'row': i, 'admission_no': '', 'name': str(row[0]), 'reason': 'Ambiguous duplicate name'})
+                            continue
+                        student = student_map.get(student_name)
+                        if not student:
+                            error_msgs.append(f"Error on row {i}: Student '{row[0]}' not found in this class.")
+                            unknown_count += 1
+                            failed_rows.append({'row': i, 'admission_no': '', 'name': str(row[0]), 'reason': 'Unknown name'})
+                            continue
+                        else:
+                            matched_by_name += 1
 
                     try:
-                        score_float = float(score)
+                        if score_cell in (None, ''):
+                            error_msgs.append(f"Error on row {i}: No score provided.")
+                            invalid_score_count += 1
+                            failed_rows.append({'row': i, 'admission_no': admission_no or '', 'name': str(row[0]), 'reason': 'No score'})
+                            continue
+                        score_float = float(score_cell)
+                        # Enforce grading scheme max limit if configured for this subject
+                        try:
+                            scheme = SubjectGradingScheme.objects.filter(subject=subject).first()
+                            if scheme and isinstance(getattr(scheme, 'grade_boundaries', None), dict) and scheme.grade_boundaries:
+                                max_allowed = None
+                                for bounds in scheme.grade_boundaries.values():
+                                    try:
+                                        # bounds expected as [min, max]
+                                        if bounds and len(bounds) >= 2:
+                                            bmax = float(bounds[1])
+                                            max_allowed = bmax if max_allowed is None else max(max_allowed, bmax)
+                                    except Exception:
+                                        continue
+                                if max_allowed is not None and score_float > max_allowed:
+                                    error_msgs.append(f"Error on row {i}: Score {score_float} exceeds the allowed maximum ({max_allowed}) for this subject's grading scheme.")
+                                    over_cap_count += 1
+                                    failed_rows.append({'row': i, 'admission_no': admission_no or '', 'name': str(row[0]), 'reason': f'above cap ({max_allowed})', 'score': score_float})
+                                    continue
+                        except Exception:
+                            # Fail open if scheme parsing fails; still save
+                            pass
                         grade_letter, remarks = 'F', 'NEEDS IMPROVEMENT'
                         if 80 <= score_float <= 100:
                             grade_letter, remarks = 'A', 'EXCELLENT'
@@ -2284,11 +2395,49 @@ def upload_grades(request, teacher_id):
                             subject=subject,
                             defaults={'score': score_float, 'grade_letter': grade_letter, 'remarks': remarks}
                         )
+                        saved_count += 1
                     except (ValueError, TypeError):
-                        messages.error(request, f"Error on row {i}: Invalid score '{score}' for student '{row[0]}'. Please enter a number.")
+                        error_msgs.append(f"Error on row {i}: Invalid score '{score_cell}' for student '{row[0]}'. Please enter a number.")
+                        invalid_score_count += 1
+                        failed_rows.append({'row': i, 'admission_no': admission_no or '', 'name': str(row[0]), 'reason': 'Invalid score', 'score': str(score_cell)})
                         continue
 
+                # High-level processing logs
+                if total_rows > 0:
+                    log_msgs.append(f"Collected {total_rows} row(s) from sheet.")
+                log_msgs.append(f"Matched by admission: {matched_by_adm}; matched by name: {matched_by_name}.")
+                log_msgs.append(f"Updating grades: saved {saved_count} record(s).")
                 messages.success(request, 'Grades have been uploaded and processed.')
+                failed_total = unknown_count + invalid_score_count + over_cap_count
+                messages.info(
+                    request,
+                    f"Upload summary: processed {total_rows} row(s); saved {saved_count}; failed {failed_total} (unknown students: {unknown_count}, invalid scores: {invalid_score_count}, above cap: {over_cap_count})."
+                )
+                # Success percentage
+                if total_rows > 0:
+                    pct = round((saved_count / total_rows) * 100, 2)
+                    messages.info(request, f"Success rate: {pct}%")
+                # Emit processing logs
+                for lm in log_msgs:
+                    messages.info(request, lm)
+                # Emit collected errors after processing all rows
+                for em in error_msgs:
+                    messages.error(request, em)
+                # If there are failed rows, cache a CSV and provide a download link
+                if failed_rows:
+                    try:
+                        import pandas as _pd
+                        from io import BytesIO as _BytesIO
+                        buf = _BytesIO()
+                        _pd.DataFrame(failed_rows).to_csv(buf, index=False)
+                        buf.seek(0)
+                        key = f"failed_grades_{uuid.uuid4()}"
+                        cache.set(key, buf.getvalue(), timeout=600)  # 10 minutes
+                        from django.urls import reverse as _reverse
+                        link = request.build_absolute_uri(_reverse('download_failed_grades') + f"?key={key}")
+                        messages.warning(request, f"Download failed rows CSV: {link}")
+                    except Exception:
+                        pass
                 # Redirect to the results page for the uploaded grades
                 return redirect('exam_results', teacher_id=teacher.id, class_id=class_group.id, subject_id=subject.id, exam_id=exam.id)
 
@@ -2299,6 +2448,109 @@ def upload_grades(request, teacher_id):
         form = GradeUploadForm(teacher=teacher)
     
     return render(request, 'dashboards/upload_grades.html', {'form': form, 'teacher': teacher})
+
+@login_required(login_url='login')
+def download_failed_grades(request):
+    key = request.GET.get('key')
+    if not key:
+        return HttpResponse(status=400)
+    data = cache.get(key)
+    if not data:
+        raise Http404('Link expired or invalid')
+    resp = HttpResponse(data, content_type='text/csv')
+    resp['Content-Disposition'] = 'attachment; filename="failed_grades.csv"'
+    return resp
+
+@login_required(login_url='login')
+def download_minimal_grade_template(request, teacher_id):
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    from io import BytesIO
+    from openpyxl import Workbook
+    class_id = request.GET.get('class_id')
+    class_obj = None
+    if class_id:
+        class_obj = get_object_or_404(Class, id=class_id)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Students'
+    ws.append(['Admission No', 'Score'])
+    if class_obj:
+        students = Student.objects.filter(class_group=class_obj).order_by('admission_no')
+        for s in students:
+            ws.append([s.admission_no, ''])
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    filename = 'minimal_grades_template.xlsx'
+    if class_obj:
+        filename = f"minimal_grades_template_{class_obj.name}_{class_obj.id}.xlsx"
+    response = HttpResponse(output.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+@login_required(login_url='login')
+def download_grade_template(request, teacher_id):
+    """
+    Generate a downloadable Excel template for bulk grade upload.
+    Optional query params:
+      - class_id: if provided, prefill Column A with student full names for that class
+      - subject_id, exam_id: used only for filename context
+    """
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+
+    class_id = request.GET.get('class_id')
+    subject_id = request.GET.get('subject_id')
+    exam_id = request.GET.get('exam_id')
+
+    class_obj = None
+    subject_obj = None
+    exam_obj = None
+    if class_id:
+        class_obj = get_object_or_404(Class, id=class_id)
+    if subject_id:
+        subject_obj = get_object_or_404(Subject, id=subject_id)
+    if exam_id:
+        exam_obj = get_object_or_404(Exam, id=exam_id)
+
+    # Build workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Grades'
+    # Header row
+    ws.append(['Student Name', 'Score'])
+
+    # Prefill student names if class provided
+    if class_obj:
+        students = Student.objects.filter(class_group=class_obj).select_related('user').order_by('user__first_name', 'user__last_name')
+        for stu in students:
+            ws.append([stu.user.get_full_name(), None])
+
+    # Autosize columns (simple heuristic)
+    for col in ['A', 'B']:
+        max_len = 12
+        for cell in ws[col]:
+            try:
+                max_len = max(max_len, len(str(cell.value)) if cell.value else 0)
+            except Exception:
+                pass
+        ws.column_dimensions[col].width = min(max_len + 2, 60)
+
+    # Build filename
+    parts = ['grade_template']
+    if class_obj:
+        parts.append(class_obj.name.replace(' ', '_'))
+    if subject_obj:
+        parts.append(subject_obj.name.replace(' ', '_'))
+    if exam_obj:
+        parts.append(getattr(exam_obj, 'name', str(exam_obj.id)).replace(' ', '_'))
+    filename = '_'.join(parts) + '.xlsx'
+
+    # Stream to response
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    response = FileResponse(bio, as_attachment=True, filename=filename)
+    return response
 
 @login_required(login_url='login')
 def teacher_profile(request, teacher_id):
@@ -2364,17 +2616,6 @@ def teacher_dashboard(request, teacher_id):
     # Ensure show_expired is defined if referenced in context/templates
     show_expired = request.GET.get('show_expired') == '1'
 
-    context = {
-        'teacher': teacher,
-        'greeting_name': greeting_name,
-        'teacher_subjects': teacher_subjects,
-        'teacher_classes': teacher_classes,
-        'notifications': notifications,
-        'class_cards': class_cards,
-        'upcoming_deadlines': upcoming_deadlines,
-        'responsibilities': responsibilities,
-        'show_expired': show_expired,
-    }
     # Now add classes where teacher is class_teacher but not in TeacherClassAssignment
     from .models import Class
     extra_classes = Class.objects.filter(class_teacher=teacher).exclude(id__in=assigned_class_ids)
@@ -2392,11 +2633,12 @@ def teacher_dashboard(request, teacher_id):
             'low_performers': 0,
         })
     # teacher_classes for summary panel: all unique class names
-    teacher_classes = list(set([
-        c['class_group'].name if 'class_group' in c else c['class'].name for c in class_cards
-    ]))
-    # Remove legacy/duplicate class_details/extra_classes logic (all cards come from class_cards now)
-
+    # Earlier we append cards with key 'class'; ensure we reference it safely.
+    teacher_classes = list({
+        (c.get('class') or c.get('class_group')).name
+        for c in class_cards
+        if (c.get('class') or c.get('class_group')) is not None
+    })
 
     # Fetch upcoming events (deadlines)
     from django.utils import timezone
@@ -2421,9 +2663,247 @@ def teacher_dashboard(request, teacher_id):
         'class_cards': class_cards,
         'upcoming_deadlines': upcoming_deadlines,
         'responsibilities': responsibilities,
+        'show_expired': show_expired,
     }
+
     return render(request, 'dashboards/teacher_dashboard.html', context)
 
+
+@login_required(login_url='login')
+def teacher_lesson_plans(request):
+    """
+    Entry point for teachers/admins to manage lesson plans.
+    Renders the rich lesson plan form/template with appropriate context.
+    """
+    try:
+        role = getattr(request.user, 'role', None)
+        if role not in ['teacher', 'admin']:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden('Not authorized')
+
+        # Keep it minimal to avoid any side effects
+        teacher_obj = None
+        if role == 'teacher':
+            try:
+                from .models import Teacher
+                teacher_obj = Teacher.objects.select_related('user').get(user=request.user)
+            except Exception:
+                teacher_obj = None
+
+        # Determine page mode: 'new' shows form, 'drafts' shows list
+        mode = request.GET.get('mode', 'new')
+
+        # Instantiate the filtered lesson plan form
+        from .forms import LessonPlanForm
+        from .models import LessonPlan, Term
+
+        # If editing, prefill from an existing draft
+        lesson_instance = None
+        initial_data = None
+        if mode == 'new':
+            edit_id = request.GET.get('edit')
+            if edit_id and edit_id.isdigit():
+                try:
+                    q = LessonPlan.objects.filter(pk=edit_id, is_deleted=False)
+                    if teacher_obj:
+                        q = q.filter(teacher=teacher_obj)
+                    lesson_instance = q.select_related('subject', 'class_group', 'term').first()
+                except Exception:
+                    lesson_instance = None
+            if lesson_instance:
+                # Build initial dict for form fields
+                duration_val = lesson_instance.duration_text or (f"{lesson_instance.duration_minutes} min" if lesson_instance.duration_minutes else '')
+                initial_data = {
+                    'subject': lesson_instance.subject_id,
+                    'class_grade': lesson_instance.class_group_id,
+                    'plan_date': lesson_instance.plan_date,
+                    'lesson_number': lesson_instance.lesson_number,
+                    'term': lesson_instance.term_id,
+                    'topic': lesson_instance.topic,
+                    'subtopic': lesson_instance.subtopic,
+                    'duration': duration_val,
+                    'objectives': lesson_instance.objectives,
+                    'methods': lesson_instance.methods,
+                    'aids': lesson_instance.aids,
+                    'assessment': lesson_instance.assessment,
+                }
+        form = LessonPlanForm(data=request.POST or None, teacher=teacher_obj, initial=initial_data) if mode == 'new' else None
+
+        # Handle POST only in 'new' mode: create or update a LessonPlan record
+        if mode == 'new' and request.method == 'POST' and teacher_obj and form and form.is_valid():
+            # Extract fields
+            subject = form.cleaned_data.get('subject')
+            class_group = form.cleaned_data.get('class_grade')
+            topic = (form.cleaned_data.get('topic') or '').strip()
+            subtopic = (form.cleaned_data.get('subtopic') or '').strip()
+            duration_text = (form.cleaned_data.get('duration') or '').strip()
+            objectives = (request.POST.get('objectives') or '').strip()
+            methods = (request.POST.get('methods') or '').strip()
+            aids = (request.POST.get('aids') or '').strip()
+            assessment = (request.POST.get('assessment') or '').strip()
+            plan_date = form.cleaned_data.get('plan_date')
+            lesson_number = form.cleaned_data.get('lesson_number')
+            term = form.cleaned_data.get('term')
+            # Optional per-stage times from hidden inputs in template
+            opening_time = request.POST.get('opening_time') or None
+            main_time = request.POST.get('main_time') or None
+            closing_time = request.POST.get('closing_time') or None
+
+            def parse_minutes(txt):
+                import re
+                if not txt:
+                    return None
+                m = re.search(r"(\d+)", str(txt))
+                return int(m.group(1)) if m else None
+
+            duration_minutes = parse_minutes(duration_text)
+            try:
+                edit_id = request.POST.get('id')
+                if edit_id:
+                    # Update existing plan (owned by teacher)
+                    q = LessonPlan.objects.filter(pk=edit_id, is_deleted=False)
+                    if teacher_obj:
+                        q = q.filter(teacher=teacher_obj)
+                    lp = q.first()
+                    if lp:
+                        lp.class_group = class_group
+                        lp.subject = subject
+                        lp.topic = topic
+                        lp.subtopic = subtopic
+                        lp.lesson_number = lesson_number
+                        lp.duration_text = duration_text
+                        lp.duration_minutes = duration_minutes
+                        lp.objectives = objectives
+                        lp.methods = methods
+                        lp.aids = aids
+                        lp.assessment = assessment
+                        lp.plan_date = plan_date
+                        lp.term = term
+                        lp.opening_time = int(opening_time) if opening_time else None
+                        lp.main_time = int(main_time) if main_time else None
+                        lp.closing_time = int(closing_time) if closing_time else None
+                        lp.save()
+                        from django.contrib import messages
+                        messages.success(request, 'Lesson plan updated.')
+                        from django.shortcuts import redirect
+                        return redirect(f"{request.path}?mode=new&edit={lp.id}")
+                    else:
+                        # Fallback to create if not found
+                        lp = LessonPlan.objects.create(
+                            teacher=teacher_obj,
+                            class_group=class_group,
+                            subject=subject,
+                            topic=topic,
+                            subtopic=subtopic,
+                            lesson_number=lesson_number,
+                            duration_text=duration_text,
+                            duration_minutes=duration_minutes,
+                            objectives=objectives,
+                            methods=methods,
+                            aids=aids,
+                            assessment=assessment,
+                            plan_date=plan_date,
+                            term=term,
+                            opening_time=int(opening_time) if opening_time else None,
+                            main_time=int(main_time) if main_time else None,
+                            closing_time=int(closing_time) if closing_time else None,
+                        )
+                        from django.contrib import messages
+                        messages.success(request, 'Lesson plan saved.')
+                        from django.shortcuts import redirect
+                        return redirect(f"{request.path}?mode=new&edit={lp.id}")
+                else:
+                    # Create new
+                    lp = LessonPlan.objects.create(
+                        teacher=teacher_obj,
+                        class_group=class_group,
+                        subject=subject,
+                        topic=topic,
+                        subtopic=subtopic,
+                        lesson_number=lesson_number,
+                        duration_text=duration_text,
+                        duration_minutes=duration_minutes,
+                        objectives=objectives,
+                        methods=methods,
+                        aids=aids,
+                        assessment=assessment,
+                        plan_date=plan_date,
+                        term=term,
+                        opening_time=int(opening_time) if opening_time else None,
+                        main_time=int(main_time) if main_time else None,
+                        closing_time=int(closing_time) if closing_time else None,
+                    )
+                    from django.contrib import messages
+                    messages.success(request, 'Lesson plan saved.')
+                    from django.shortcuts import redirect
+                    return redirect(f"{request.path}?mode=new&edit={lp.id}")
+            except Exception as e:
+                from django.contrib import messages
+                messages.error(request, f'Failed to save lesson plan: {e}')
+
+        # Build list of existing plans for this teacher
+        plans_qs = LessonPlan.objects.filter(is_deleted=False)
+        if teacher_obj:
+            plans_qs = plans_qs.filter(teacher=teacher_obj)
+        if mode != 'drafts':
+            sel_class = form.data.get('class_grade') if form else request.GET.get('class_grade')
+            sel_subject = form.data.get('subject') if form else request.GET.get('subject')
+            if sel_class:
+                plans_qs = plans_qs.filter(class_group_id=sel_class)
+            if sel_subject:
+                plans_qs = plans_qs.filter(subject_id=sel_subject)
+            plans_qs = plans_qs.select_related('subject', 'class_group', 'term').order_by('-plan_date', '-created_at')[:25]
+        else:
+            # Drafts view: show all drafts (no limit, no class/subject filter)
+            plans_qs = plans_qs.select_related('subject', 'class_group', 'term').order_by('-plan_date', '-created_at')
+
+        # Prepare filter choices for drafts/compile using teacher assignments
+        filter_classes = []
+        filter_subjects = []
+        if teacher_obj and mode in ('drafts', 'compile'):
+            try:
+                from .models import TeacherClassAssignment, Class, Subject
+                assigned = TeacherClassAssignment.objects.filter(teacher=teacher_obj).select_related('class_group', 'subject')
+                cls_ids = {a.class_group_id for a in assigned if a.class_group_id}
+                sub_ids = {a.subject_id for a in assigned if a.subject_id}
+                filter_classes = list(Class.objects.filter(id__in=cls_ids).order_by('name')) if cls_ids else []
+                filter_subjects = list(Subject.objects.filter(id__in=sub_ids).order_by('name')) if sub_ids else []
+            except Exception:
+                pass
+
+        # Compile mode: aggregate drafts for selected class + subject
+        compiled_plans = None
+        sel_class_id = request.GET.get('class_grade')
+        sel_subject_id = request.GET.get('subject')
+        if mode == 'compile' and sel_class_id and sel_subject_id:
+            compiled_qs = LessonPlan.objects.filter(is_deleted=False, class_group_id=sel_class_id, subject_id=sel_subject_id)
+            if teacher_obj:
+                compiled_qs = compiled_qs.filter(teacher=teacher_obj)
+            compiled_plans = compiled_qs.select_related('class_group', 'subject', 'term').order_by('plan_date', 'created_at')
+
+        context = {
+            'lesson': lesson_instance,
+            'action_url': request.path,
+            'teacher': teacher_obj,
+            'form': form,
+            'mode': mode,
+            'existing_plans': plans_qs,
+            'filter_classes': filter_classes,
+            'filter_subjects': filter_subjects,
+            'selected_class_id': sel_class_id,
+            'selected_subject_id': sel_subject_id,
+            'compiled_plans': compiled_plans,
+        }
+        return render(request, 'dashboards/teacher_lesson_plan_form.html', context)
+    except Exception as e:
+        # Ensure we never return None; log and send a 500 response
+        import logging
+        from django.http import HttpResponseServerError
+        from django.conf import settings
+        logging.exception('Error in teacher_lesson_plans')
+        if getattr(settings, 'DEBUG', False):
+            return HttpResponseServerError(f'Lesson plan view error: {e}')
+        return HttpResponseServerError('An unexpected error occurred while loading lesson plans.')
 
 @login_required(login_url='login')
 def manage_attendance(request, teacher_id):
@@ -2846,7 +3326,7 @@ def gradebook(request, teacher_id):
             # Fetch all exams that have grades for this subject and class
             grades_for_subject = Grade.objects.filter(subject=selected_subject, student__class_group=selected_class)
             exam_ids = grades_for_subject.values_list('exam_id', flat=True).distinct()
-            exams = Exam.objects.filter(id__in=exam_ids).order_by('date')
+            exams = Exam.objects.filter(id__in=exam_ids).order_by('start_date')
 
             # Prepare a data structure for the template
             for student in students:
@@ -2887,8 +3367,8 @@ def admin_exams_json(request):
         events.append({
             'id': exam.id,
             'title': exam.name,
-            'start': str(exam.date),
-            'end': str(exam.date),
+            'start': str(exam.start_date),
+            'end': str(exam.start_date),
             'type': exam.get_type_display(),
             'term': str(exam.term),
             'level': exam.level,
@@ -5341,7 +5821,8 @@ def admin_payment(request):
                 # else: assume already correct
                 print("[DEBUG] Normalized phone number:", phone_number)
                 print("[DEBUG] Payment method:", payment_method)
-                account_ref = f"Account#{student.admission_no}"
+                from django.conf import settings as _settings
+                account_ref = getattr(_settings, 'MPESA_DEFAULT_ACCOUNT_REF', '600986')
                 print("[DEBUG] About to call initiate_stk_push with:", phone_number, amount_paid, account_ref)
                 stk_response = initiate_stk_push(
                     phone_number=phone_number,
@@ -5672,7 +6153,8 @@ def student_fees(request):
                 elif phone_number.startswith('7') and len(phone_number) == 9:
                     phone_number = '254' + phone_number
                 # else: assume already correct
-                account_ref = f"Account#{student.admission_no}"
+                from django.conf import settings as _settings
+                account_ref = getattr(_settings, 'MPESA_DEFAULT_ACCOUNT_REF', '600986')
                 stk_response = initiate_stk_push(
                     phone_number=phone_number,
                     amount=amount_paid,
@@ -5753,8 +6235,8 @@ def student_fees(request):
 
 @login_required(login_url='login')
 def admin_fees(request):
-    from .forms import FeeCategoryForm, FeeAssignmentForm
-    from .models import FeeCategory, FeeAssignment, FeePayment, Student, Class, Term
+    from .forms import FeeCategoryForm, FeeAssignmentForm, OptionalChargeEnrollForm
+    from .models import FeeCategory, FeeAssignment, FeePayment, Student, Class, Term, OptionalOffer, StudentOptionalCharge
     from django.db.models import Sum, Q, Value, DecimalField
     from decimal import Decimal
     from django.db.models.functions import Coalesce, Cast
@@ -5763,6 +6245,9 @@ def admin_fees(request):
 
     fee_form = FeeCategoryForm()
     assign_form = FeeAssignmentForm()
+    # Optional Charges enrollment form (filterable by class via query param 'oc_class')
+    oc_selected_class = request.GET.get('oc_class') or None
+    optional_enroll_form = OptionalChargeEnrollForm(selected_class_id=oc_selected_class)
     
     # --- Edit/Delete Fee Category Logic ---
     edit_category = None
@@ -5849,6 +6334,106 @@ def admin_fees(request):
                 messages.warning(request, f'Skipped {skipped_count} class(es) (already assigned).')
         else:
             messages.error(request, 'Please correct the errors in the fee assignment form.')
+
+    # Handle Optional Charges Enrollment POST
+    if request.method == 'POST' and 'enroll_optional' in request.POST:
+        optional_enroll_form = OptionalChargeEnrollForm(request.POST)
+        if optional_enroll_form.is_valid():
+            offer = optional_enroll_form.cleaned_data['offer']
+            students = optional_enroll_form.cleaned_data['students']
+            created = 0
+            skipped = 0
+            ineligible = 0
+            ineligible_list = []
+
+            # Eligibility threshold from settings (oc9 default 1000)
+            from django.conf import settings as _settings
+            threshold = getattr(_settings, 'OPTIONAL_CHARGE_ELIGIBILITY_THRESHOLD', 1000)
+
+            # Compute balance components similar to the page aggregates
+            today = timezone.now().date()
+            current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
+            if current_term:
+                previous_terms = Term.objects.filter(start_date__lt=current_term.start_date)
+            else:
+                previous_terms = Term.objects.none()
+
+            # Cache billed current for each class in current term
+            billed_current_by_class = {}
+            if current_term:
+                for row in (
+                    FeeAssignment.objects.filter(term=current_term)
+                    .values('class_group_id')
+                    .annotate(total=Sum('amount', output_field=DecimalField(max_digits=12, decimal_places=2)))
+                ):
+                    billed_current_by_class[row['class_group_id']] = float(row['total'] or 0.0)
+
+            # Prev billed by class
+            prev_billed_by_class = {}
+            if previous_terms.exists():
+                for row in (
+                    FeeAssignment.objects.filter(term__in=previous_terms)
+                    .values('class_group_id')
+                    .annotate(total=Sum('amount', output_field=DecimalField(max_digits=12, decimal_places=2)))
+                ):
+                    prev_billed_by_class[row['class_group_id']] = float(row['total'] or 0.0)
+
+            # Paid all and paid prev by student
+            paid_all_by_student = {
+                r['student_id']: float(r['total'] or 0.0)
+                for r in FeePayment.objects.values('student_id').annotate(
+                    total=Sum('amount_paid', output_field=DecimalField(max_digits=12, decimal_places=2))
+                )
+            }
+            paid_prev_by_student = {}
+            if previous_terms.exists():
+                for r in (
+                    FeePayment.objects.filter(fee_assignment__term__in=previous_terms)
+                    .values('student_id')
+                    .annotate(total=Sum('amount_paid', output_field=DecimalField(max_digits=12, decimal_places=2)))
+                ):
+                    paid_prev_by_student[r['student_id']] = float(r['total'] or 0.0)
+
+            def compute_balance(stu):
+                class_id = getattr(stu, 'class_group_id', None)
+                billed_current = float(billed_current_by_class.get(class_id, 0.0))
+                outstanding_prev = float(prev_billed_by_class.get(class_id, 0.0)) - float(paid_prev_by_student.get(stu.id, 0.0))
+                paid_all = float(paid_all_by_student.get(stu.id, 0.0))
+                # Maintain same formula as page for consistency
+                return billed_current + outstanding_prev - paid_all
+
+            for stu in students:
+                # Eligibility check
+                try:
+                    bal = compute_balance(stu)
+                except Exception:
+                    bal = 0.0
+                if bal is not None and float(bal) > float(threshold):
+                    ineligible += 1
+                    ineligible_list.append(f"{getattr(stu, 'admission_no', stu.id)}: {bal:.2f}")
+                    continue
+
+                obj, was_created = StudentOptionalCharge.objects.get_or_create(
+                    offer=offer,
+                    student=stu,
+                    defaults={'amount': offer.amount, 'status': 'pending'}
+                )
+                if was_created:
+                    created += 1
+                else:
+                    skipped += 1
+            if created:
+                messages.success(request, f'Enrolled {created} student(s) to "{offer}".')
+            if skipped:
+                messages.warning(request, f'Skipped {skipped} already-enrolled student(s).')
+            if ineligible:
+                # Show a concise summary and include first few details
+                sample = ', '.join(ineligible_list[:5])
+                more = f" and {ineligible - 5} more" if ineligible > 5 else ""
+                messages.error(request, f'{ineligible} student(s) blocked by eligibility (balance > {threshold}). {sample}{more}.')
+            return redirect('admin_fees')
+        else:
+            messages.error(request, 'Please correct the errors in the Optional Charges enrollment form.')
 
     today = timezone.now().date()
     current_term = Term.objects.filter(start_date__lte=today, end_date__gte=today).order_by('start_date').first()
@@ -5994,6 +6579,7 @@ def admin_fees(request):
     context = {
         'fee_form': fee_form,
         'assign_form': assign_form,
+        'optional_enroll_form': optional_enroll_form,
         'fees': fees,
         'all_classes': all_classes,
         'all_fee_categories': all_fee_categories,
@@ -6363,10 +6949,28 @@ def custom_login_view(request):
         user = authenticate(request, username=username, password=password)
 
         if user is not None and user.role == role:
+            # For admin and clerk (finance), require email confirmation link
+            if role in ('admin', 'clerk'):
+                try:
+                    from .views_auth_extras import send_email_login_link
+                    # Create a short-lived login request id and store pending state
+                    request_id = uuid.uuid4().hex
+                    cache.set(f"email_login:{request_id}", {'status': 'pending'}, timeout=15 * 60)
+                    send_email_login_link(request, user, request_id)
+                    messages.info(
+                        request,
+                        f"A confirmation link has been sent to {user.email}. Please check your email to complete login."
+                    )
+                except Exception:
+                    messages.error(request, 'Failed to send confirmation email. Please try again.')
+                # Do not log in yet; wait for email link confirmation
+                return render(request, 'auth/login.html', {
+                    'request_id': request_id,
+                })
+
+            # Normal immediate login for teacher and student
             login(request, user)
-            if role == 'admin':
-                return redirect('admin_overview')
-            elif role == 'teacher':
+            if role == 'teacher':
                 # Get teacher id and redirect properly
                 if hasattr(user, 'teacher'):
                     return redirect('teacher_dashboard', teacher_id=user.teacher.id)
@@ -6379,8 +6983,6 @@ def custom_login_view(request):
                 else:
                     messages.error(request, 'User not a student.')
                     return redirect('login')
-            elif role == 'clerk':
-                return redirect('clerk_overview')
         else:
             messages.error(request, 'Invalid credentials or role mismatch.')
 
@@ -7107,39 +7709,61 @@ def api_download_class_students(request, class_id):
         
         class_obj = get_object_or_404(Class, id=class_id)
         students = Student.objects.filter(class_group=class_obj).select_related('user').order_by('admission_no')
-        
-        # Create student data
-        student_data = []
-        for student in students:
-            student_data.append({
-                'admission_no': student.admission_no,
-                'student_name': student.full_name if hasattr(student, 'full_name') else str(student),
-                'class': str(class_obj),
-                'gender': getattr(student, 'gender', ''),
-                'phone': getattr(student, 'phone', ''),
-            })
-        
-        # Create DataFrame and Excel file
-        df = pd.DataFrame(student_data)
-        
+
+        # Simple list mode: only Admission No, Student Name, Subject
+        simple = request.GET.get('simple') in ('1', 'true', 'yes')
+        subject_name = ''
+        if simple:
+            subject_id = request.GET.get('subject_id')
+            if subject_id:
+                try:
+                    subj = get_object_or_404(Subject, id=subject_id)
+                    subject_name = subj.name
+                except Exception:
+                    subject_name = ''
+
+        # Create DataFrame based on mode
+        if simple:
+            rows = []
+            for s in students:
+                rows.append({
+                    'Admission No': s.admission_no,
+                    'Student Name': s.user.get_full_name() if hasattr(s, 'user') else getattr(s, 'full_name', str(s)),
+                    'Subject': subject_name,
+                    'Grade': '',
+                })
+            df = pd.DataFrame(rows)
+        else:
+            # Full details (legacy)
+            student_data = []
+            for student in students:
+                student_data.append({
+                    'admission_no': student.admission_no,
+                    'student_name': student.full_name if hasattr(student, 'full_name') else str(student),
+                    'class': str(class_obj),
+                    'gender': getattr(student, 'gender', ''),
+                    'phone': getattr(student, 'phone', ''),
+                })
+            df = pd.DataFrame(student_data)
+
         # Create Excel file in memory
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Students', index=False)
-            # Insert school header rows using openpyxl
-            try:
-                from landing.models import SiteSettings
-                ss = SiteSettings.objects.first()
-                if ss:
-                    wb = writer.book
-                    ws = wb['Students']
-                    # Insert 3 rows at top
-                    ws.insert_rows(1, amount=3)
-                    ws['A1'] = getattr(ss, 'school_name', '')
-                    ws['A2'] = getattr(ss, 'school_motto', '')
-                    ws['A3'] = getattr(ss, 'contact_address', '')
-            except Exception:
-                pass
+            if not simple:
+                # Insert school header rows using openpyxl for legacy format
+                try:
+                    from landing.models import SiteSettings
+                    ss = SiteSettings.objects.first()
+                    if ss:
+                        wb = writer.book
+                        ws = wb['Students']
+                        ws.insert_rows(1, amount=3)
+                        ws['A1'] = getattr(ss, 'school_name', '')
+                        ws['A2'] = getattr(ss, 'school_motto', '')
+                        ws['A3'] = getattr(ss, 'contact_address', '')
+                except Exception:
+                    pass
         
         output.seek(0)
         
@@ -7148,7 +7772,8 @@ def api_download_class_students(request, class_id):
             output.getvalue(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
-        response['Content-Disposition'] = f'attachment; filename="students_{class_obj.name}_{class_id}.xlsx"'
+        fname_prefix = 'students_simple' if simple else 'students'
+        response['Content-Disposition'] = f'attachment; filename="{fname_prefix}_{class_obj.name}_{class_id}.xlsx"'
         
         return response
         
@@ -8056,7 +8681,19 @@ def mpesa_callback(request):
         logger.error(f"[M-PESA CALLBACK] Error processing callback: {e}", exc_info=True)
         # DEBUG: return error detail to help diagnose in dev
         return JsonResponse({"ResultCode": 0, "ResultDesc": f"Error processing callback: {e}"})
-    return JsonResponse({"ResultCode": 0, "ResultDesc": "Received"})
+    return JsonResponse({"ResultCode": 0, "ResultDesc": "Callback received"})
+
+def mpesa_callback_ping(request):
+    """Lightweight healthcheck for the M-Pesa callback endpoint.
+    Accepts GET and returns 200 OK so you can test via browser/ngrok.
+    """
+    from django.utils import timezone
+    return JsonResponse({
+        "ok": True,
+        "ts": timezone.now().isoformat(),
+        "method": request.method,
+        "path": request.path,
+    })
 
 
 # --- User-facing PayBill Flow ---
@@ -8098,7 +8735,8 @@ def paybill_start(request):
                 'prefill_phone': phone_raw or '',
             })
 
-        account_ref = f"Account#{student.admission_no}"
+        from django.conf import settings as _settings
+        account_ref = getattr(_settings, 'MPESA_DEFAULT_ACCOUNT_REF', '600986')
         tx_desc = f"Fees payment for {student.admission_no}"
         # Call Daraja to initiate STK push
         resp = initiate_stk_push(phone, amount_val, account_ref, tx_desc)
@@ -8189,16 +8827,23 @@ def mpesa_c2b_validation(request):
     Expected Safaricom JSON fields include: TransType, TransID, TransTime, TransAmount,
     BusinessShortCode, BillRefNumber, MSISDN, etc.
     """
+    raise Http404()
     try:
         payload = json.loads(request.body.decode('utf-8')) if request.body else {}
     except Exception:
         payload = {}
-    # Optionally, validate BusinessShortCode matches settings
-    shortcode_ok = True
-    short_expected = getattr(settings, 'MPESA_SHORTCODE', '')
-    if short_expected:
-        shortcode_ok = str(payload.get('BusinessShortCode') or payload.get('BusinessShortCode')) == str(short_expected)
-    if not shortcode_ok:
+    # Validate incoming shortcode against allowed list
+    # Accept if:
+    #  - MPESA_ALLOWED_SHORTCODES is defined and contains the incoming shortcode, OR
+    #  - MPESA_SHORTCODE matches the incoming shortcode, OR
+    #  - No expected/allowed shortcodes configured (development fallback)
+    incoming_sc = str(payload.get('BusinessShortCode') or payload.get('ShortCode') or '').strip()
+    expected_sc = str(getattr(settings, 'MPESA_SHORTCODE', '') or '').strip()
+    allowed_csv = str(getattr(settings, 'MPESA_ALLOWED_SHORTCODES', '') or '').strip()
+    allowed = {s.strip() for s in allowed_csv.split(',') if s.strip()}
+    if expected_sc:
+        allowed.add(expected_sc)
+    if incoming_sc and allowed and incoming_sc not in allowed:
         return JsonResponse({"ResultCode": 1, "ResultDesc": "Invalid shortcode"})
     # Accept by default
     return JsonResponse({"ResultCode": 0, "ResultDesc": "Accepted"})
@@ -8209,6 +8854,7 @@ def mpesa_c2b_confirmation(request):
     """Record a confirmed C2B payment. Creates/updates FeePayment and MpesaTransaction.
     Uses TransID as reference and BillRefNumber to identify the student (Account#<adm_no>).
     """
+    raise Http404()
     import logging
     from decimal import Decimal
     logger = logging.getLogger('django')
@@ -8278,9 +8924,20 @@ def mpesa_c2b_confirmation(request):
 
     # Resolve student by bill reference if in expected pattern
     student = None
-    if isinstance(bill_ref, str) and bill_ref.startswith('Account#'):
-        adm = bill_ref.split('#', 1)[1].strip()
-        student = Student.objects.filter(admission_no=adm).first()
+    if isinstance(bill_ref, str):
+        ref = bill_ref.strip()
+        # Accept formats: "Account#<ADM>", "<PAYBILL>#<ADM>" (e.g., "400200#123456"), "<ADM>", "ADM<digits>"
+        if '#' in ref:
+            # take the part after the last '#'
+            adm = ref.split('#')[-1].strip()
+        elif ref.lower().startswith('account#'):
+            adm = ref.split('#', 1)[1].strip()
+        else:
+            # Drop non-alphanumeric chars to support plain inputs like "ADM-123 456"
+            import re
+            adm = re.sub(r"[^A-Za-z0-9]", "", ref)
+        if adm:
+            student = Student.objects.filter(admission_no__iexact=adm).first()
     if not student and phone:
         student = Student.objects.filter(phone=phone).first()
 
@@ -8342,7 +8999,7 @@ def mpesa_c2b_confirmation(request):
                 student=student,
                 fee_assignment=outstanding_assignment,
                 amount_paid=Decimal(str(amount or 0)),
-                payment_method='mpesa',
+                payment_method='Mpesa Paybill',
                 reference=trans_id,
                 phone_number=phone,
                 status='approved',

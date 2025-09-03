@@ -277,10 +277,11 @@ def admin_messaging(request):
             (Q(sender=request.user, recipient=user) | Q(sender=user, recipient=request.user))
         ).order_by('-timestamp').first()
         return msg.timestamp if msg else None
-    recipients.sort(key=lambda u: latest_msg_time(u) or 0, reverse=True)
+    from datetime import datetime
+    from django.utils import timezone
+    recipients.sort(key=lambda u: latest_msg_time(u) or timezone.make_aware(datetime.min), reverse=True)
     # Per-user unread badge: store last opened timestamp for each user in session
-    import datetime
-    now = datetime.datetime.now().isoformat()
+    now = timezone.now().isoformat()
     last_opened_map = request.session.get('messaging_last_opened', {})
     # Compute unread message count since last opened for each user
     recipients_list = []
@@ -288,17 +289,19 @@ def admin_messaging(request):
         last_opened = last_opened_map.get(str(u.id))
         if last_opened:
             try:
-                last_opened_dt = datetime.datetime.fromisoformat(last_opened)
+                last_opened_dt = datetime.fromisoformat(last_opened)
+                if timezone.is_naive(last_opened_dt):
+                    last_opened_dt = timezone.make_aware(last_opened_dt)
             except Exception:
-                last_opened_dt = datetime.datetime.fromtimestamp(0)
+                last_opened_dt = timezone.make_aware(datetime.fromtimestamp(0))
         else:
-            last_opened_dt = datetime.datetime.fromtimestamp(0)
+            last_opened_dt = timezone.make_aware(datetime.fromtimestamp(0))
         # Find the latest admin reply to this user
         last_admin_reply = Message.objects.filter(sender=request.user, recipient=u).order_by('-timestamp').first()
         if last_admin_reply:
             last_admin_time = last_admin_reply.timestamp
         else:
-            last_admin_time = datetime.datetime.fromtimestamp(0)
+            last_admin_time = timezone.make_aware(datetime.fromtimestamp(0))
         # Count all messages from user sent after admin's last message
         unread_count = Message.objects.filter(sender=u, recipient=request.user, timestamp__gt=last_admin_time).count()
         recipients_list.append({
@@ -318,7 +321,7 @@ def admin_messaging(request):
         # Mark messages from selected_user to admin as read
         from core.models import Message
         Message.objects.filter(sender=selected_user, recipient=request.user, is_read=False).update(is_read=True)
-        last_opened_map[str(selected_user.id)] = datetime.datetime.now().isoformat()
+        last_opened_map[str(selected_user.id)] = timezone.now().isoformat()
         request.session['messaging_last_opened'] = last_opened_map
     # Handle sending a message
     if request.method == 'POST' and selected_user:

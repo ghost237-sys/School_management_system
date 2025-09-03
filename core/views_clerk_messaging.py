@@ -30,7 +30,9 @@ def clerk_messaging(request):
         return msg.timestamp if msg else None
 
     recipients = list(recipients_qs)
-    recipients.sort(key=lambda u: latest_msg_time(u) or 0, reverse=True)
+    from datetime import datetime
+    from django.utils import timezone
+    recipients.sort(key=lambda u: latest_msg_time(u) or timezone.make_aware(datetime.min), reverse=True)
 
     # Determine selected recipient
     recipient_id = request.GET.get('recipient')

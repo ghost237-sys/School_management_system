@@ -1,8 +1,35 @@
+# Core
 Django>=5.2,<6.0
+python-dotenv>=0.21.0
+
+# Database
+psycopg2-binary>=2.9.3
+
+# Static/Media Storage
+django-storages>=1.13.0
+boto3>=1.26.0
+
+# ASGI Server
+gunicorn>=20.1.0
+whitenoise>=6.2.0
+
+# Production
+python-decouple>=3.7
+
+# Development Tools
+django-debug-toolbar>=3.8.1
+
+# Existing Dependencies
 django-crispy-forms>=2.0
 crispy-bootstrap5>=0.7
 django-widget-tweaks>=1.5.0
 pandas>=1.3.0
-openpyxl>=3.0.0
 openpyxl==3.1.2
 reportlab>=3.6.0
+
+# Security & Auth Enhancements
+django-axes>=6.4.0
+django-ratelimit>=4.1.0
+django-otp>=1.3.0
+django-two-factor-auth>=1.15.5
+qrcode[pil]>=7.4.2

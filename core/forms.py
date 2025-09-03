@@ -1,8 +1,10 @@
 from django import forms
+from decimal import Decimal
 from django.forms import inlineformset_factory
 from django.forms.models import BaseInlineFormSet
 from django.contrib.auth.forms import UserCreationForm
-from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term, Grade, DefaultTimetable, TeacherResponsibility
+from .models import User, Teacher, Department, Subject, Class, Student, Exam, Event, FeeCategory, FeeAssignment, FeePayment, Term, Grade, DefaultTimetable, TeacherResponsibility, PocketMoney
+from .models import OptionalOffer
 
 USER_CATEGORY_CHOICES = [
     ('admin', 'Admin'),
@@ -336,7 +338,7 @@ class EditStudentClassForm(forms.ModelForm):
 class FeeCategoryForm(forms.ModelForm):
     class Meta:
         model = FeeCategory
-        fields = ['name', 'description']
+        fields = ['name', 'description', 'is_optional']
 
 class GradeUploadForm(forms.Form):
     exam = forms.ModelChoiceField(queryset=Exam.objects.all(), widget=forms.Select(attrs={'class': 'form-control'}))
@@ -355,6 +357,110 @@ class GradeUploadForm(forms.Form):
             assigned_subjects = Subject.objects.filter(teacherclassassignment__teacher=teacher).distinct()
             self.fields['class_group'].queryset = assigned_classes
             self.fields['subject'].queryset = assigned_subjects
+
+class LessonPlanForm(forms.Form):
+    """Lightweight lesson plan form used by teachers.
+    Filters subject and class options to the logged-in teacher's assignments.
+    Field names are chosen to match the template expects: subject, class_grade, topic, subtopic,
+    duration, objectives, methods, aids, assessment.
+    """
+
+    subject = forms.ModelChoiceField(
+        queryset=Subject.objects.none(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        required=True,
+        label='Subject'
+    )
+    class_grade = forms.ModelChoiceField(
+        queryset=Class.objects.none(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        required=True,
+        label='Grade/Class'
+    )
+    plan_date = forms.DateField(
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        required=False,
+        label='Plan Date'
+    )
+    lesson_number = forms.IntegerField(
+        min_value=1,
+        required=False,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g. 1'}),
+        label='Lesson Number'
+    )
+    term = forms.ModelChoiceField(
+        queryset=Term.objects.all(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        required=False,
+        label='Term'
+    )
+    topic = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Fractions'}),
+        required=True,
+        label='Topic'
+    )
+    subtopic = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Optional subtopic'}),
+        required=False,
+        label='Subtopic'
+    )
+    duration = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. 40 minutes'}),
+        required=True,
+        label='Lesson Duration'
+    )
+    objectives = forms.CharField(
+        widget=forms.Textarea(attrs={'class': 'form-control richtext', 'rows': 6, 'placeholder': 'List measurable objectives'}),
+        required=True,
+        label='Lesson Objectives'
+    )
+    methods = forms.CharField(
+        widget=forms.Textarea(attrs={'class': 'form-control richtext', 'rows': 6, 'placeholder': 'e.g. Discussion, Group work, Demonstration'}),
+        required=True,
+        label='Teaching Methods/Activities'
+    )
+    aids = forms.CharField(
+        widget=forms.Textarea(attrs={'class': 'form-control richtext', 'rows': 6, 'placeholder': 'e.g. Textbook, Charts, Projector'}),
+        required=False,
+        label='Teaching & Learning Aids'
+    )
+    assessment = forms.CharField(
+        widget=forms.Textarea(attrs={'class': 'form-control richtext', 'rows': 6, 'placeholder': 'e.g. Quiz, Oral questions, Exit ticket'}),
+        required=True,
+        label='Assessment/Evaluation'
+    )
+
+    def __init__(self, *args, **kwargs):
+        teacher = kwargs.pop('teacher', None)
+        super().__init__(*args, **kwargs)
+        # Default to empty until we can filter by teacher
+        from .models import TeacherClassAssignment
+        if teacher:
+            assigned = TeacherClassAssignment.objects.filter(teacher=teacher).select_related('class_group', 'subject')
+            classes = {a.class_group for a in assigned if a.class_group}
+            subjects = {a.subject for a in assigned if a.subject}
+            # In case a teacher is a class teacher without explicit assignment, include that class
+            if getattr(teacher, 'class_set', None):
+                try:
+                    extra = Class.objects.filter(class_teacher=teacher)
+                    classes.update(extra)
+                except Exception:
+                    pass
+            self.fields['class_grade'].queryset = Class.objects.filter(id__in=[c.id for c in classes]).order_by('name') if classes else Class.objects.none()
+            self.fields['subject'].queryset = Subject.objects.filter(id__in=[s.id for s in subjects]).order_by('name') if subjects else Subject.objects.none()
+        else:
+            self.fields['class_grade'].queryset = Class.objects.none()
+            self.fields['subject'].queryset = Subject.objects.none()
+        # Term labeling (if field exists)
+        if 'term' in self.fields:
+            try:
+                self.fields['term'].queryset = Term.objects.select_related('academic_year').order_by('-start_date')
+                self.fields['term'].label_from_instance = lambda obj: str(obj)
+            except Exception:
+                pass
 
 class FeeAssignmentForm(forms.ModelForm):
     class_group = forms.ModelMultipleChoiceField(
@@ -522,3 +628,120 @@ class TeacherResponsibilityForm(forms.ModelForm):
             'start_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'end_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
         }
+
+
+class PocketMoneyForm(forms.ModelForm):
+    """Form for managing pocket money transactions."""
+    
+    class Meta:
+        model = PocketMoney
+        fields = ['student', 'transaction_type', 'amount', 'description', 'reference']
+        widgets = {
+            'student': forms.Select(attrs={'class': 'form-select'}),
+            'transaction_type': forms.Select(attrs={'class': 'form-select'}),
+            'amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Optional description for this transaction'}),
+            'reference': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Receipt number or reference (optional)'}),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Order students by name for easier selection
+        self.fields['student'].queryset = Student.objects.select_related('user', 'class_group').order_by('user__first_name', 'user__last_name')
+        self.fields['student'].label_from_instance = lambda obj: f"{obj.full_name} - {obj.admission_no} ({obj.class_group})"
+        # Remove 'adjustment' from transaction type choices
+        if 'transaction_type' in self.fields:
+            self.fields['transaction_type'].choices = [
+                (value, label) for value, label in PocketMoney.TRANSACTION_TYPE_CHOICES
+                if value != 'adjustment'
+            ]
+
+    def clean(self):
+        cleaned = super().clean()
+        student = cleaned.get('student')
+        amount = cleaned.get('amount')
+        tx_type = cleaned.get('transaction_type')
+        if student and amount and tx_type == 'withdrawal':
+            from django.db.models import Sum
+            # Compute current balance (deposits - withdrawals). Adjustments intentionally excluded.
+            deposits = PocketMoney.objects.filter(student=student, transaction_type='deposit', status='approved')\
+                .aggregate(total=Sum('amount'))['total'] or Decimal('0')
+            withdrawals = PocketMoney.objects.filter(student=student, transaction_type='withdrawal', status='approved')\
+                .aggregate(total=Sum('amount'))['total'] or Decimal('0')
+            balance = deposits - withdrawals
+            if amount > balance:
+                self.add_error('amount', f"Withdrawal cannot exceed current balance (KES {balance}).")
+        return cleaned
+
+
+class PocketMoneyFilterForm(forms.Form):
+    """Form for filtering pocket money transactions."""
+    
+    student = forms.ModelChoiceField(
+        queryset=Student.objects.select_related('user', 'class_group').order_by('user__first_name', 'user__last_name'),
+        required=False,
+        empty_label="All Students",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    transaction_type = forms.ChoiceField(
+        choices=[('', 'All Types')] + [c for c in PocketMoney.TRANSACTION_TYPE_CHOICES if c[0] != 'adjustment'],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    status = forms.ChoiceField(
+        choices=[('', 'All Status')] + PocketMoney.STATUS_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    date_from = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    
+    date_to = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['student'].label_from_instance = lambda obj: f"{obj.full_name} - {obj.admission_no} ({obj.class_group})"
+        # Ensure adjustment is not offered even if model choices change
+        self.fields['transaction_type'].choices = [
+            ('', 'All Types'),
+            *[(v, l) for v, l in PocketMoney.TRANSACTION_TYPE_CHOICES if v != 'adjustment']
+        ]
+
+
+class OptionalChargeEnrollForm(forms.Form):
+    """Form to enroll many students into an OptionalOffer (optional charges module)."""
+    offer = forms.ModelChoiceField(
+        queryset=OptionalOffer.objects.filter(is_active=True).select_related('term', 'class_group', 'category').order_by('-id'),
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    class_group = forms.ModelChoiceField(
+        queryset=Class.objects.all().order_by('id'),
+        required=False,
+        empty_label="All Classes",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    students = forms.ModelMultipleChoiceField(
+        queryset=Student.objects.none(),
+        required=True,
+        widget=forms.SelectMultiple(attrs={'class': 'form-control', 'size': '12'})
+    )
+
+    def __init__(self, *args, **kwargs):
+        selected_class_id = kwargs.pop('selected_class_id', None)
+        super().__init__(*args, **kwargs)
+        # Filter students optionally by selected class
+        qs = Student.objects.select_related('user', 'class_group').order_by('user__first_name', 'user__last_name')
+        if selected_class_id:
+            qs = qs.filter(class_group_id=selected_class_id)
+            self.fields['class_group'].initial = selected_class_id
+        self.fields['students'].queryset = qs
+        self.fields['students'].label_from_instance = lambda obj: f"{obj.full_name} - {obj.admission_no} ({obj.class_group})"

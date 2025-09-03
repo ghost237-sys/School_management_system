@@ -1,6 +1,6 @@
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
-from .models import FeePayment, Student, FeeAssignment, Term, MpesaTransaction, MpesaC2BLedger
+from .models import FeePayment, Student, FeeAssignment, Term, MpesaTransaction
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.utils import timezone
@@ -48,7 +48,8 @@ def verify_payment_by_reference(request):
     if reference.lower().startswith('ws_co_'):
         tx = MpesaTransaction.objects.filter(checkout_request_id=reference).first()
         if not tx:
-            return JsonResponse({'success': False, 'error': 'No STK transaction found for that CheckoutRequestID.'}, status=404)
+            # Avoid HTTP 404 to prevent NotFound middleware from replacing JSON with HTML
+            return JsonResponse({'success': False, 'error': 'No STK transaction found for that CheckoutRequestID.'}, status=200)
 
         # Scope: students can only verify their own tx
         if student is not None and tx.student_id and tx.student_id != student.id:
@@ -140,37 +141,21 @@ def verify_payment_by_reference(request):
                 'payment_date': existing_any.payment_date.strftime('%Y-%m-%d %H:%M:%S'),
             })
 
-        # Fallback 1: PayBill ledger (C2B) – callback may have saved a ledger entry
-        ledger = MpesaC2BLedger.objects.filter(trans_id__iexact=reference).first()
-        # Fallback 2: STK push transaction – callback may have failed, but we still have MpesaTransaction
-        tx_only = None
-        if not ledger:
-            tx_only = MpesaTransaction.objects.filter(mpesa_receipt__iexact=reference).first()
-            if not tx_only:
-                return JsonResponse({'success': False, 'error': 'No payment found with that reference.'}, status=404)
+        # Fallback only to STK push transaction – C2B ledger is removed
+        tx_only = MpesaTransaction.objects.filter(mpesa_receipt__iexact=reference).first()
+        if not tx_only:
+            # Avoid HTTP 404 to prevent NotFound middleware from replacing JSON with HTML
+            return JsonResponse({'success': False, 'error': 'No payment found with that reference.'}, status=200)
 
         # Resolve student
         resolved_student = student
         if resolved_student is None:
-            adm = None
-            # Prefer explicit bill ref if we have a ledger; otherwise try tx account reference
-            bill_ref = None
-            msisdn = None
-            if ledger:
-                bill_ref = ledger.bill_ref
-                msisdn = ledger.msisdn
-            elif tx_only:
-                bill_ref = getattr(tx_only, 'account_reference', None)
-                msisdn = getattr(tx_only, 'phone_number', None)
-            if bill_ref and isinstance(bill_ref, str) and bill_ref.startswith('Account#'):
-                adm = bill_ref.split('#', 1)[1].strip()
-            if adm:
-                resolved_student = Student.objects.filter(admission_no=adm).first()
-            if not resolved_student and msisdn:
+            msisdn = getattr(tx_only, 'phone_number', None)
+            if msisdn:
                 resolved_student = Student.objects.filter(phone=msisdn).first()
 
         if not resolved_student:
-            return JsonResponse({'success': False, 'error': 'Payment found in ledger but student could not be resolved. Contact admin.'}, status=400)
+            return JsonResponse({'success': False, 'error': 'Payment found but student could not be resolved. Contact admin.'}, status=400)
 
         # Find current term and an outstanding assignment
         today = timezone.now().date()
@@ -186,36 +171,16 @@ def verify_payment_by_reference(request):
             if not outstanding_assignment and fee_assignments.exists():
                 outstanding_assignment = fee_assignments.first()
 
-        # Link MpesaTransaction if we have it
-        tx = MpesaTransaction.objects.filter(mpesa_receipt__iexact=reference).first()
-        if not tx and ledger and ledger.bill_ref:
-            tx = MpesaTransaction.objects.filter(account_reference=ledger.bill_ref).order_by('-created_at').first()
-        if not tx:
-            tx = tx_only
-
-        # Create approved FeePayment from ledger
-        # Choose amount/reference/phone from ledger if present, else from tx_only
-        amt = None
-        ref_code = reference
-        phone_val = None
-        if ledger:
-            amt = Decimal(str(ledger.amount or 0))
-            ref_code = ledger.trans_id
-            phone_val = ledger.msisdn
-        elif tx_only:
-            amt = Decimal(str(getattr(tx_only, 'amount', 0) or 0))
-            ref_code = getattr(tx_only, 'mpesa_receipt', reference)
-            phone_val = getattr(tx_only, 'phone_number', None)
-
+        # Create approved FeePayment from STK-only context
         created_payment = FeePayment.objects.create(
             student=resolved_student,
             fee_assignment=outstanding_assignment,
-            amount_paid=amt,
+            amount_paid=Decimal(str(getattr(tx_only, 'amount', 0) or 0)),
             payment_method='mpesa',
-            reference=ref_code,
-            phone_number=phone_val,
+            reference=getattr(tx_only, 'mpesa_receipt', reference) or reference,
+            phone_number=getattr(tx_only, 'phone_number', None),
             status='approved',
-            mpesa_transaction=tx,
+            mpesa_transaction=tx_only,
         )
 
         return JsonResponse({

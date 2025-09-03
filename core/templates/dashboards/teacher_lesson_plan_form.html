@@ -1,0 +1,1225 @@
+
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Lesson Plan | Teacher{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  {% if user.is_authenticated %}
+  {% if user.role == 'teacher' or user.role == 'admin' %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h3 class="mb-0">Lesson Plan</h3>
+    <div class="d-flex align-items-center gap-2">
+      <div class="dropdown">
+        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          {% if mode == 'drafts' %}Drafts{% else %}Create New{% endif %}
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><a class="dropdown-item {% if mode == 'new' %}active{% endif %}" href="{{ request.path }}?mode=new">Create New</a></li>
+          <li><a class="dropdown-item {% if mode == 'drafts' %}active{% endif %}" href="{{ request.path }}?mode=drafts">Drafts</a></li>
+          <li><a class="dropdown-item {% if mode == 'compile' %}active{% endif %}" href="{{ request.path }}?mode=compile">Compile Subject Plan</a></li>
+        </ul>
+      </div>
+      <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  {% if mode == 'compile' %}
+  <div class="card mt-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <div>
+        <span class="me-2">Compiled Subject Plan</span>
+        {% if compiled_plans and compiled_plans|length > 0 %}
+          {% with first=compiled_plans.0 %}
+            <span class="badge bg-secondary">Class: {{ first.class_group }}</span>
+            <span class="badge bg-secondary">Subject: {{ first.subject }}</span>
+          {% endwith %}
+        {% elif selected_class_id or selected_subject_id %}
+            <span class="badge bg-secondary">Class ID: {{ selected_class_id|default:'—' }}</span>
+            <span class="badge bg-secondary">Subject ID: {{ selected_subject_id|default:'—' }}</span>
+        {% endif %}
+      </div>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary btn-sm" href="{{ request.path }}?mode=drafts"><i class="bi bi-arrow-left"></i> Back to Drafts</a>
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <form class="row g-2 align-items-end mb-3" method="get" action="{{ request.path }}">
+        <input type="hidden" name="mode" value="compile">
+        <div class="col-sm-5">
+          <label class="form-label small">Class</label>
+          <select class="form-select" name="class_grade" required>
+            <option value="">— Select Class —</option>
+            {% for c in filter_classes %}
+              <option value="{{ c.id }}" {% if selected_class_id and selected_class_id|add:'0' == c.id|add:'0' %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-5">
+          <label class="form-label small">Subject</label>
+          <select class="form-select" name="subject" required>
+            <option value="">— Select Subject —</option>
+            {% for s in filter_subjects %}
+              <option value="{{ s.id }}" {% if selected_subject_id and selected_subject_id|add:'0' == s.id|add:'0' %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-2 d-grid">
+          <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat"></i> Refresh</button>
+        </div>
+      </form>
+
+      {% if compiled_plans %}
+      <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Lesson #</th>
+              <th>Date</th>
+              <th>Topic</th>
+              <th>Objectives</th>
+              <th>Activities</th>
+              <th>Materials</th>
+              <th>Assessment</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in compiled_plans %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td>{{ p.lesson_number|default:'—' }}</td>
+              <td>{{ p.plan_date|default:'—' }}</td>
+              <td>{{ p.topic|default:'—' }}</td>
+              <td>{{ p.objectives|safe }}</td>
+              <td>{{ p.methods|safe }}</td>
+              <td>{{ p.aids|safe }}</td>
+              <td>{{ p.assessment|safe }}</td>
+              <td>{% if p.duration_minutes %}{{ p.duration_minutes }} min{% elif p.duration_text %}{{ p.duration_text }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="text-muted">Select a class and subject to compile, or no drafts found.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <span class="fw-semibold">{% if lesson and lesson.id %}Edit{% else %}Create{% endif %} Lesson Plan</span>
+      <div class="d-flex align-items-center gap-2">
+        {% if lesson and lesson.status %}
+          {% with status=lesson.status %}
+            <span class="badge {% if status == 'approved' %}bg-success{% elif status == 'submitted' %}bg-primary{% elif status == 'rejected' %}bg-danger{% else %}bg-secondary{% endif %}">
+              {{ status|title }}
+            </span>
+          {% endwith %}
+        {% endif %}
+        <span class="text-muted small">Teacher: {{ request.user.get_full_name|default:request.user.username }}</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <!-- Details summary -->
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <div class="small text-muted">Teacher</div>
+          <div class="fw-semibold">
+            {% if lesson and lesson.teacher %}
+              {{ lesson.teacher.get_full_name|default:lesson.teacher.user.get_full_name|default:request.user.get_full_name|default:request.user.username }}
+            {% else %}
+              {{ request.user.get_full_name|default:request.user.username }}
+            {% endif %}
+          </div>
+
+        </div>
+
+        
+        <div class="col-md-4">
+          <div class="small text-muted">Subject</div>
+          <div class="fw-semibold">
+            {% if lesson and lesson.subject %}{{ lesson.subject }}{% else %}—{% endif %}
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="small text-muted">Grade/Class</div>
+          <div class="fw-semibold">
+            {% if lesson and lesson.class_grade %}{{ lesson.class_grade }}{% elif lesson and lesson.grade %}{{ lesson.grade }}{% else %}—{% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if mode == 'new' %}
+      <form method="post" action="{{ action_url|default:request.get_full_path }}" class="needs-validation" novalidate>
+        {% csrf_token %}
+        <!-- Hidden fields for per-stage time allocations (submitted with the form) -->
+        <input type="hidden" id="opening_time" name="opening_time" value="{% if lesson and lesson.opening_time %}{{ lesson.opening_time }}{% endif %}">
+        <input type="hidden" id="main_time" name="main_time" value="{% if lesson and lesson.main_time %}{{ lesson.main_time }}{% endif %}">
+        <input type="hidden" id="closing_time" name="closing_time" value="{% if lesson and lesson.closing_time %}{{ lesson.closing_time }}{% endif %}">
+        {% if lesson and lesson.id %}
+          <input type="hidden" name="id" value="{{ lesson.id }}">
+        {% endif %}
+
+        {% if form %}
+          <!-- If a Django Form is supplied, render field-by-field for Bootstrap control -->
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Subject</label>
+              {{ form.subject }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Grade/Class</label>
+              {{ form.class_grade }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Plan Date</label>
+              {{ form.plan_date }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Term</label>
+              {{ form.term }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Lesson Number</label>
+              {{ form.lesson_number }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Topic</label>
+              {{ form.topic }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Subtopic</label>
+              {{ form.subtopic }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Lesson Duration</label>
+              {{ form.duration }}
+            </div>
+            <div class="d-none">
+              {{ form.objectives }}
+              {{ form.methods }}
+              {{ form.aids }}
+              {{ form.assessment }}
+            </div>
+          </div>
+        {% else %}
+          <!-- Fallback: manual inputs when no Django Form is provided -->
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label for="subject" class="form-label">Subject</label>
+              <input type="text" class="form-control" id="subject" name="subject" {% if lesson %}value="{{ lesson.subject }}"{% endif %} required>
+            </div>
+            <div class="col-md-6">
+              <label for="class_grade" class="form-label">Grade/Class</label>
+              <input type="text" class="form-control" id="class_grade" name="class_grade" {% if lesson %}{% if lesson.class_grade %}value="{{ lesson.class_grade }}"{% elif lesson.grade %}value="{{ lesson.grade }}"{% endif %}{% endif %} required>
+            </div>
+            <div class="col-md-6">
+              <label for="plan_date" class="form-label">Plan Date</label>
+              <input type="date" class="form-control" id="plan_date" name="plan_date" {% if lesson and lesson.plan_date %}value="{{ lesson.plan_date|date:'Y-m-d' }}"{% endif %}>
+            </div>
+            <div class="col-md-6">
+              <label for="lesson_number" class="form-label">Lesson Number</label>
+              <input type="number" min="1" class="form-control" id="lesson_number" name="lesson_number" {% if lesson and lesson.lesson_number %}value="{{ lesson.lesson_number }}"{% endif %}>
+            </div>
+            <div class="col-md-6">
+              <label for="topic" class="form-label">Topic</label>
+              <input type="text" class="form-control" id="topic" name="topic" {% if lesson %}value="{{ lesson.topic }}"{% endif %} required>
+            </div>
+            <div class="col-md-6">
+              <label for="subtopic" class="form-label">Subtopic</label>
+              <input type="text" class="form-control" id="subtopic" name="subtopic" {% if lesson and lesson.subtopic %}value="{{ lesson.subtopic }}"{% endif %}>
+            </div>
+            <div class="col-md-4">
+              <label for="duration" class="form-label">Lesson Duration</label>
+              <input type="text" class="form-control" id="duration" name="duration" placeholder="e.g. 40 minutes" {% if lesson %}value="{{ lesson.duration|default:lesson.lesson_duration }}"{% endif %} required>
+            </div>
+            <div class="col-12">
+              <label for="objectives" class="form-label">Lesson Objectives</label>
+              <textarea class="form-control richtext" id="objectives" name="objectives" rows="6" placeholder="List measurable objectives" required>{% if lesson %}{{ lesson.objectives|default:lesson.lesson_objectives }}{% endif %}</textarea>
+            </div>
+            <div class="col-12">
+              <label for="methods" class="form-label">Teaching Methods/Activities</label>
+              <textarea class="form-control richtext" id="methods" name="methods" rows="6" placeholder="e.g. Discussion, Group work, Demonstration" required>{% if lesson %}{{ lesson.methods|default:lesson.teaching_methods }}{% endif %}</textarea>
+            </div>
+            <div class="col-12">
+              <label for="aids" class="form-label">Teaching &amp; Learning Aids</label>
+              <textarea class="form-control richtext" id="aids" name="aids" rows="6" placeholder="e.g. Textbook, Charts, Projector">{% if lesson %}{{ lesson.aids|default:lesson.teaching_aids }}{% endif %}</textarea>
+            </div>
+            <div class="col-12">
+              <label for="assessment" class="form-label">Assessment/Evaluation</label>
+              <textarea class="form-control richtext" id="assessment" name="assessment" rows="6" placeholder="e.g. Quiz, Oral questions, Exit ticket" required>{% if lesson %}{{ lesson.assessment|default:lesson.evaluation }}{% endif %}</textarea>
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- Live Preview removed as per request -->
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <button type="submit" name="action" value="save" class="btn btn-outline-secondary"><i class="bi bi-save"></i> Save Draft</button>
+          <button type="submit" name="action" value="submit" class="btn btn-primary"><i class="bi bi-send"></i> Submit for Approval</button>
+          {% if lesson and lesson.status == 'rejected' and lesson.review_notes %}
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#reviewNotes" aria-expanded="false" aria-controls="reviewNotes">
+              <i class="bi bi-exclamation-octagon"></i> View Rejection Notes
+            </button>
+          {% endif %}
+        </div>
+
+        <!-- Structured, print-ready preview (moved below buttons) -->
+        <div class="card mt-3" id="structuredPreviewCard">
+          <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+            <span>Formatted Lesson Plan (Preview)</span>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-outline-primary" id="addActivityBtn" title="Add an activity under Main Activity"><i class="bi bi-plus"></i> Add Activity</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="addObjectiveItemBtn" title="Add an objective item"><i class="bi bi-plus"></i> Add Objective Item</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="addMaterialItemBtn" title="Add a material item"><i class="bi bi-plus"></i> Add Material Item</button>
+              <button type="button" class="btn btn-sm btn-outline-danger" id="clearLessonPlanBtn" title="Clear all table data"><i class="bi bi-trash"></i> Clear</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="printLessonPlanBtn" title="Print Lesson Plan"><i class="bi bi-printer"></i> Print</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="lpHeader" class="mb-3">
+              <div class="d-flex align-items-center gap-2">
+                <div><strong>Theme:</strong> <span id="lpTheme">—</span></div>
+                <button type="button" class="btn btn-link btn-sm p-0" title="Edit Theme" data-edit="topic"><i class="bi bi-pencil"></i></button>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <div><strong>Time Allotment:</strong> <span id="lpTime">—</span></div>
+                <button type="button" class="btn btn-link btn-sm p-0" title="Edit Duration" data-edit="duration"><i class="bi bi-pencil"></i></button>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <div><strong>Learning Objective:</strong></div>
+                <button type="button" class="btn btn-link btn-sm p-0" title="Edit Objectives" data-edit="objectives"><i class="bi bi-pencil"></i></button>
+              </div>
+              <div id="lpObjectives" class="ms-2"></div>
+            </div>
+            <!-- Time per stage editor -->
+            <div class="row g-2 align-items-end mb-3" id="timeAllocationEditor">
+              <div class="col-sm-4">
+                <label class="form-label small">Opening time (min)</label>
+                <input type="number" min="0" class="form-control form-control-sm" id="openingTimeInput" placeholder="e.g. 5" value="{% if lesson and lesson.opening_time %}{{ lesson.opening_time }}{% endif %}">
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small">Main time (min)</label>
+                <input type="number" min="0" class="form-control form-control-sm" id="mainTimeInput" placeholder="e.g. 30" value="{% if lesson and lesson.main_time %}{{ lesson.main_time }}{% endif %}">
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small">Closing time (min)</label>
+                <input type="number" min="0" class="form-control form-control-sm" id="closingTimeInput" placeholder="e.g. 5" value="{% if lesson and lesson.closing_time %}{{ lesson.closing_time }}{% endif %}">
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-bordered align-middle" id="lpTable">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width: 15%">Stages</th>
+                    <th>Teaching and Learning Activities</th>
+                    <th style="width: 25%">Materials</th>
+                    <th style="width: 12%">Time Allotment</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="position-relative"><strong>Opening</strong></td>
+                    <td class="position-relative">
+                      <div id="lpOpening">—</div>
+                      <button type="button" class="btn btn-link btn-sm p-0 position-absolute top-0 end-0" title="Edit Opening Activities" data-edit="methods_open"><i class="bi bi-pencil"></i></button>
+                    </td>
+                    <td class="position-relative">
+                      <div id="lpOpeningMaterials">—</div>
+                      <button type="button" class="btn btn-link btn-sm p-0 position-absolute top-0 end-0" title="Edit Opening Materials" data-edit="aids"><i class="bi bi-pencil"></i></button>
+                    </td>
+                    <td class="position-relative">
+                      <div id="lpOpeningTime">—</div>
+                      <button type="button" class="btn btn-link btn-sm p-0 position-absolute top-0 end-0" title="Edit Opening Time" data-edit="time_open"><i class="bi bi-pencil"></i></button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="position-relative"><strong>Main Activity</strong></td>
+                    <td class="position-relative">
+                      <div id="lpMain">—</div>
+                      <button type="button" class="btn btn-link btn-sm p-0 position-absolute top-0 end-0" title="Edit Main Activities" data-edit="methods"><i class="bi bi-pencil"></i></button>
+                    </td>
+                    <td class="position-relative">
+                      <div id="lpMainMaterials">—</div>
+                      <button type="button" class="btn btn-link btn-sm p-0 position-absolute top-0 end-0" title="Edit Main Materials" data-edit="aids"><i class="bi bi-pencil"></i></button>
+                    </td>
+                    <td class="position-relative">
+                      <div id="lpMainTime">—</div>
+                      <button type="button" class="btn btn-link btn-sm p-0 position-absolute top-0 end-0" title="Edit Main Time" data-edit="time_main"><i class="bi bi-pencil"></i></button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="position-relative"><strong>Closing Activity</strong></td>
+                    <td class="position-relative">
+                      <div id="lpClosing">—</div>
+                      <button type="button" class="btn btn-link btn-sm p-0 position-absolute top-0 end-0" title="Edit Closing Activity" data-edit="assessment"><i class="bi bi-pencil"></i></button>
+                    </td>
+                    <td class="position-relative">
+                      <div id="lpClosingMaterials">—</div>
+                      <button type="button" class="btn btn-link btn-sm p-0 position-absolute top-0 end-0" title="Edit Closing Materials" data-edit="aids"><i class="bi bi-pencil"></i></button>
+                    </td>
+                    <td class="position-relative">
+                      <div id="lpClosingTime">—</div>
+                      <button type="button" class="btn btn-link btn-sm p-0 position-absolute top-0 end-0" title="Edit Closing Time" data-edit="time_close"><i class="bi bi-pencil"></i></button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if mode == 'drafts' %}
+  <div class="card mt-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>All Drafts</span>
+    </div>
+    <div class="card-body">
+      <form class="row g-2 align-items-end mb-3" method="get" action="{{ request.path }}">
+        <input type="hidden" name="mode" value="compile">
+        <div class="col-sm-5">
+          <label class="form-label small">Class</label>
+          <select class="form-select" name="class_grade" required>
+            <option value="">— Select Class —</option>
+            {% for c in filter_classes %}
+              <option value="{{ c.id }}" {% if selected_class_id and selected_class_id|add:'0' == c.id|add:'0' %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-5">
+          <label class="form-label small">Subject</label>
+          <select class="form-select" name="subject" required>
+            <option value="">— Select Subject —</option>
+            {% for s in filter_subjects %}
+              <option value="{{ s.id }}" {% if selected_subject_id and selected_subject_id|add:'0' == s.id|add:'0' %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-2 d-grid">
+          <button type="submit" class="btn btn-primary"><i class="bi bi-collection"></i> Compile</button>
+        </div>
+      </form>
+      {% if existing_plans %}
+      <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle">
+          <thead>
+            <tr>
+              <th>Lesson #</th>
+              <th>Date</th>
+              <th>Term</th>
+              <th>Class</th>
+              <th>Subject</th>
+              <th>Topic</th>
+              <th>Duration</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in existing_plans %}
+            <tr>
+              <td>{{ p.lesson_number|default:'—' }}</td>
+              <td>{{ p.plan_date|default:'—' }}</td>
+              <td>{{ p.term|default:'—' }}</td>
+              <td>{{ p.class_group }}</td>
+              <td>{{ p.subject }}</td>
+              <td>{{ p.topic|default:'—' }}</td>
+              <td>{% if p.duration_minutes %}{{ p.duration_minutes }} min{% elif p.duration_text %}{{ p.duration_text }}{% else %}—{% endif %}</td>
+              <td class="text-end">
+                <a class="btn btn-primary btn-sm" href="{{ request.path }}?mode=new&edit={{ p.id }}">
+                  <i class="bi bi-pencil"></i> Edit
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-muted">No lesson plans found.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if lesson %}
+  <div class="card mt-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="text-muted small">
+          Last updated:
+          {% if lesson.updated_at %}{{ lesson.updated_at|date:'M d, Y H:i' }}
+          {% elif lesson.plan_date %}{{ lesson.plan_date|date:'M d, Y' }}
+          {% else %}—{% endif %}
+        </div>
+        {% if lesson.id %}
+        <div class="d-flex gap-2">
+          {% if edit_url %}<a class="btn btn-outline-primary btn-sm" href="{{ edit_url }}"><i class="bi bi-pencil"></i> Edit</a>{% endif %}
+          {% if delete_url %}
+          <form method="post" action="{{ delete_url }}" onsubmit="return confirm('Delete this lesson plan?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> Delete</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% if lesson and lesson.status == 'rejected' and lesson.review_notes %}
+      <div id="reviewNotes" class="collapse show mt-3">
+        <div class="alert alert-danger">
+          <div class="fw-semibold mb-1">Rejection Notes</div>
+          <div class="small">{{ lesson.review_notes|linebreaks }}</div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if user.is_authenticated and user.role == 'admin' and lesson and lesson.id %}
+  <div class="card mt-3">
+    <div class="card-header">
+      Admin Review
+    </div>
+    <div class="card-body">
+      <form method="post" action="{{ review_action_url|default:request.get_full_path }}">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ lesson.id }}">
+        <div class="mb-3">
+          <label for="review_notes" class="form-label">Review Notes (optional)</label>
+          <textarea id="review_notes" name="review_notes" class="form-control" rows="4" placeholder="Provide feedback for the teacher...">{{ lesson.review_notes }}</textarea>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" name="action" value="approve" class="btn btn-success"><i class="bi bi-check2-circle"></i> Approve</button>
+          <button type="submit" name="action" value="reject" class="btn btn-danger"><i class="bi bi-x-circle"></i> Reject</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+    <div class="alert alert-danger"><i class="bi bi-shield-lock"></i> You are not authorized to view this page.</div>
+  {% endif %}
+  {% else %}
+    <div class="alert alert-danger"><i class="bi bi-shield-lock"></i> You are not authorized to view this page.</div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+// Client-side Bootstrap validation (optional)
+(() => {
+  'use strict'
+  const forms = document.querySelectorAll('.needs-validation')
+  Array.from(forms).forEach(form => {
+    form.addEventListener('submit', event => {
+      if (!form.checkValidity()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      form.classList.add('was-validated');
+    }, false)
+  })
+})()
+  </script>
+  <!-- Rich text editor (Quill) - multi-CDN fallback, no API key required -->
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" onerror="(function(){var l=document.createElement('link');l.rel='stylesheet';l.href='https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css';document.head.appendChild(l)})()">
+  <script>
+    (function loadQuillWithFallbacks(){
+      if (window.Quill) return;
+      const sources = [
+        'https://cdn.quilljs.com/1.3.7/quill.min.js',
+        'https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js',
+        'https://unpkg.com/quill@1.3.7/dist/quill.min.js'
+      ];
+      let idx = 0;
+      function tryNext(){
+        if (window.Quill || idx >= sources.length) {
+          if (!window.Quill) {
+            console.warn('All Quill CDNs failed to load. Falling back to plain textareas.');
+            const warn = document.createElement('div');
+            warn.className = 'alert alert-warning mt-2';
+            warn.innerHTML = '<strong>Note:</strong> Rich editor failed to load. Editing will use basic textareas.';
+            document.addEventListener('DOMContentLoaded', function(){
+              const card = document.querySelector('.card-body');
+              if (card) card.insertAdjacentElement('afterbegin', warn);
+            });
+          }
+          return;
+        }
+        const s = document.createElement('script');
+        s.src = sources[idx++];
+        s.async = true;
+        s.onload = () => { try { window.dispatchEvent(new Event('quill:loaded')); } catch(_) {} };
+        s.onerror = () => setTimeout(tryNext, 100);
+        document.head.appendChild(s);
+        // Also set a timeout in case onerror doesn't fire (e.g., blocker)
+        setTimeout(() => { if (!window.Quill) tryNext(); }, 1200);
+      }
+      tryNext();
+    })();
+  </script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Single-editor setup
+      function initEditor() {
+        // Ensure Quill is available before proceeding
+        if (typeof window.Quill === 'undefined') return;
+      const modules = {
+        toolbar: {
+          container: [
+            [{ header: [1, 2, 3, false] }],
+            ['undo', 'redo'],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ color: [] }, { background: [] }],
+            [{ align: '' }, { align: 'center' }, { align: 'right' }, { align: 'justify' }],
+            [{ list: 'ordered' }, { list: 'bullet' }],
+            [{ indent: '-1' }, { indent: '+1' }],
+            ['link', 'blockquote', 'code-block'],
+            ['clean']
+          ],
+          handlers: {
+            undo: function() { this.quill.history.undo(); },
+            redo: function() { this.quill.history.redo(); }
+          }
+        },
+        history: { delay: 1000, maxStack: 100, userOnly: true }
+      };
+      // Resolve field elements (supports both Django form ids and fallback ids)
+      function pick(ids) {
+        for (const i of ids) { const el = document.getElementById(i); if (el) return el; }
+        return null;
+      }
+      const fields = {
+        objectives: pick(['id_objectives','id_lesson_objectives','objectives']),
+        methods:    pick(['id_methods','id_teaching_methods','methods']),
+        aids:       pick(['id_aids','id_teaching_aids','aids']),
+        assessment: pick(['id_assessment','id_evaluation','assessment'])
+      };
+
+      // Build the single editor UI just after the last found textarea
+      const anchor = fields.assessment || fields.aids || fields.methods || fields.objectives;
+      if (anchor) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'card mt-3';
+        wrapper.innerHTML = `
+          <div class="card-header d-flex align-items-center gap-2">
+            <span>Content Editor</span>
+            <div class="ms-auto d-flex align-items-center gap-3">
+              <div class="d-flex align-items-center gap-2">
+                <label for="lpSectionSelect" class="mb-0 small text-muted">Editing</label>
+                <select id="lpSectionSelect" class="form-select form-select-sm" style="width:auto;">
+                  <option value="objectives">Objectives</option>
+                  <option value="methods">Teaching Methods/Activities</option>
+                  <option value="aids">Teaching &amp; Learning Aids</option>
+                  <option value="assessment">Assessment/Evaluation</option>
+                </select>
+              </div>
+              <div class="dropup">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="activityMenuBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                  Activities
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="activityMenuBtn" id="activityMenu"></ul>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="lpShowPlainToggle">
+                <label class="form-check-label small" for="lpShowPlainToggle">Show basic fields</label>
+              </div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="singleQuill" class="quill-wrapper"></div>
+          </div>`;
+        anchor.insertAdjacentElement('afterend', wrapper);
+
+        let editor = null;
+        try {
+          editor = new Quill('#singleQuill', { theme: 'snow', modules });
+        } catch (e) {
+          // If editor fails, keep original textareas visible
+          console.error('Failed to initialize Quill editor:', e);
+          wrapper.remove();
+          return;
+        }
+
+        // Mode toggle between Rich (Quill) and Plain (textareas)
+        const plainToggle = wrapper.querySelector('#lpShowPlainToggle');
+        function setEditorMode(showPlain) {
+          // Quill is ALWAYS visible
+          const quillWrap = wrapper.querySelector('#singleQuill');
+          if (quillWrap) quillWrap.style.display = '';
+          if (showPlain) {
+            // Persist latest editor content to the active field, then show textareas
+            try { saveActive(); } catch(_){}
+          } else {
+            // Ensure editor reflects the currently selected section, then hide textareas
+            try {
+              const key = sectionSelect ? sectionSelect.value : activeKey;
+              loadFrom(key);
+            } catch(_){}
+            Object.values(fields).forEach(el => { if (el) el.style.display = 'none'; });
+            const qEditor = wrapper.querySelector('#singleQuill .ql-editor');
+            if (qEditor) qEditor.focus();
+          }
+        }
+        // Expose editor mode toggle to global for external controls
+        try {
+          window.lessonPlanEditor = window.lessonPlanEditor || {};
+          window.lessonPlanEditor.setEditorMode = setEditorMode;
+          // Backward-compat: some code may call initEditor.setEditorMode(...)
+          window.initEditor = window.initEditor || {};
+          window.initEditor.setEditorMode = setEditorMode;
+        } catch (_) {}
+        // Initialize mode from localStorage; default to showing basic fields ON
+        var savedPref = null;
+        try { savedPref = localStorage.getItem('lpShowPlain'); } catch(_) {}
+        var showPlainInit = (savedPref === null) ? true : (savedPref === '1');
+        if (plainToggle) { plainToggle.checked = showPlainInit; }
+        setEditorMode(showPlainInit);
+        if (plainToggle) {
+          plainToggle.addEventListener('change', function(){
+            try { localStorage.setItem('lpShowPlain', plainToggle.checked ? '1' : '0'); } catch(_) {}
+            setEditorMode(plainToggle.checked);
+          });
+        }
+        setTimeout(() => {
+          const undoBtn = wrapper.querySelector('.ql-undo');
+          const redoBtn = wrapper.querySelector('.ql-redo');
+          if (undoBtn) { undoBtn.setAttribute('title', 'Undo (Ctrl+Z)'); undoBtn.textContent = '↶'; }
+          if (redoBtn) { redoBtn.setAttribute('title', 'Redo (Ctrl+Y)'); redoBtn.textContent = '↷'; }
+        }, 0);
+
+        let activeKey = 'objectives';
+        const sectionSelect = document.getElementById('lpSectionSelect');
+
+        function loadFrom(key) {
+          const src = fields[key];
+          const html = src ? src.value || '' : '';
+          editor.setContents([]); // clear
+          editor.clipboard.dangerouslyPasteHTML(html);
+          activeKey = key;
+        }
+
+        function saveActive() {
+          const dest = fields[activeKey];
+          if (dest) dest.value = editor.root.innerHTML;
+        }
+
+        // Load initial
+        loadFrom(activeKey);
+
+        // Change section
+        sectionSelect.addEventListener('change', () => {
+          saveActive();
+          loadFrom(sectionSelect.value);
+          updateStructuredPreview();
+        });
+
+        // Update underlying field on edit
+        editor.on('text-change', () => {
+          saveActive();
+          updateStructuredPreview();
+          // If methods changed, update activities menu
+          rebuildActivityMenu();
+        });
+
+        // Ensure all values saved on submit
+        document.querySelectorAll('form').forEach(form => {
+          form.addEventListener('submit', () => {
+            saveActive();
+          });
+        });
+
+        // --- Pencil edit buttons wiring ---
+        function focusInputByIds(ids) {
+          for (const id of ids) {
+            const el = document.getElementById(id);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              el.focus();
+              if (el.select) { try { el.select(); } catch(_){} }
+              return true;
+            }
+          }
+          return false;
+        }
+
+        function switchEditorTo(key) {
+          saveActive();
+          sectionSelect.value = key;
+          loadFrom(key);
+          updateStructuredPreview();
+          const qEditor = document.querySelector('#singleQuill .ql-editor');
+          if (qEditor) qEditor.focus();
+        }
+
+        document.querySelectorAll('[data-edit]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const action = btn.getAttribute('data-edit');
+            // Force enable plain mode via toggle
+            const plainToggle = document.getElementById('lpShowPlainToggle');
+            if (plainToggle && !plainToggle.checked) {
+              plainToggle.checked = true;
+              try { localStorage.setItem('lpShowPlain', '1'); } catch(_) {}
+              setEditorMode(true);
+            }
+            // Now focus the matching input
+            switch (action) {
+              case 'topic':
+                focusInputByIds(['id_topic','topic','id_subtopic','subtopic']);
+                break;
+              case 'duration':
+                focusInputByIds(['id_duration','duration']);
+                break;
+              case 'objectives':
+                focusInputByIds(['id_objectives','objectives']);
+                break;
+              case 'methods':
+              case 'methods_open':
+                focusInputByIds(['id_methods','methods']);
+                break;
+              case 'aids':
+                focusInputByIds(['id_aids','aids']);
+                break;
+              case 'assessment':
+                focusInputByIds(['id_assessment','assessment']);
+                break;
+              case 'time_open':
+                focusInputByIds(['openingTimeInput']);
+                break;
+              case 'time_main':
+                focusInputByIds(['mainTimeInput']);
+                break;
+              case 'time_close':
+                focusInputByIds(['closingTimeInput']);
+                break;
+              default:
+                break;
+            }
+          });
+        });
+
+        // --- Activities dropup menu ---
+        const activityMenu = document.getElementById('activityMenu');
+        function rebuildActivityMenu() {
+          if (!activityMenu) return;
+          const methodsHTML = (fields.methods && fields.methods.value) || '';
+          const blocks = extractBlocks(methodsHTML);
+          activityMenu.innerHTML = '';
+          if (!blocks.length) {
+            const li = document.createElement('li');
+            li.innerHTML = '<span class="dropdown-item text-muted">No activities yet</span>';
+            activityMenu.appendChild(li);
+            return;
+          }
+          blocks.forEach((b, idx) => {
+            const li = document.createElement('li');
+            const label = 'Activity ' + (idx+1) + (b ? (': ' + b.replace(/<[^>]*>/g,'').trim().slice(0,40)) : '');
+            const a = document.createElement('a');
+            a.className = 'dropdown-item';
+            a.href = '#';
+            a.dataset.index = String(idx);
+            a.textContent = label;
+            a.addEventListener('click', (e) => {
+              e.preventDefault();
+              // Switch to methods in editor
+              saveActive();
+              sectionSelect.value = 'methods';
+              loadFrom('methods');
+              updateStructuredPreview();
+              // Scroll to the chosen block and place caret at end
+              requestAnimationFrame(() => {
+                const qEditor = wrapper.querySelector('#singleQuill .ql-editor');
+                const children = qEditor ? Array.from(qEditor.children) : [];
+                const target = children[Number(a.dataset.index)] || children[children.length-1];
+                if (target) {
+                  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  try {
+                    const range = document.createRange();
+                    range.selectNodeContents(target);
+                    range.collapse(false);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    qEditor.focus();
+                  } catch (_) {}
+                }
+              });
+            });
+            li.appendChild(a);
+            activityMenu.appendChild(li);
+          });
+        }
+        // Build initially
+        rebuildActivityMenu();
+
+        // --- Add buttons in preview header ---
+        function appendListItem(textarea, placeholderText) {
+          if (!textarea) return;
+          const tmp = document.createElement('div');
+          tmp.innerHTML = textarea.value || '';
+          let ul = tmp.querySelector('ul');
+          if (!ul) { ul = document.createElement('ul'); tmp.appendChild(ul); }
+          const li = document.createElement('li');
+          li.innerHTML = placeholderText || 'New item';
+          ul.appendChild(li);
+          textarea.value = tmp.innerHTML;
+        }
+
+        function appendParagraph(textarea, placeholderText) {
+          if (!textarea) return;
+          const tmp = document.createElement('div');
+          tmp.innerHTML = textarea.value || '';
+          const p = document.createElement('p');
+          p.innerHTML = placeholderText || 'New activity...';
+          tmp.appendChild(p);
+          textarea.value = tmp.innerHTML;
+        }
+
+        const addActivityBtn = document.getElementById('addActivityBtn');
+        const addObjectiveItemBtn = document.getElementById('addObjectiveItemBtn');
+        const addMaterialItemBtn = document.getElementById('addMaterialItemBtn');
+
+        if (addActivityBtn) {
+          addActivityBtn.addEventListener('click', () => {
+            appendParagraph(fields.methods, 'Activity ...');
+            // Keep current selection; if editing methods, reload editor
+            if (activeKey === 'methods') {
+              loadFrom('methods');
+            }
+            updateStructuredPreview();
+            rebuildActivityMenu();
+          });
+        }
+        if (addObjectiveItemBtn) {
+          addObjectiveItemBtn.addEventListener('click', () => {
+            appendListItem(fields.objectives, 'New objective ...');
+            if (activeKey === 'objectives') {
+              loadFrom('objectives');
+            }
+            updateStructuredPreview();
+          });
+        }
+        if (addMaterialItemBtn) {
+          addMaterialItemBtn.addEventListener('click', () => {
+            appendListItem(fields.aids, 'New material ...');
+            if (activeKey === 'aids') {
+              loadFrom('aids');
+            }
+            updateStructuredPreview();
+          });
+        }
+
+        // Clear all lesson plan content
+        const clearBtn = document.getElementById('clearLessonPlanBtn');
+        if (clearBtn) {
+          clearBtn.addEventListener('click', () => {
+            if (!confirm('Clear all lesson plan fields and preview?')) return;
+            // Clear simple inputs
+            ['id_topic','topic','id_subtopic','subtopic','id_duration','duration'].forEach(i=>{
+              const el = document.getElementById(i);
+              if (el) el.value = '';
+            });
+            // Clear rich text fields
+            Object.values(fields).forEach(el => { if (el) el.value = ''; });
+            // Clear time inputs and hidden fields
+            ['openingTimeInput','mainTimeInput','closingTimeInput'].forEach(i=>{
+              const el = document.getElementById(i);
+              if (el) el.value = '';
+            });
+            ['opening_time','main_time','closing_time'].forEach(i=>{
+              const el = document.getElementById(i);
+              if (el) el.value = '';
+            });
+            // Reset editor to current active section (now empty)
+            loadFrom(activeKey);
+            // Refresh preview and activities menu
+            updateStructuredPreview();
+            rebuildActivityMenu();
+          });
+        }
+      }
+
+      // Helper: extract blocks (li or p) as array of HTML strings
+      function extractBlocks(html) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html || '';
+        const blocks = [];
+        const lis = Array.from(tmp.querySelectorAll('li'));
+        if (lis.length) {
+          lis.forEach(li => {
+            const text = li.innerHTML.trim();
+            if (text) blocks.push(text);
+          });
+        } else {
+          const ps = Array.from(tmp.querySelectorAll('p'));
+          if (ps.length) {
+            ps.forEach(p => {
+              const text = p.innerHTML.trim();
+              if (text && text !== '<br>') blocks.push(text);
+            });
+          } else {
+            const plain = tmp.textContent.trim();
+            if (plain) blocks.push(plain);
+          }
+        }
+        return blocks;
+      }
+
+      // Build numbered main activities list
+      function buildActivities(blocks) {
+        if (!blocks || !blocks.length) return '—';
+        const items = blocks.map(function(b, idx) {
+          return '<div class="mb-2"><strong>Activity ' + (idx+1) + '</strong><br>' + b + '</div>';
+        });
+        return items.join('');
+      }
+
+      function updateStructuredPreview() {
+        const topicInput = document.getElementById('id_topic') || document.getElementById('topic');
+        const subtopicInput = document.getElementById('id_subtopic') || document.getElementById('subtopic');
+        const durationInput = document.getElementById('id_duration') || document.getElementById('duration');
+        const topicVal = topicInput ? topicInput.value : '';
+        const subtopicVal = subtopicInput ? subtopicInput.value : '';
+        const durationVal = durationInput ? durationInput.value : '';
+        const theme = [topicVal || '', subtopicVal || ''].filter(Boolean).join(' — ');
+        document.getElementById('lpTheme').textContent = theme || '—';
+        document.getElementById('lpTime').textContent = (durationVal || '—');
+
+        const objectivesHTML = (fields.objectives && fields.objectives.value) || '';
+        const methodsHTML = (fields.methods && fields.methods.value) || '';
+        const aidsHTML = (fields.aids && fields.aids.value) || '';
+        const assessHTML = (fields.assessment && fields.assessment.value) || '';
+
+        // Objectives: render as list if possible
+        const objBlocks = extractBlocks(objectivesHTML);
+        document.getElementById('lpObjectives').innerHTML = objBlocks.length
+          ? '<ul class="mb-0">' + objBlocks.map(function(b){ return '<li>' + b + '</li>'; }).join('') + '</ul>'
+          : '—';
+
+        // Methods split: first block -> opening; rest -> activities
+        const methodBlocks = extractBlocks(methodsHTML);
+        const opening = methodBlocks.length ? methodBlocks[0] : '';
+        const remaining = methodBlocks.slice(1);
+        document.getElementById('lpOpening').innerHTML = opening || '—';
+        document.getElementById('lpMain').innerHTML = buildActivities(remaining.length ? remaining : methodBlocks);
+        document.getElementById('lpClosing').innerHTML = assessHTML || '—';
+
+        // Materials (use aids for all stages for now)
+        const mats = aidsHTML || '—';
+        document.getElementById('lpOpeningMaterials').innerHTML = mats;
+        document.getElementById('lpMainMaterials').innerHTML = mats;
+        document.getElementById('lpClosingMaterials').innerHTML = mats;
+
+        // Time per stage from editor inputs
+        const openEl = document.getElementById('openingTimeInput');
+        const mainEl = document.getElementById('mainTimeInput');
+        const closeEl = document.getElementById('closingTimeInput');
+        const openT = openEl ? openEl.value : '';
+        const mainT = mainEl ? mainEl.value : '';
+        const closeT = closeEl ? closeEl.value : '';
+        document.getElementById('lpOpeningTime').textContent = openT ? (openT + ' min') : '—';
+        document.getElementById('lpMainTime').textContent = mainT ? (mainT + ' min') : '—';
+        document.getElementById('lpClosingTime').textContent = closeT ? (closeT + ' min') : '—';
+        // Keep hidden inputs in sync
+        const hidOpen = document.getElementById('opening_time');
+        const hidMain = document.getElementById('main_time');
+        const hidClose = document.getElementById('closing_time');
+        if (hidOpen) hidOpen.value = openT;
+        if (hidMain) hidMain.value = mainT;
+        if (hidClose) hidClose.value = closeT;
+      }
+
+      // Hook updates from simple inputs
+      ['id_topic','topic','id_subtopic','subtopic','id_duration','duration'].forEach(i=>{
+        const el = document.getElementById(i);
+        if (el) el.addEventListener('input', updateStructuredPreview);
+      });
+      // Hook updates from time allocation inputs
+      ['openingTimeInput','mainTimeInput','closingTimeInput'].forEach(i=>{
+        const el = document.getElementById(i);
+        if (el) el.addEventListener('input', updateStructuredPreview);
+      });
+
+      // Initial fill
+      updateStructuredPreview();
+
+      // Print button: print the structured preview
+      const printBtn = document.getElementById('printLessonPlanBtn');
+      if (printBtn) {
+        printBtn.addEventListener('click', () => {
+          const header = document.getElementById('lpHeader');
+          const table = document.getElementById('lpTable');
+          if (!header || !table) return;
+          const win = window.open('', '_blank');
+          const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+            .map(n => n.outerHTML).join('\n');
+          win.document.write('<!doctype html><html><head>' + styles + '<title>Lesson Plan</title></head><body>');
+          win.document.write('<div class="container mt-3">' + header.outerHTML + table.outerHTML + '</div>');
+          win.document.write('</body></html>');
+          win.document.close();
+          win.focus();
+          win.print();
+          // Optionally close after print
+          win.close();
+        });
+      }
+      // Live preview toggle and container removed
+
+    }
+      // Initialize now or when Quill becomes available
+      if (typeof window.Quill !== 'undefined') {
+        initEditor();
+      } else {
+        window.addEventListener('quill:loaded', function once(){
+          initEditor();
+        }, { once: true });
+      }
+
+      // Fallback: if Quill editor is not present, wire buttons to work with basic textareas
+      if (!document.getElementById('singleQuill')) {
+        // Resolve fields
+        function pick(ids) { for (var i=0;i<ids.length;i++){ var el=document.getElementById(ids[i]); if (el) return el; } return null; }
+        var fieldsFb = {
+          objectives: pick(['id_objectives','id_lesson_objectives','objectives']),
+          methods:    pick(['id_methods','id_teaching_methods','methods']),
+          aids:       pick(['id_aids','id_teaching_aids','aids']),
+          assessment: pick(['id_assessment','id_evaluation','assessment'])
+        };
+
+        function extractBlocksFb(html){
+          var tmp=document.createElement('div'); tmp.innerHTML=html||'';
+          var lis=tmp.querySelectorAll('li'); var out=[];
+          if (lis.length){ lis.forEach(function(li){ var t=li.innerHTML.trim(); if(t) out.push(t); }); }
+          else { var ps=tmp.querySelectorAll('p'); if(ps.length){ ps.forEach(function(p){ var t=p.innerHTML.trim(); if(t && t !== '<br>') out.push(t); }); } else { var plain=tmp.textContent.trim(); if(plain) out.push(plain); } }
+          return out;
+        }
+        function buildActivitiesFb(blocks){ if(!blocks||!blocks.length) return '—'; return blocks.map(function(b,idx){ return '<div class="mb-2"><strong>Activity '+(idx+1)+'</strong><br>'+b+'</div>'; }).join(''); }
+        function updatePreviewFb(){
+          var topic = (document.getElementById('id_topic')||document.getElementById('topic'));
+          var sub   = (document.getElementById('id_subtopic')||document.getElementById('subtopic'));
+          var dur   = (document.getElementById('id_duration')||document.getElementById('duration'));
+          var theme = [(topic?topic.value:''),(sub?sub.value:'')].filter(Boolean).join(' — ');
+          document.getElementById('lpTheme').textContent = theme || '—';
+          document.getElementById('lpTime').textContent = (dur && dur.value) ? dur.value : '—';
+
+          var objHTML = (fieldsFb.objectives && fieldsFb.objectives.value) || '';
+          var metHTML = (fieldsFb.methods && fieldsFb.methods.value) || '';
+          var aidHTML = (fieldsFb.aids && fieldsFb.aids.value) || '';
+          var assHTML = (fieldsFb.assessment && fieldsFb.assessment.value) || '';
+
+          var objBlocks = extractBlocksFb(objHTML);
+          document.getElementById('lpObjectives').innerHTML = objBlocks.length ? '<ul class="mb-0">'+objBlocks.map(function(b){return '<li>'+b+'</li>';}).join('')+'</ul>' : '—';
+
+          var methodBlocks = extractBlocksFb(metHTML);
+          var opening = methodBlocks.length ? methodBlocks[0] : '';
+          var remaining = methodBlocks.slice(1);
+          document.getElementById('lpOpening').innerHTML = opening || '—';
+          document.getElementById('lpMain').innerHTML = buildActivitiesFb(remaining.length ? remaining : methodBlocks);
+          document.getElementById('lpClosing').innerHTML = assHTML || '—';
+
+          var mats = aidHTML || '—';
+          document.getElementById('lpOpeningMaterials').innerHTML = mats;
+          document.getElementById('lpMainMaterials').innerHTML = mats;
+          document.getElementById('lpClosingMaterials').innerHTML = mats;
+
+          var openEl=document.getElementById('openingTimeInput');
+          var mainEl=document.getElementById('mainTimeInput');
+          var closeEl=document.getElementById('closingTimeInput');
+          var openT=openEl?openEl.value:''; var mainT=mainEl?mainEl.value:''; var closeT=closeEl?closeEl.value:'';
+          document.getElementById('lpOpeningTime').textContent = openT ? (openT+' min') : '—';
+          document.getElementById('lpMainTime').textContent = mainT ? (mainT+' min') : '—';
+          document.getElementById('lpClosingTime').textContent = closeT ? (closeT+' min') : '—';
+
+          var hidOpen=document.getElementById('opening_time'); if(hidOpen) hidOpen.value=openT;
+          var hidMain=document.getElementById('main_time'); if(hidMain) hidMain.value=mainT;
+          var hidClose=document.getElementById('closing_time'); if(hidClose) hidClose.value=closeT;
+        }
+
+        function appendListItemFb(textarea, placeholder){ if(!textarea) return; var tmp=document.createElement('div'); tmp.innerHTML=textarea.value||''; var ul=tmp.querySelector('ul'); if(!ul){ ul=document.createElement('ul'); tmp.appendChild(ul);} var li=document.createElement('li'); li.innerHTML=placeholder||'New item'; ul.appendChild(li); textarea.value=tmp.innerHTML; }
+        function appendParagraphFb(textarea, placeholder){ if(!textarea) return; var tmp=document.createElement('div'); tmp.innerHTML=textarea.value||''; var p=document.createElement('p'); p.innerHTML=placeholder||'New activity...'; tmp.appendChild(p); textarea.value=tmp.innerHTML; }
+
+        var addActivityBtn = document.getElementById('addActivityBtn');
+        var addObjectiveItemBtn = document.getElementById('addObjectiveItemBtn');
+        var addMaterialItemBtn = document.getElementById('addMaterialItemBtn');
+        var clearBtn = document.getElementById('clearLessonPlanBtn');
+        var printBtn = document.getElementById('printLessonPlanBtn');
+
+        if (addActivityBtn) {
+          addActivityBtn.addEventListener('click', function(){ appendParagraphFb(fieldsFb.methods,'Activity ...'); updatePreviewFb(); });
+        }
+        if (addObjectiveItemBtn) {
+          addObjectiveItemBtn.addEventListener('click', function(){ appendListItemFb(fieldsFb.objectives,'New objective ...'); updatePreviewFb(); });
+        }
+        if (addMaterialItemBtn) {
+          addMaterialItemBtn.addEventListener('click', function(){ appendListItemFb(fieldsFb.aids,'New material ...'); updatePreviewFb(); });
+        }
+        if (clearBtn) {
+          clearBtn.addEventListener('click', function(){
+            if (!confirm('Clear all lesson plan fields and preview?')) return;
+            ['id_topic','topic','id_subtopic','subtopic','id_duration','duration'].forEach(function(i){ var el=document.getElementById(i); if(el) el.value=''; });
+            Object.keys(fieldsFb).forEach(function(k){ var el=fieldsFb[k]; if(el) el.value=''; });
+            ['openingTimeInput','mainTimeInput','closingTimeInput'].forEach(function(i){ var el=document.getElementById(i); if(el) el.value=''; });
+            ['opening_time','main_time','closing_time'].forEach(function(i){ var el=document.getElementById(i); if(el) el.value=''; });
+            updatePreviewFb();
+          });
+        }
+        if (printBtn) {
+          printBtn.addEventListener('click', function(){
+            var header = document.getElementById('lpHeader');
+            var table = document.getElementById('lpTable');
+            if (!header || !table) return;
+            var win = window.open('', '_blank');
+            var styles = Array.prototype.map.call(document.querySelectorAll('link[rel="stylesheet"], style'), function(n){ return n.outerHTML; }).join('\n');
+            win.document.write('<!doctype html><html><head>' + styles + '<title>Lesson Plan</title></head><body>');
+            win.document.write('<div class="container mt-3">' + header.outerHTML + table.outerHTML + '</div>');
+            win.document.write('</body></html>');
+            win.document.close(); win.focus(); win.print(); win.close();
+          });
+        }
+        // Keep preview in sync from inputs
+        ['id_topic','topic','id_subtopic','subtopic','id_duration','duration','openingTimeInput','mainTimeInput','closingTimeInput'].forEach(function(i){ var el=document.getElementById(i); if(el) el.addEventListener('input', updatePreviewFb); });
+        // Initial fill
+        updatePreviewFb();
+
+        // Pencil buttons fallback: focus appropriate inputs
+        document.querySelectorAll('[data-edit]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            var act = btn.getAttribute('data-edit');
+            function focusIds(ids){ for(var j=0;j<ids.length;j++){ var e=document.getElementById(ids[j]); if(e){ e.scrollIntoView({behavior:'smooth',block:'center'}); e.focus(); try{ if(e.select) e.select(); }catch(_){} return; } } }
+            if (act === 'topic') focusIds(['id_topic','topic','id_subtopic','subtopic']);
+            else if (act === 'duration') focusIds(['id_duration','duration']);
+            else if (act === 'objectives') focusIds(['id_objectives','objectives']);
+            else if (act === 'methods' || act === 'methods_open') focusIds(['id_methods','methods']);
+            else if (act === 'aids') focusIds(['id_aids','aids']);
+            else if (act === 'assessment') focusIds(['id_assessment','assessment']);
+            else if (act === 'time_open') focusIds(['openingTimeInput']);
+            else if (act === 'time_main') focusIds(['mainTimeInput']);
+            else if (act === 'time_close') focusIds(['closingTimeInput']);
+          });
+        });
+      }
+    });
+  </script>
+{% endblock %}

@@ -25,10 +25,9 @@
 {% if graduation_ready and graduation_year %}
   <div class="alert alert-danger">
     <strong>The academic year {{ graduation_year.year }} has ended.</strong> It is time to graduate students to the next level.
-    <form method="post" style="display:inline;">
-      {% csrf_token %}
-      <button type="submit" name="run_promotion" class="btn btn-danger btn-sm">Graduate & Promote Students</button>
-    </form>
+    <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#promotionConfirmModal">
+      Graduate & Promote Students
+    </button>
   </div>
 {% endif %}
 <div class="mb-4">
@@ -41,12 +40,45 @@
 </div>
 <!-- Manual Promotion Button -->
 <div class="mb-3">
-    <form method="post" onsubmit="return confirm('Are you sure you want to graduate and promote all students and classes? This action cannot be undone.');">
-        {% csrf_token %}
-        <button type="submit" name="run_promotion" class="btn btn-danger">
-            <i class="bi bi-arrow-up-circle me-1"></i> Graduate & Promote Students
-        </button>
-    </form>
+    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#promotionConfirmModal">
+        <i class="bi bi-arrow-up-circle me-1"></i> Graduate & Promote Students
+    </button>
+    <small class="text-muted d-block mt-1">A confirmation will be required before proceeding.</small>
+    
+    <!-- Confirmation Modal -->
+    <div class="modal fade" id="promotionConfirmModal" tabindex="-1" aria-labelledby="promotionConfirmLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="promotionConfirmLabel">Confirm Graduation & Promotion</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-2">You are about to graduate students and promote classes to the next level. This operation can impact:</n>
+            <ul class="mb-2">
+              <li>Student records (graduated flag, class level)</li>
+              <li>Class assignments and related calculations</li>
+              <li>Reports and dashboards relying on current academic year</li>
+            </ul>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" value="1" id="ackCheckbox">
+              <label class="form-check-label" for="ackCheckbox">
+                I understand these changes and wish to proceed.
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <form method="post" id="promotionConfirmForm" class="ms-2" data-otp="1" data-otp-context="promotion_graduation">
+              {% csrf_token %}
+              <button type="submit" name="run_promotion" class="btn btn-danger" id="confirmRunPromotion" disabled>
+                Yes, Graduate & Promote
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
 </div>
 <hr>
 {% for year in academic_years %}
@@ -106,4 +138,18 @@
         </div>
     </div>
 {% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    const ack = document.getElementById('ackCheckbox');
+    const btn = document.getElementById('confirmRunPromotion');
+    if (ack && btn) {
+      ack.addEventListener('change', function(){
+        btn.disabled = !this.checked;
+      });
+    }
+  });
+  </script>
 {% endblock %}

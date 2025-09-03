@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import os
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -55,6 +56,12 @@ INSTALLED_APPS = [
     'crispy_forms',
     'crispy_bootstrap5',
     'widget_tweaks',
+    # Security / Authentication
+    'axes',                 # Login lockout / rate limiting for auth
+    'django_otp',           # One-Time Password framework
+    'django_otp.plugins.otp_totp',  # TOTP devices (Google Authenticator, etc.)
+    'two_factor',           # django-two-factor-auth
+    'phonenumber_field',    # required by two-factor for phone validation
 ]
 
 MIDDLEWARE = [
@@ -65,6 +72,10 @@ MIDDLEWARE = [
     'core.middleware.NotFoundTemplateMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Lock out abusive login attempts (must come after AuthenticationMiddleware)
+    'axes.middleware.AxesMiddleware',
+    # Idle session timeout
+    'core.middleware.IdleSessionTimeoutMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Redirect plain 403 responses back to previous safe page
@@ -170,6 +181,16 @@ CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
 CSRF_COOKIE_SAMESITE = os.environ.get('CSRF_COOKIE_SAMESITE', 'Lax')
 
+# Session settings
+# Absolute session lifetime (defaults to 8 hours); browser-close logout can be enabled via env
+SESSION_COOKIE_AGE = int(os.environ.get('SESSION_COOKIE_AGE', str(8 * 60 * 60)))
+SESSION_EXPIRE_AT_BROWSER_CLOSE = os.environ.get('SESSION_EXPIRE_AT_BROWSER_CLOSE', 'false').lower() == 'true'
+# Update expiry on each request so active users stay logged in while idle users time out
+SESSION_SAVE_EVERY_REQUEST = True
+
+# Idle timeout in seconds (default 30 minutes). Enforced by IdleSessionTimeoutMiddleware.
+SESSION_IDLE_TIMEOUT = int(os.environ.get('SESSION_IDLE_TIMEOUT', '1800'))
+
 # Browser security headers
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
@@ -182,7 +203,7 @@ if _csrf_origins:
     CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
 else:
     CSRF_TRUSTED_ORIGINS = [
-        'https://0719e873a579.ngrok-free.app',
+        'https://a1ef3ee75902.ngrok-free.app',
         'https://*.ngrok-free.app',
         'http://localhost',
         'http://127.0.0.1',
@@ -192,17 +213,22 @@ else:
 DATA_UPLOAD_MAX_NUMBER_FIELDS = int(os.environ.get('DATA_UPLOAD_MAX_NUMBER_FIELDS', '20000'))
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', '52428800'))  # 50 MB
 
-# Email backend
-# IMPORTANT: In production, prefer environment variables. Fallbacks below are provided
-# at the user's request to ensure emails send from the specified Gmail by default.
-# Do NOT commit real secrets for public repos.
+# Email backend configuration
+# Force SMTP backend to send real emails (override console backend)
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+
+# SMTP Configuration
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').lower() == 'true'
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'false').lower() == 'true'
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'sevenforksprimaryschool@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'jwuw grhy epvt lqcf')  # Gmail App Password fallback
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'jwuw grhy epvt lqcf')  # Gmail App Password
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+
+# Email timeout and connection settings
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '60'))  # seconds
+EMAIL_CONNECTION_TIMEOUT = int(os.environ.get('EMAIL_CONNECTION_TIMEOUT', '30'))  # seconds
 
 # School branding used in outgoing messages
 SCHOOL_NAME = os.environ.get('SCHOOL_NAME', 'Your School')
@@ -222,13 +248,30 @@ MPESA_ENVIRONMENT = os.environ.get('MPESA_ENVIRONMENT', 'sandbox')  # 'sandbox' 
 # Use provided env vars if set; otherwise fall back to values present in core/settings.py
 MPESA_CONSUMER_KEY = os.environ.get('MPESA_CONSUMER_KEY', 'EXGFqWiPKTmwUrCGfKmHbUzj43Ikge7ekz5GVSbdzAk37L0j')
 MPESA_CONSUMER_SECRET = os.environ.get('MPESA_CONSUMER_SECRET', 'lOjIKLlnhiHXxFRDkfkv9m8pm80ZJhNGQpcuuq3ktdyx9GAKk8pP8Aw4VlLRVnU1')
-MPESA_SHORTCODE = os.environ.get('MPESA_SHORTCODE', '174379')  # PayBill/Till number
-MPESA_PASSKEY = os.environ.get('MPESA_PASSKEY', 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919')      # For STK push password
+
+# C2B (PayBill) shortcode used for ledger and confirmation flows
+# Use 174379 so sandbox C2B and STK share the same shortcode
+MPESA_SHORTCODE = os.environ.get('MPESA_SHORTCODE', '174379')
+
+# STK push uses a different BusinessShortCode in sandbox (typically 174379). Keep it configurable.
+MPESA_STK_SHORTCODE = os.environ.get('MPESA_STK_SHORTCODE', os.environ.get('MPESA_SHORTCODE_STK', '174379'))
+MPESA_STK_PASSKEY = os.environ.get('MPESA_STK_PASSKEY', os.environ.get('MPESA_PASSKEY_STK', 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'))
+
+# Legacy/default passkey (used if STK-specific not provided)
+MPESA_PASSKEY = os.environ.get('MPESA_PASSKEY', 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919')
+
+# Default AccountReference to use for STK push if not explicitly provided by the caller
+# User requested account number 600986
+MPESA_DEFAULT_ACCOUNT_REF = os.environ.get('MPESA_DEFAULT_ACCOUNT_REF', '600986')
+
 # Public HTTPS URL for callbacks; must be reachable by Safaricom in production
-MPESA_CALLBACK_URL = os.environ.get('MPESA_CALLBACK_URL', 'https://0719e873a579.ngrok-free.app/mpesa-callback/')
+MPESA_CALLBACK_URL = os.environ.get('MPESA_CALLBACK_URL', 'https://c23210ae8f66.ngrok-free.app/mpesa-callback/')
 # Optional: C2B Validation and Confirmation URLs (non-STK PayBill flows)
 MPESA_C2B_VALIDATION_URL = os.environ.get('MPESA_C2B_VALIDATION_URL', '')
 MPESA_C2B_CONFIRMATION_URL = os.environ.get('MPESA_C2B_CONFIRMATION_URL', '')
+# Accept multiple C2B shortcodes (comma-separated). Example: "600000,174379,400200"
+# This allows testing across sandbox and live without editing code.
+MPESA_ALLOWED_SHORTCODES = os.environ.get('MPESA_ALLOWED_SHORTCODES', '600000,174379,600996')
 # Optional: Shared secret header for callback authentication (X-Mpesa-Secret)
 MPESA_CALLBACK_SECRET = os.environ.get('MPESA_CALLBACK_SECRET', '')
 # Auto-approve successful callbacks without waiting for STK Query (can be disabled via env)
@@ -245,14 +288,23 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 
+# django-axes (login lockout) configuration
+AXES_FAILURE_LIMIT = int(os.environ.get('AXES_FAILURE_LIMIT', '5'))
+# Cooloff period for failed logins; configured as timedelta for compatibility
+AXES_COOLOFF_TIME = timedelta(seconds=int(os.environ.get('AXES_COOLOFF_TIME', str(60 * 15))))
+AXES_ONLY_USER_FAILURES = os.environ.get('AXES_ONLY_USER_FAILURES', 'false').lower() == 'true'
+AXES_LOCK_OUT_AT_FAILURE = True
+AXES_RESET_ON_SUCCESS = True
+AXES_ENABLED = os.environ.get('AXES_ENABLED', 'true').lower() == 'true'
+
 
 # Per-role concurrent session limits (can be overridden via environment)
 ROLE_SESSION_LIMITS = {
     'admin': int(os.environ.get('LIMIT_SESSIONS_ADMIN', '2')),
     'teacher': int(os.environ.get('LIMIT_SESSIONS_TEACHER', '2')),
     'clerk': int(os.environ.get('LIMIT_SESSIONS_CLERK', '2')),
-    'student': int(os.environ.get('LIMIT_SESSIONS_STUDENT', '1')),
-    'parent': int(os.environ.get('LIMIT_SESSIONS_PARENT', '1')),
+    'student': int(os.environ.get('LIMIT_SESSIONS_STUDENT', '3')),
+    'parent': int(os.environ.get('LIMIT_SESSIONS_PARENT', '3')),
 }
 
 

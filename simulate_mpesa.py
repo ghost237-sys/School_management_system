@@ -2,8 +2,8 @@ import os
 import django
 import requests
 
-# Set up Django environment
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
+# Set up Django environment (project settings is Analitica.settings)
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Analitica.settings')
 django.setup()
 
 from core.mpesa_utils import get_mpesa_access_token
@@ -27,8 +27,9 @@ def simulate_mpesa():
         if not (amount and msisdn and bill_ref):
             print("[ERROR] All fields are required. Try again.")
             continue
+        shortcode = os.getenv('MPESA_SHORTCODE', '174379')  # default to sandbox PayBill 174379
         data = {
-            "ShortCode": "600000",
+            "ShortCode": shortcode,
             "CommandID": "CustomerPayBillOnline",
             "Amount": amount,
             "Msisdn": msisdn,

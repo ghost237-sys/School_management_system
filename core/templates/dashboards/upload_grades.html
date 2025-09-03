@@ -13,20 +13,115 @@
                     <p class="card-category">Upload an Excel file with student grades.</p>
                 </div>
                 <div class="card-body">
-                    <p>Please upload an Excel file (`.xlsx`) with two columns in this exact order:</p>
+                    {% if messages %}
+                      {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                          {{ message }}
+                          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                      {% endfor %}
+                    {% endif %}
+                    {% if form.non_field_errors %}
+                      <div class="alert alert-danger">
+                        {{ form.non_field_errors }}
+                      </div>
+                    {% endif %}
+                    <p>Please upload an Excel file (<code>.xlsx</code>) using the preferred minimal format:</p>
                     <ul>
-                        <li><strong>Column A:</strong> Student Name</li>
-                        <li><strong>Column B:</strong> Grade</li>
+                        <li><strong>Column A:</strong> Admission No</li>
+                        <li><strong>Column B:</strong> Score</li>
                     </ul>
-                    <p>The first row should be a header and will be ignored. Student names must match the names in the system exactly.</p>
-                    <form method="post" enctype="multipart/form-data">
+                    <p class="mb-2">The first row should be a header and will be ignored.</p>
+                    <p class="text-warning small mb-3">Legacy name-based sheets are deprecated and only used as a fallback. If a name is duplicated in the class, that row will fail and you’ll be asked to use an Admission No.</p>
+                    {% if teacher %}
+                    <div class="mb-3 d-flex flex-wrap gap-2">
+                        <button type="button" id="download-template-btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-download me-1"></i> Download Template
+                        </button>
+                        <button type="button" id="download-minimal-template-btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-download me-1"></i> Download Minimal Template
+                        </button>
+                        <small class="text-muted">Tip: Select Exam, Subject and Class first to prefill student names in the template.</small>
+                    </div>
+                    {% endif %}
+                    <form id="bulk-upload-form" method="post" enctype="multipart/form-data"
+                          data-confirm="Upload grades from this file? Existing scores for the selected exam/subject/class may be overwritten."
+                          data-confirm-ack="1">
                         {% csrf_token %}
                         {{ form|crispy }}
-                        <button type="submit" class="btn btn-primary">Upload Grades</button>
+                        <div class="d-flex align-items-center gap-2">
+                          <button type="submit" class="btn btn-primary">Upload Grades</button>
+                          <div id="upload-spinner" class="spinner-border text-primary ms-2" style="display:none; width: 1.5rem; height: 1.5rem;" role="status">
+                            <span class="visually-hidden">Uploading...</span>
+                          </div>
+                          <button type="button" id="download-class-list-btn" class="btn btn-outline-info">
+                            <i class="bi bi-people me-1"></i> Download Class List
+                          </button>
+                        </div>
                     </form>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% if teacher %}
+<script>
+  (function() {
+    // Show spinner on submit
+    const form = document.getElementById('bulk-upload-form');
+    const spinner = document.getElementById('upload-spinner');
+    if (form && spinner) {
+      form.addEventListener('submit', function() {
+        spinner.style.display = 'inline-block';
+      });
+    }
+
+    const btn = document.getElementById('download-template-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      const examSel = document.getElementById('id_exam');
+      const subjectSel = document.getElementById('id_subject');
+      const classSel = document.getElementById('id_class_group');
+      const baseUrl = "{% url 'download_grade_template' teacher_id=teacher.id %}";
+      const params = new URLSearchParams();
+      if (classSel && classSel.value) params.set('class_id', classSel.value);
+      if (subjectSel && subjectSel.value) params.set('subject_id', subjectSel.value);
+      if (examSel && examSel.value) params.set('exam_id', examSel.value);
+      const url = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+      window.location.href = url;
+    });
+  })();
+  (function() {
+    const btn = document.getElementById('download-minimal-template-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      const classSel = document.getElementById('id_class_group');
+      const baseUrl = "{% url 'download_minimal_grade_template' teacher_id=teacher.id %}";
+      const params = new URLSearchParams();
+      if (classSel && classSel.value) params.set('class_id', classSel.value);
+      const url = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+      window.location.href = url;
+    });
+  })();
+  (function() {
+    const btn = document.getElementById('download-class-list-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      const classSel = document.getElementById('id_class_group');
+      const subjectSel = document.getElementById('id_subject');
+      if (!classSel || !classSel.value) {
+        alert('Please select a Class group first.');
+        return;
+      }
+      const classId = classSel.value;
+      // Build URL to API endpoint
+      const params = new URLSearchParams();
+      params.set('simple', '1');
+      if (subjectSel && subjectSel.value) params.set('subject_id', subjectSel.value);
+      const url = `/api/download-class-students/${classId}/?${params.toString()}`;
+      window.location.href = url;
+    });
+  })();
+  </script>
+{% endif %}
 {% endblock %}
