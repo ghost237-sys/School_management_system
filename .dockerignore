@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Django static/media (built or uploaded)
+/staticfiles/
+/media/
+
+# Venv and tools
+venv/
+.env
+.env.*
+
+# Git
+.git/
+.gitignore
+
+# OS/editor
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
