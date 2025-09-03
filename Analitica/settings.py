@@ -34,7 +34,7 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'true').lower() == 'true'
 
 # Comma-separated hostnames/IPs in env; safe defaults for local dev and Render
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get(
-    'DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,::1,.ngrok-free.app,.onrender.com'
+    'DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,::1,.ngrok-free.app,.onrender.com,.railway.app,7forks-production.up.railway.app'
 ).split(',') if h.strip()]
 
 
@@ -223,6 +223,7 @@ else:
     CSRF_TRUSTED_ORIGINS = [
         'https://a1ef3ee75902.ngrok-free.app',
         'https://*.ngrok-free.app',
+        'https://*.railway.app',
         'http://localhost',
         'http://127.0.0.1',
     ]
