@@ -329,6 +329,20 @@ def limit_role_concurrent_sessions(sender, user, request, **kwargs):
         try:
             if request and hasattr(request, 'session'):
                 request.session['login_ts'] = timezone.now().isoformat()
+                # Capture device metadata for sessions page
+                try:
+                    ua = (request.META.get('HTTP_USER_AGENT') or '')[:300]
+                    ip = (
+                        (request.META.get('HTTP_X_FORWARDED_FOR') or '').split(',')[0].strip()
+                        or request.META.get('REMOTE_ADDR')
+                        or ''
+                    )
+                    request.session['device_user_agent'] = ua
+                    request.session['device_ip'] = ip
+                    request.session['device_login_time'] = timezone.now().isoformat()
+                except Exception:
+                    # Non-fatal; don't block login if headers are missing
+                    pass
                 request.session.modified = True
         except Exception:
             pass

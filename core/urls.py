@@ -36,7 +36,6 @@ urlpatterns = [
     path('teacher_messaging/', teacher_messaging, name='teacher_messaging'),
     path('clerk_messaging/', clerk_messaging, name='clerk_messaging'),
     path('finance_messaging/', views_finance_messaging.finance_messaging_page, name='finance_messaging_page'),
-    path('finance_messaging/resend-failed/', views_finance_messaging.resend_failed_sms, name='finance_resend_failed_sms'),
 
     # General Login/Logout (wrap login to send idle email link when applicable)
     path('login/', views_auth_extras.login_with_idle_link, name='login'),
@@ -55,8 +54,8 @@ urlpatterns = [
     path('auth/sessions/revoke/<str:key>/', views_auth_extras.revoke_session, name='revoke_session'),
     # Auth utility endpoints
     path('auth/verify-password/', views_lock.verify_password, name='verify_password'),
-    # Assistant widget/API (namespaced) for base template chat widget URL reverses
-    path('assistant/', include(('assistant.urls', 'assistant'), namespace='assistant')),
+    # Assistant URLs are included in project urls with namespace 'assistant'
+    # to avoid duplicate namespace inclusion here.
     path('dashboard/', views.dashboard, name='dashboard'),
     path('', include('landing.urls')),
 

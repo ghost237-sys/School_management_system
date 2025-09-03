@@ -42,7 +42,8 @@ def finance_messaging_page(request):
                 send_sms = form.cleaned_data.get('send_sms')
                 sent_count = 0
                 sms_count = 0
-                sms_logs = []  # collect per-recipient SMS results for modal display
+                skipped_no_email = 0
+                email_errors = []
                 from .models import FinanceMessageHistory
                 from django.conf import settings
                 # Resolve school name
@@ -87,21 +88,29 @@ def finance_messaging_page(request):
                                 sent_count += 1
                         except Exception as e:
                             email_status = f'error: {str(e)}'
+                            email_errors.append(email_status)
                             # Log the error but don't stop processing other recipients
                             print(f"Email send error for {user.email}: {str(e)}")
-                            if is_ajax:
-                                # For AJAX, show error but continue processing
-                                continue
-                            else:
+                            if not is_ajax:
                                 from django.contrib import messages
                                 messages.warning(request, f'Email failed for {user.email}: {str(e)}')
-                        # Save email history
+                            # Save email history
+                            FinanceMessageHistory.objects.create(
+                                recipient=user,
+                                message_content=personalized_msg,
+                                sent_by=request.user,
+                                delivery_method='email',
+                                status=email_status
+                            )
+                    elif send_email and not user.email:
+                        # No email to send to: record as skipped so it's visible
+                        skipped_no_email += 1
                         FinanceMessageHistory.objects.create(
                             recipient=user,
                             message_content=personalized_msg,
                             sent_by=request.user,
                             delivery_method='email',
-                            status=email_status
+                            status='skipped: no email on user'
                         )
                     # SMS
                     sms_status = None
@@ -134,19 +143,19 @@ def finance_messaging_page(request):
                             delivery_method='sms',
                             status=sms_status
                         )
-                        # Append to logs for modal (AJAX only)
-                        sms_logs.append({
-                            'user_id': getattr(user, 'id', None),
-                            'recipient': (student.user.get_full_name() or student.user.username) if (student and student.user) else str(user),
-                            'phone': student.phone,
-                            'status': sms_status,
-                            'message_preview': (personalized_msg[:120] + ('…' if len(personalized_msg) > 120 else '')),
-                        })
-                success_msg = f"Email sent: {sent_count}. SMS sent: {sms_count}."
+                success_msg = f"Email sent: {sent_count}. SMS sent: {sms_count}. Skipped (no email): {skipped_no_email}."
+                # If emails were requested but none sent, return an actionable error for AJAX
                 if is_ajax:
-                    return JsonResponse({'success': True, 'message': success_msg, 'email_sent': sent_count, 'sms_sent': sms_count, 'sms_logs': sms_logs})
+                    if send_email and sent_count == 0:
+                        err_summary = email_errors[0] if email_errors else 'No recipients had an email address.' if skipped_no_email > 0 else 'No emails were sent.'
+                        return JsonResponse({'success': False, 'error': f'Email sending failed. {err_summary}', 'email_sent': sent_count, 'sms_sent': sms_count, 'skipped_no_email': skipped_no_email})
+                    return JsonResponse({'success': True, 'message': success_msg, 'email_sent': sent_count, 'sms_sent': sms_count, 'skipped_no_email': skipped_no_email})
                 else:
-                    messages.success(request, success_msg)
+                    if send_email and sent_count == 0:
+                        from django.contrib import messages
+                        messages.error(request, f'Email sending failed. {email_errors[0] if email_errors else "No recipients had an email address."}')
+                    else:
+                        messages.success(request, success_msg)
             else:
                 if is_ajax:
                     return JsonResponse({'success': False, 'error': 'Form invalid or email not selected.'})
@@ -178,86 +187,3 @@ def send_finance_notice(request):
         # Implement finance message sending logic here
         return JsonResponse({'success': True, 'message': 'Finance notice sent!'})
     return JsonResponse({'success': False, 'error': 'Invalid request method.'}, status=405)
-
-@login_required
-@user_passes_test(is_finance)
-def resend_failed_sms(request):
-    """AJAX endpoint to resend failed SMS to a list of user IDs.
-    Expected JSON body: {"user_ids": [..], "subject": "...", "message": "..."}
-    """
-    if request.method != 'POST' or request.headers.get('x-requested-with') != 'XMLHttpRequest':
-        return JsonResponse({'success': False, 'error': 'Invalid request.'}, status=400)
-
-    import json
-    try:
-        payload = json.loads(request.body.decode('utf-8') or '{}')
-    except Exception:
-        payload = {}
-    user_ids = payload.get('user_ids') or []
-    subject = payload.get('subject') or ''
-    message_template = payload.get('message') or ''
-    if not user_ids:
-        return JsonResponse({'success': False, 'error': 'No recipients provided.'}, status=400)
-
-    from .models import User, Student, FeeAssignment, FeePayment, FinanceMessageHistory
-    from django.utils import timezone
-    from django.db.models import Sum
-    from django.conf import settings as dj_settings
-
-    # Resolve school name
-    school_name = getattr(dj_settings, 'SCHOOL_NAME', 'Your School')
-    try:
-        from landing.models import SiteSettings
-        s = SiteSettings.objects.first()
-        if s and s.school_name:
-            school_name = s.school_name
-    except Exception:
-        pass
-
-    sms_count = 0
-    logs = []
-    for user in User.objects.filter(id__in=user_ids):
-        student = Student.objects.filter(user=user).first()
-        if not student or not student.phone:
-            logs.append({
-                'user_id': getattr(user, 'id', None),
-                'recipient': user.get_full_name() or user.username,
-                'phone': getattr(student, 'phone', ''),
-                'status': 'error: missing phone/student',
-                'message_preview': ''
-            })
-            continue
-        fee_assignments = FeeAssignment.objects.filter(class_group=student.class_group)
-        total_billed = fee_assignments.aggregate(total=Sum('amount'))['total'] or 0
-        total_paid = FeePayment.objects.filter(student=student).aggregate(total=Sum('amount_paid'))['total'] or 0
-        balance = total_billed - total_paid
-        personalized_msg = (message_template or '').replace('{fee_balance}', f'{balance:,.2f}')
-        personalized_msg = personalized_msg.replace('{student_name}', student.user.get_full_name() or student.user.username)
-        personalized_msg = personalized_msg.replace('{admission_no}', student.admission_no or '')
-        personalized_msg = f"{school_name}: {personalized_msg}" if school_name else personalized_msg
-        sms_status = None
-        try:
-            from .messaging_utils import send_sms as at_send_sms
-            ok, resp = at_send_sms(student.phone, personalized_msg)
-            if ok:
-                sms_status = 'sent'
-                sms_count += 1
-            else:
-                sms_status = f'error: {resp}'
-        except Exception as e:
-            sms_status = f'error: {str(e)}'
-        FinanceMessageHistory.objects.create(
-            recipient=user,
-            message_content=personalized_msg,
-            sent_by=request.user,
-            delivery_method='sms',
-            status=sms_status
-        )
-        logs.append({
-            'user_id': getattr(user, 'id', None),
-            'recipient': student.user.get_full_name() or student.user.username,
-            'phone': student.phone,
-            'status': sms_status,
-            'message_preview': (personalized_msg[:120] + ('…' if len(personalized_msg) > 120 else '')),
-        })
-    return JsonResponse({'success': True, 'message': f'SMS resent: {sms_count}.', 'sms_sent': sms_count, 'sms_logs': logs})

@@ -218,221 +218,22 @@
     </div>
   </div>
 </div>
-
-<!-- SMS Logs Modal -->
-<div class="modal fade" id="smsLogsModal" tabindex="-1" aria-labelledby="smsLogsModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title d-flex align-items-center gap-2" id="smsLogsModalLabel">
-          <i class="bi bi-chat-dots"></i>
-          <span>Bulk SMS Logs</span>
-          <span id="smsLogsStatus" class="ms-2 text-muted small"></span>
-        </h5>
-        <button type="button" class="btn-close" id="smsLogsCloseBtn" data-bs-dismiss="modal" aria-label="Close" disabled></button>
-      </div>
-      <div class="modal-body">
-        <div id="smsSendingSpinner" class="d-none mb-2">
-          <div class="d-flex align-items-center gap-2 text-info">
-            <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
-            <span>Sending... Please wait</span>
-          </div>
-        </div>
-        <div id="smsProgressWrap" class="mb-2">
-          <div class="d-flex justify-content-between small mb-1">
-            <span id="smsProgressText">0% sent</span>
-            <span id="smsCountsText">0/0</span>
-          </div>
-          <div class="progress" style="height:6px;">
-            <div class="progress-bar bg-primary" id="smsProgressBar" role="progressbar" style="width: 0%"></div>
-          </div>
-        </div>
-        <div class="table-responsive">
-          <table class="table table-sm table-striped align-middle">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Recipient</th>
-                <th>Phone</th>
-                <th>Status</th>
-                <th>Preview</th>
-              </tr>
-            </thead>
-            <tbody id="smsLogsBody"></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-primary" id="resendFailedBtn" disabled>
-          <i class="bi bi-arrow-repeat me-1"></i>Resend Failed
-        </button>
-        <button type="button" class="btn btn-secondary" id="smsLogsFooterCloseBtn" data-bs-dismiss="modal" disabled>Close</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var form = document.getElementById('finance-messaging-form');
     var feedbackDiv = document.getElementById('email-feedback');
     var sendBtn = document.getElementById('send-btn');
-    var lastSentSubject = '';
-    var lastSentMessage = '';
-    var lastSmsLogs = [];
-    // Modal elements for live progress
-    var modalEl = document.getElementById('smsLogsModal');
-    // Bootstrap instance if available
-    var modalInstance = null;
-    try {
-      if (modalEl && window.bootstrap && bootstrap.Modal) {
-        modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: 'static', keyboard: false });
-      }
-    } catch (e) { modalInstance = null; }
-    // Fallback show/hide if Bootstrap JS not present
-    function forceShowModal() {
-      if (!modalEl) return;
-      modalEl.classList.add('show');
-      modalEl.style.display = 'block';
-      document.body.classList.add('modal-open');
-      // add simple backdrop if not exists
-      if (!document.querySelector('.modal-backdrop')) {
-        var bd = document.createElement('div');
-        bd.className = 'modal-backdrop fade show';
-        document.body.appendChild(bd);
-      }
-    }
-    function forceHideModal() {
-      if (!modalEl) return;
-      modalEl.classList.remove('show');
-      modalEl.style.display = 'none';
-      document.body.classList.remove('modal-open');
-      var bd = document.querySelector('.modal-backdrop');
-      if (bd) bd.parentNode.removeChild(bd);
-    }
-    function showModalLocked() {
-      if (modalInstance) { modalInstance.show(); }
-      else { forceShowModal(); }
-    }
-    function unlockModalControls() {
-      if (modalCloseBtn) modalCloseBtn.disabled = false;
-      if (modalFooterCloseBtn) modalFooterCloseBtn.disabled = false;
-    }
-    function lockModalControls() {
-      if (modalCloseBtn) modalCloseBtn.disabled = true;
-      if (modalFooterCloseBtn) modalFooterCloseBtn.disabled = true;
-    }
-    var spinner = document.getElementById('smsSendingSpinner');
-    var statusEl = document.getElementById('smsLogsStatus');
-    var tbodyEl = document.getElementById('smsLogsBody');
-    var modalCloseBtn = document.getElementById('smsLogsCloseBtn');
-    var modalFooterCloseBtn = document.getElementById('smsLogsFooterCloseBtn');
-    var modalResendBtn = document.getElementById('resendFailedBtn');
-    // progress elements
-    var progressBar = document.getElementById('smsProgressBar');
-    var progressText = document.getElementById('smsProgressText');
-    var countsText = document.getElementById('smsCountsText');
-    function setProgress(sent, total) {
-      sent = Math.max(0, Math.min(sent || 0, total || 0));
-      total = Math.max(0, total || 0);
-      var pct = total ? Math.round((sent / total) * 100) : 0;
-      if (progressBar) progressBar.style.width = pct + '%';
-      if (progressText) progressText.textContent = pct + '% sent';
-      if (countsText) countsText.textContent = sent + '/' + total;
-    }
-    // Redundant safety: ensure modal pops on button click instantly
-    if (sendBtn) {
-      sendBtn.addEventListener('click', function() {
-        if (tbodyEl) tbodyEl.innerHTML = '';
-        if (statusEl) statusEl.textContent = 'Processing...';
-        if (spinner) spinner.classList.remove('d-none');
-        lockModalControls();
-        if (modalResendBtn) modalResendBtn.disabled = true;
-        showModalLocked();
-        setProgress(0, 0);
-      });
-    }
     if(form) {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
-            // Show modal immediately upon clicking send
-            if (tbodyEl) tbodyEl.innerHTML = '';
-            if (statusEl) statusEl.textContent = 'Processing...';
-            if (spinner) spinner.classList.remove('d-none');
-            if (modalCloseBtn) modalCloseBtn.disabled = true;
-            if (modalFooterCloseBtn) modalFooterCloseBtn.disabled = true;
-            if (modalResendBtn) modalResendBtn.disabled = true;
-            showModalLocked();
-            // Prefill table with selected recipients and start progress ticker
-            var recipientsSelect = document.getElementById('id_recipient');
-            var selectedOptions = Array.from((recipientsSelect && recipientsSelect.selectedOptions) || []);
-            var queued = selectedOptions.map(function(opt){
-              return { user_id: opt.value, recipient: opt.text, phone: '', status: 'Queued' };
-            });
-            if (queued.length && tbodyEl) {
-              tbodyEl.innerHTML = '';
-              queued.forEach(function(item, idx){
-                var tr = document.createElement('tr');
-                tr.setAttribute('data-user-id', item.user_id || '');
-                tr.innerHTML = `
-                  <td>${idx + 1}</td>
-                  <td>${item.recipient}</td>
-                  <td>${item.phone}</td>
-                  <td><span class="badge bg-secondary">Queued</span></td>
-                  <td><span title="Waiting to send..."> — </span></td>
-                `;
-                tbodyEl.appendChild(tr);
-              });
-            }
-            // initialize progress
-            var totalRecipients = queued.length;
-            var approxSent = 0;
-            setProgress(0, totalRecipients);
-            // live ticker for current/next
-            var tickerIdx = 0;
-            var tickerTimer = null;
-            function updateTicker() {
-              var rows = Array.from(document.querySelectorAll('#smsLogsBody tr'));
-              rows.forEach(function(r){
-                var badge = r.querySelector('.badge');
-                if (badge) { badge.className = 'badge bg-secondary'; badge.textContent = 'Queued'; }
-              });
-              if (!rows.length) return;
-              var current = rows[tickerIdx % rows.length];
-              var next = rows[(tickerIdx + 1) % rows.length];
-              var cBadge = current.querySelector('.badge');
-              if (cBadge) { cBadge.className = 'badge bg-info'; cBadge.textContent = 'Sending…'; }
-              var cName = current.children[1] ? current.children[1].textContent : '';
-              var nName = next && next.children[1] ? next.children[1].textContent : '';
-              if (statusEl) statusEl.textContent = `Sending ${((tickerIdx%rows.length)+1)}/${rows.length}: ${cName}${nName? ' • Next: ' + nName : ''}`;
-              tickerIdx += 1;
-              approxSent = Math.max(0, Math.min(tickerIdx - 1, totalRecipients));
-              setProgress(approxSent, totalRecipients);
-            }
-            if (!window.__smsTickerRunning) {
-              updateTicker();
-              tickerTimer = setInterval(updateTicker, 1200);
-              window.__smsTickerRunning = true;
-              window.__smsTickerHandle = tickerTimer;
-            }
             var recipients = document.getElementById('id_recipient');
             if (recipients && recipients.selectedOptions.length === 0) {
                 feedbackDiv.innerHTML = '<div class="alert alert-warning">Please select at least one recipient.</div>';
-                // reflect validation failure in modal too
-                if (statusEl) statusEl.textContent = 'Validation required: select at least one recipient';
-                if (spinner) spinner.classList.add('d-none');
-                unlockModalControls();
-                if (window.__smsTickerHandle){ clearInterval(window.__smsTickerHandle); window.__smsTickerRunning = false; }
                 return false;
             }
             var formData = new FormData(form);
-            // capture the latest subject/message for potential resend
-            lastSentSubject = (form.querySelector('#id_subject') || {}).value || '';
-            lastSentMessage = (form.querySelector('#id_message') || {}).value || '';
             feedbackDiv.innerHTML = '';
             sendBtn.disabled = true;
-            // Update status to sending after validation passes
-            if (statusEl) statusEl.textContent = 'Sending...';
             // CSRF helper
 function getCookie(name) {
     let cookieValue = null;
@@ -462,184 +263,18 @@ fetch(window.location.pathname, {
             .then(data => {
                 if(data.success) {
                     feedbackDiv.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
-                    // Populate SMS logs modal if provided
-                    if (Array.isArray(data.sms_logs) && data.sms_logs.length > 0) {
-                        const tbody = tbodyEl;
-                        tbody.innerHTML = '';
-                        lastSmsLogs = data.sms_logs || [];
-                        let hasFailures = false;
-                        let sentCount = 0;
-                        lastSmsLogs.forEach((log, idx) => {
-                          const statusBadge = (log.status && log.status.startsWith('sent'))
-                            ? '<span class="badge bg-success">Sent</span>'
-                            : `<span class="badge bg-danger">${log.status || 'error'}</span>`;
-                          if (log.status && log.status.startsWith('sent')) { sentCount += 1; }
-                          if (!(log.status && log.status.startsWith('sent'))) { hasFailures = true; }
-                          const tr = document.createElement('tr');
-                          tr.setAttribute('data-user-id', (log.user_id || ''));
-                          tr.innerHTML = `
-                            <td>${idx + 1}</td>
-                            <td>${(log.recipient || '').toString()}</td>
-                            <td>${(log.phone || '').toString()}</td>
-                            <td>${statusBadge}</td>
-                            <td><span title="${(log.message_preview || '').replace(/"/g,'&quot;')}"> ${(log.message_preview || '').slice(0,80)} </span></td>
-                          `;
-                          tbody.appendChild(tr);
-                        });
-                        if (modalResendBtn) modalResendBtn.disabled = !hasFailures;
-                        setProgress(sentCount, lastSmsLogs.length);
-                    } else {
-                        // Fallback: no logs returned; mark existing queued rows as Completed
-                        const rows = Array.from(document.querySelectorAll('#smsLogsBody tr'));
-                        rows.forEach((r) => {
-                          const statusCell = r.children[3];
-                          if (statusCell) {
-                            statusCell.innerHTML = '<span class="badge bg-success">Completed</span>';
-                          }
-                        });
-                        if (modalResendBtn) modalResendBtn.disabled = true;
-                        // assume success for all queued
-                        setProgress(rows.length, rows.length);
-                    }
-                    // Update modal status and unlock controls
-                    if (statusEl) statusEl.textContent = 'Completed';
-                    if (spinner) spinner.classList.add('d-none');
-                    unlockModalControls();
-                    if (window.__smsTickerHandle){ clearInterval(window.__smsTickerHandle); window.__smsTickerRunning = false; }
                     form.reset();
                 } else {
                     feedbackDiv.innerHTML = '<div class="alert alert-danger">' + (data.error || 'Failed to send email.') + '</div>';
-                    if (statusEl) statusEl.textContent = 'Failed';
-                    if (spinner) spinner.classList.add('d-none');
-                    unlockModalControls();
-                    if (window.__smsTickerHandle){ clearInterval(window.__smsTickerHandle); window.__smsTickerRunning = false; }
                 }
                 sendBtn.disabled = false;
             })
             .catch(error => {
                 feedbackDiv.innerHTML = '<div class="alert alert-danger">Error sending email. Please try again.</div>';
-                if (statusEl) statusEl.textContent = 'Error';
-                if (spinner) spinner.classList.add('d-none');
-                unlockModalControls();
-                if (window.__smsTickerHandle){ clearInterval(window.__smsTickerHandle); window.__smsTickerRunning = false; }
                 sendBtn.disabled = false;
             });
         });
     }
-});
-</script>
-<script>
-// Resend failed SMS from the modal
-document.addEventListener('DOMContentLoaded', function() {
-  const resendBtn = document.getElementById('resendFailedBtn');
-  if (!resendBtn) return;
-
-  function getCookie(name) {
-      let cookieValue = null;
-      if (document.cookie && document.cookie !== '') {
-          const cookies = document.cookie.split(';');
-          for (let i = 0; i < cookies.length; i++) {
-              const cookie = cookies[i].trim();
-              if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                  cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                  break;
-              }
-          }
-      }
-      return cookieValue;
-  }
-
-  resendBtn.addEventListener('click', function() {
-    // lock controls and show spinner while resending
-    const modalCloseBtn = document.getElementById('smsLogsCloseBtn');
-    const modalFooterCloseBtn = document.getElementById('smsLogsFooterCloseBtn');
-    const spinner = document.getElementById('smsSendingSpinner');
-    const statusEl = document.getElementById('smsLogsStatus');
-    if (statusEl) statusEl.textContent = 'Resending failed messages...';
-    if (spinner) spinner.classList.remove('d-none');
-    if (modalCloseBtn) modalCloseBtn.disabled = true;
-    if (modalFooterCloseBtn) modalFooterCloseBtn.disabled = true;
-    const rows = Array.from(document.querySelectorAll('#smsLogsBody tr'));
-    const failedIds = rows
-      .filter(r => r.querySelector('.badge.bg-danger'))
-      .map(r => r.getAttribute('data-user-id'))
-      .filter(Boolean);
-    if (failedIds.length === 0) return;
-
-    const csrftoken = getCookie('csrftoken');
-    resendBtn.disabled = true;
-    fetch('/finance_messaging/resend-failed/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRFToken': csrftoken,
-      },
-      body: JSON.stringify({ user_ids: failedIds, subject: (window.lastSentSubject || ''), message: (window.lastSentMessage || '') })
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (data && data.success && Array.isArray(data.sms_logs)) {
-        const tbody = document.getElementById('smsLogsBody');
-        tbody.innerHTML = '';
-        let hasFailures = false;
-        let sentCount = 0;
-        data.sms_logs.forEach((log, idx) => {
-          const statusBadge = (log.status && log.status.startsWith('sent'))
-              ? '<span class="badge bg-success">Sent</span>'
-              : `<span class="badge bg-danger">${log.status || 'error'}</span>`;
-          if (log.status && log.status.startsWith('sent')) { sentCount += 1; }
-          if (!(log.status && log.status.startsWith('sent'))) { hasFailures = true; }
-          const tr = document.createElement('tr');
-          tr.setAttribute('data-user-id', (log.user_id || ''));
-          tr.innerHTML = `
-            <td>${idx + 1}</td>
-            <td>${(log.recipient || '').toString()}</td>
-            <td>${(log.phone || '').toString()}</td>
-            <td>${statusBadge}</td>
-            <td><span title="${(log.message_preview || '').replace(/"/g,'&quot;')}"> ${(log.message_preview || '').slice(0,80)} </span></td>
-          `;
-          tbody.appendChild(tr);
-        });
-        resendBtn.disabled = !hasFailures;
-        if (statusEl) statusEl.textContent = 'Resend complete';
-        if (spinner) spinner.classList.add('d-none');
-        if (modalCloseBtn) modalCloseBtn.disabled = false;
-        if (modalFooterCloseBtn) modalFooterCloseBtn.disabled = false;
-        setProgress(sentCount, data.sms_logs.length);
-      } else {
-        // Fallback: no logs returned; mark existing queued rows as Completed
-        const rows = Array.from(document.querySelectorAll('#smsLogsBody tr'));
-        rows.forEach((r) => {
-          const statusCell = r.children[3];
-          if (statusCell) {
-            statusCell.innerHTML = '<span class="badge bg-success">Completed</span>';
-          }
-        });
-        resendBtn.disabled = false;
-        if (statusEl) statusEl.textContent = 'Resend failed';
-        if (spinner) spinner.classList.add('d-none');
-        if (modalCloseBtn) modalCloseBtn.disabled = false;
-        if (modalFooterCloseBtn) modalFooterCloseBtn.disabled = false;
-        setProgress(rows.length, rows.length);
-      }
-    })
-    .catch(() => { 
-      resendBtn.disabled = false; 
-      if (statusEl) statusEl.textContent = 'Resend error';
-      if (spinner) spinner.classList.add('d-none');
-      if (modalCloseBtn) modalCloseBtn.disabled = false;
-      if (modalFooterCloseBtn) modalFooterCloseBtn.disabled = false;
-    });
-  });
-
-  // expose last subject/message captured in submit handler to window for reuse
-  document.addEventListener('submit', function() {
-    const subj = document.querySelector('#id_subject');
-    const msg = document.querySelector('#id_message');
-    window.lastSentSubject = subj ? subj.value : '';
-    window.lastSentMessage = msg ? msg.value : '';
-  }, true);
 });
 </script>
 <script>

@@ -63,7 +63,7 @@ def is_admin_or_clerk(user):
 @user_passes_test(is_admin)
 def admin_website_settings(request):
     """Allow admins to manage public website settings and categories."""
-    settings = SiteSettings.objects.first()
+    settings = SiteSettings.objects.order_by('-updated_at').first()
     if settings is None:
         settings = SiteSettings.objects.create()
     category_form = CategoryForm()

@@ -23,9 +23,23 @@ class SiteSettings(models.Model):
     hero_video_url = models.URLField(blank=True, default="")
     hero_cta_text = models.CharField(max_length=100, blank=True, default="Login to Portal")
     hero_cta_link = models.CharField(max_length=255, blank=True, default="/login/")
+    # Hero stats strip
+    hero_stats_enabled = models.BooleanField(default=False)
+    stat_students = models.CharField(max_length=50, blank=True, default="1,200+")
+    stat_teachers = models.CharField(max_length=50, blank=True, default="80+")
+    stat_clubs = models.CharField(max_length=50, blank=True, default="25+")
+    stat_passrate = models.CharField(max_length=50, blank=True, default="95%")
     # About section
     about_title = models.CharField(max_length=255, blank=True, default="About Us")
     about_text = models.TextField(blank=True, default="We are committed to providing a holistic education that nurtures character and academic excellence.")
+    # Announcement
+    announcement_text = models.CharField(max_length=255, blank=True, default="Admissions for the new term are open. Visit the office or login to the portal for details.")
+    announcement_cta_text = models.CharField(max_length=100, blank=True, default="View Details")
+    announcement_cta_link = models.CharField(max_length=255, blank=True, default="/login/")
+    # Quick links
+    quicklink_admissions_url = models.URLField(blank=True, default="/login/")
+    quicklink_term_dates_url = models.URLField(blank=True, default="#")
+    quicklink_downloads_url = models.URLField(blank=True, default="#")
     # Contact/Footer
     contact_email = models.EmailField(blank=True, default="")
     contact_phone = models.CharField(max_length=50, blank=True, default="")

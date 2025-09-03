@@ -8,20 +8,35 @@
 <div class="container-fluid">
   {% if user.is_authenticated %}
   {% if user.role == 'teacher' or user.role == 'admin' %}
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <h3 class="mb-0">Lesson Plan</h3>
-    <div class="d-flex align-items-center gap-2">
-      <div class="dropdown">
-        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-          {% if mode == 'drafts' %}Drafts{% else %}Create New{% endif %}
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end">
-          <li><a class="dropdown-item {% if mode == 'new' %}active{% endif %}" href="{{ request.path }}?mode=new">Create New</a></li>
-          <li><a class="dropdown-item {% if mode == 'drafts' %}active{% endif %}" href="{{ request.path }}?mode=drafts">Drafts</a></li>
-          <li><a class="dropdown-item {% if mode == 'compile' %}active{% endif %}" href="{{ request.path }}?mode=compile">Compile Subject Plan</a></li>
-        </ul>
+  <div class="mb-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-3">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb mb-0" style="--bs-breadcrumb-divider: '›';">
+            <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item">Teaching</li>
+            <li class="breadcrumb-item active" aria-current="page">Lesson Plan</li>
+          </ol>
+        </nav>
       </div>
-      <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back</a>
+      <div class="d-flex align-items-center gap-2">
+        <div class="dropdown">
+          <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            {% if mode == 'drafts' %}Drafts{% elif mode == 'compile' %}Compile{% else %}Create New{% endif %}
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item {% if mode == 'new' %}active{% endif %}" href="{{ request.path }}?mode=new"><i class="bi bi-plus-circle me-2"></i>Create New</a></li>
+            <li><a class="dropdown-item {% if mode == 'drafts' %}active{% endif %}" href="{{ request.path }}?mode=drafts"><i class="bi bi-journal-text me-2"></i>Drafts</a></li>
+            <li><a class="dropdown-item {% if mode == 'compile' %}active{% endif %}" href="{{ request.path }}?mode=compile"><i class="bi bi-layers me-2"></i>Compile Subject Plan</a></li>
+          </ul>
+        </div>
+        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back</a>
+      </div>
+    </div>
+    <div class="mt-2 d-flex align-items-center flex-wrap gap-2">
+      <h3 class="mb-0 me-2">Lesson Plan</h3>
+      <span class="badge bg-primary">{{ current_term.name|default:'Current Term' }}</span>
+      <span class="badge bg-secondary">{{ request.user.get_full_name|default:request.user.username }}</span>
     </div>
   </div>
 
@@ -33,6 +48,49 @@
       </div>
     {% endfor %}
   {% endif %}
+
+  <!-- Quick stats using theme colors -->
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <div class="card h-100" style="border-left: 4px solid var(--primary);">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <div class="text-muted small">Your Drafts</div>
+            <div class="h5 mb-0">{{ drafts_count|default:'0' }}</div>
+          </div>
+          <div class="rounded-circle d-grid place-items-center" style="width:42px;height:42px;background: color-mix(in srgb, var(--primary) 16%, var(--surface)); color: var(--primary);">
+            <i class="bi bi-journal-text"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100" style="border-left: 4px solid var(--secondary);">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <div class="text-muted small">Pending Review</div>
+            <div class="h5 mb-0">{{ pending_review_count|default:'0' }}</div>
+          </div>
+          <div class="rounded-circle d-grid place-items-center" style="width:42px;height:42px;background: color-mix(in srgb, var(--secondary) 16%, var(--surface)); color: var(--secondary);">
+            <i class="bi bi-hourglass-split"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100" style="border-left: 4px solid var(--accent);">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <div class="text-muted small">Approved</div>
+            <div class="h5 mb-0">{{ approved_count|default:'0' }}</div>
+          </div>
+          <div class="rounded-circle d-grid place-items-center" style="width:42px;height:42px;background: color-mix(in srgb, var(--accent) 16%, var(--surface)); color: var(--accent);">
+            <i class="bi bi-check2-circle"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   {% if mode == 'compile' %}
   <div class="card mt-3">
@@ -135,6 +193,15 @@
       </div>
     </div>
     <div class="card-body">
+      <!-- Guidance -->
+      <div class="alert alert-info d-flex align-items-start gap-2 mb-3" role="alert">
+        <i class="bi bi-lightbulb"></i>
+        <div>
+          <div class="fw-semibold">Tip</div>
+          <div class="small">Fill in lesson details, then use the preview tools to refine objectives, activities, and time allocations. You can save as draft or submit for approval anytime.</div>
+        </div>
+      </div>
+
       <!-- Details summary -->
       <div class="row g-3 mb-3">
         <div class="col-md-4">
@@ -177,99 +244,112 @@
 
         {% if form %}
           <!-- If a Django Form is supplied, render field-by-field for Bootstrap control -->
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label">Subject</label>
-              {{ form.subject }}
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Grade/Class</label>
-              {{ form.class_grade }}
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Plan Date</label>
-              {{ form.plan_date }}
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Term</label>
-              {{ form.term }}
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Lesson Number</label>
-              {{ form.lesson_number }}
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Topic</label>
-              {{ form.topic }}
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Subtopic</label>
-              {{ form.subtopic }}
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Lesson Duration</label>
-              {{ form.duration }}
-            </div>
-            <div class="d-none">
-              {{ form.objectives }}
-              {{ form.methods }}
-              {{ form.aids }}
-              {{ form.assessment }}
+          <div class="card mb-3">
+            <div class="card-header">Lesson Details</div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">Subject</label>
+                  {{ form.subject }}
+                  <div class="form-text">Filtered to your assigned subjects.</div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Grade/Class</label>
+                  {{ form.class_grade }}
+                  <div class="form-text">Only classes assigned to you are listed.</div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Plan Date</label>
+                  {{ form.plan_date }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Term</label>
+                  {{ form.term }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Lesson Number</label>
+                  {{ form.lesson_number }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Topic</label>
+                  {{ form.topic }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Subtopic</label>
+                  {{ form.subtopic }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Lesson Duration</label>
+                  {{ form.duration }}
+                  <div class="form-text">e.g. 40 minutes</div>
+                </div>
+                <div class="d-none">
+                  {{ form.objectives }}
+                  {{ form.methods }}
+                  {{ form.aids }}
+                  {{ form.assessment }}
+                </div>
+              </div>
             </div>
           </div>
         {% else %}
           <!-- Fallback: manual inputs when no Django Form is provided -->
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label for="subject" class="form-label">Subject</label>
-              <input type="text" class="form-control" id="subject" name="subject" {% if lesson %}value="{{ lesson.subject }}"{% endif %} required>
-            </div>
-            <div class="col-md-6">
-              <label for="class_grade" class="form-label">Grade/Class</label>
-              <input type="text" class="form-control" id="class_grade" name="class_grade" {% if lesson %}{% if lesson.class_grade %}value="{{ lesson.class_grade }}"{% elif lesson.grade %}value="{{ lesson.grade }}"{% endif %}{% endif %} required>
-            </div>
-            <div class="col-md-6">
-              <label for="plan_date" class="form-label">Plan Date</label>
-              <input type="date" class="form-control" id="plan_date" name="plan_date" {% if lesson and lesson.plan_date %}value="{{ lesson.plan_date|date:'Y-m-d' }}"{% endif %}>
-            </div>
-            <div class="col-md-6">
-              <label for="lesson_number" class="form-label">Lesson Number</label>
-              <input type="number" min="1" class="form-control" id="lesson_number" name="lesson_number" {% if lesson and lesson.lesson_number %}value="{{ lesson.lesson_number }}"{% endif %}>
-            </div>
-            <div class="col-md-6">
-              <label for="topic" class="form-label">Topic</label>
-              <input type="text" class="form-control" id="topic" name="topic" {% if lesson %}value="{{ lesson.topic }}"{% endif %} required>
-            </div>
-            <div class="col-md-6">
-              <label for="subtopic" class="form-label">Subtopic</label>
-              <input type="text" class="form-control" id="subtopic" name="subtopic" {% if lesson and lesson.subtopic %}value="{{ lesson.subtopic }}"{% endif %}>
-            </div>
-            <div class="col-md-4">
-              <label for="duration" class="form-label">Lesson Duration</label>
-              <input type="text" class="form-control" id="duration" name="duration" placeholder="e.g. 40 minutes" {% if lesson %}value="{{ lesson.duration|default:lesson.lesson_duration }}"{% endif %} required>
-            </div>
-            <div class="col-12">
-              <label for="objectives" class="form-label">Lesson Objectives</label>
-              <textarea class="form-control richtext" id="objectives" name="objectives" rows="6" placeholder="List measurable objectives" required>{% if lesson %}{{ lesson.objectives|default:lesson.lesson_objectives }}{% endif %}</textarea>
-            </div>
-            <div class="col-12">
-              <label for="methods" class="form-label">Teaching Methods/Activities</label>
-              <textarea class="form-control richtext" id="methods" name="methods" rows="6" placeholder="e.g. Discussion, Group work, Demonstration" required>{% if lesson %}{{ lesson.methods|default:lesson.teaching_methods }}{% endif %}</textarea>
-            </div>
-            <div class="col-12">
-              <label for="aids" class="form-label">Teaching &amp; Learning Aids</label>
-              <textarea class="form-control richtext" id="aids" name="aids" rows="6" placeholder="e.g. Textbook, Charts, Projector">{% if lesson %}{{ lesson.aids|default:lesson.teaching_aids }}{% endif %}</textarea>
-            </div>
-            <div class="col-12">
-              <label for="assessment" class="form-label">Assessment/Evaluation</label>
-              <textarea class="form-control richtext" id="assessment" name="assessment" rows="6" placeholder="e.g. Quiz, Oral questions, Exit ticket" required>{% if lesson %}{{ lesson.assessment|default:lesson.evaluation }}{% endif %}</textarea>
+          <div class="card mb-3">
+            <div class="card-header">Lesson Details</div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="subject" class="form-label">Subject</label>
+                  <input type="text" class="form-control" id="subject" name="subject" {% if lesson %}value="{{ lesson.subject }}"{% endif %} required>
+                </div>
+                <div class="col-md-6">
+                  <label for="class_grade" class="form-label">Grade/Class</label>
+                  <input type="text" class="form-control" id="class_grade" name="class_grade" {% if lesson %}{% if lesson.class_grade %}value="{{ lesson.class_grade }}"{% elif lesson.grade %}value="{{ lesson.grade }}"{% endif %}{% endif %} required>
+                </div>
+                <div class="col-md-6">
+                  <label for="plan_date" class="form-label">Plan Date</label>
+                  <input type="date" class="form-control" id="plan_date" name="plan_date" {% if lesson and lesson.plan_date %}value="{{ lesson.plan_date|date:'Y-m-d' }}"{% endif %}>
+                </div>
+                <div class="col-md-6">
+                  <label for="lesson_number" class="form-label">Lesson Number</label>
+                  <input type="number" min="1" class="form-control" id="lesson_number" name="lesson_number" {% if lesson and lesson.lesson_number %}value="{{ lesson.lesson_number }}"{% endif %}>
+                </div>
+                <div class="col-md-6">
+                  <label for="topic" class="form-label">Topic</label>
+                  <input type="text" class="form-control" id="topic" name="topic" {% if lesson %}value="{{ lesson.topic }}"{% endif %} required>
+                </div>
+                <div class="col-md-6">
+                  <label for="subtopic" class="form-label">Subtopic</label>
+                  <input type="text" class="form-control" id="subtopic" name="subtopic" {% if lesson and lesson.subtopic %}value="{{ lesson.subtopic }}"{% endif %}>
+                </div>
+                <div class="col-md-4">
+                  <label for="duration" class="form-label">Lesson Duration</label>
+                  <input type="text" class="form-control" id="duration" name="duration" placeholder="e.g. 40 minutes" {% if lesson %}value="{{ lesson.duration|default:lesson.lesson_duration }}"{% endif %} required>
+                </div>
+                <div class="col-12">
+                  <label for="objectives" class="form-label">Lesson Objectives</label>
+                  <textarea class="form-control richtext" id="objectives" name="objectives" rows="6" placeholder="List measurable objectives" required>{% if lesson %}{{ lesson.objectives|default:lesson.lesson_objectives }}{% endif %}</textarea>
+                </div>
+                <div class="col-12">
+                  <label for="methods" class="form-label">Teaching Methods/Activities</label>
+                  <textarea class="form-control richtext" id="methods" name="methods" rows="6" placeholder="e.g. Discussion, Group work, Demonstration" required>{% if lesson %}{{ lesson.methods|default:lesson.teaching_methods }}{% endif %}</textarea>
+                </div>
+                <div class="col-12">
+                  <label for="aids" class="form-label">Teaching &amp; Learning Aids</label>
+                  <textarea class="form-control richtext" id="aids" name="aids" rows="6" placeholder="e.g. Textbook, Charts, Projector">{% if lesson %}{{ lesson.aids|default:lesson.teaching_aids }}{% endif %}</textarea>
+                </div>
+                <div class="col-12">
+                  <label for="assessment" class="form-label">Assessment/Evaluation</label>
+                  <textarea class="form-control richtext" id="assessment" name="assessment" rows="6" placeholder="e.g. Quiz, Oral questions, Exit ticket" required>{% if lesson %}{{ lesson.assessment|default:lesson.evaluation }}{% endif %}</textarea>
+                </div>
+              </div>
             </div>
           </div>
         {% endif %}
 
         <!-- Live Preview removed as per request -->
 
-        <div class="d-flex flex-wrap gap-2 mt-3">
+        <div class="d-flex flex-wrap gap-2 mt-3" style="position: sticky; bottom: 0; background: var(--surface); padding: 10px 0; border-top: 1px solid var(--border); z-index: 5;">
           <button type="submit" name="action" value="save" class="btn btn-outline-secondary"><i class="bi bi-save"></i> Save Draft</button>
           <button type="submit" name="action" value="submit" class="btn btn-primary"><i class="bi bi-send"></i> Submit for Approval</button>
           {% if lesson and lesson.status == 'rejected' and lesson.review_notes %}
@@ -493,6 +573,30 @@
     </div>
   </div>
   {% endif %}
+
+  <!-- Helpful resources / tips panel -->
+  <div class="row g-3 mt-1">
+    <div class="col-lg-8"></div>
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <span>Teaching Tips</span>
+          <span class="badge bg-light text-dark">Themed</span>
+        </div>
+        <div class="card-body">
+          <ul class="list-unstyled mb-3">
+            <li class="mb-2"><i class="bi bi-check2-circle text-success me-2"></i>Write measurable objectives (use action verbs).</li>
+            <li class="mb-2"><i class="bi bi-check2-circle text-success me-2"></i>Plan formative checks in each stage.</li>
+            <li class="mb-2"><i class="bi bi-check2-circle text-success me-2"></i>Balance teacher-talk and student activity.</li>
+          </ul>
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-sm btn-outline-primary" href="{{ request.path }}?mode=compile"><i class="bi bi-layers"></i> Compile Plan</a>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   {% if user.is_authenticated and user.role == 'admin' and lesson and lesson.id %}
   <div class="card mt-3">

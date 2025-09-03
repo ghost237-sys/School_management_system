@@ -17,8 +17,20 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'fields': ("hero_title", "hero_subtitle", "hero_background_url", "hero_video", "hero_video_url", "hero_cta_text", "hero_cta_link"),
             'classes': ("collapse",)
         }),
+        ("Hero Stats", {
+            'fields': ("hero_stats_enabled", "stat_students", "stat_teachers", "stat_clubs", "stat_passrate"),
+            'classes': ("collapse",)
+        }),
         ("About", {
             'fields': ("about_title", "about_text"),
+            'classes': ("collapse",)
+        }),
+        ("Announcement", {
+            'fields': ("announcement_text", "announcement_cta_text", "announcement_cta_link"),
+            'classes': ("collapse",)
+        }),
+        ("Quick Links", {
+            'fields': ("quicklink_admissions_url", "quicklink_term_dates_url", "quicklink_downloads_url"),
             'classes': ("collapse",)
         }),
         ("Contact & Footer", {

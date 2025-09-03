@@ -11,65 +11,102 @@
     :root {
       --primary: {{ settings.primary_color|default:'#0d6efd' }};
       --secondary: {{ settings.secondary_color|default:'#6c757d' }};
-      --bg: #f5f7fa;
-      --surface: #ffffff;
-      --text: #0f172a;
-      --muted: #64748b;
-      --border: rgba(0,0,0,.08);
-      --shadow: 0 2px 16px rgba(0,0,0,.08);
-      /* Derived tones */
-      --primary-soft: color-mix(in srgb, var(--primary) 22%, transparent);
-      --primary-softer: color-mix(in srgb, var(--primary) 12%, transparent);
-      --secondary-soft: color-mix(in srgb, var(--secondary) 18%, transparent);
+      --bg: #0a0d14; /* darker base to amp contrast */
+      --surface: #0f172a;
+      --text: #e6edf7;
+      --muted: #94a3b8;
+      --border: rgba(148,163,184,.22);
+      --shadow: 0 10px 30px rgba(0,0,0,.45);
+      /* Aggressive accents */
+      --accent: color-mix(in srgb, var(--primary) 70%, #9b5cff 30%);
+      --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
+      --primary-soft: color-mix(in srgb, var(--primary) 35%, transparent);
+      --primary-softer: color-mix(in srgb, var(--primary) 18%, transparent);
+      --secondary-soft: color-mix(in srgb, var(--secondary) 26%, transparent);
+      --glow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent), 0 12px 40px color-mix(in srgb, var(--accent) 35%, transparent);
     }
     :root[data-theme="dark"] {
-      --bg: #0b0f18;
-      --surface: #0f172a;
-      --text: #e5e7eb;
-      --muted: #9ca3af;
-      --border: rgba(255,255,255,.08);
-      --shadow: 0 10px 30px rgba(0,0,0,.45);
+      --bg: #070a12;
+      --surface: #0b1222;
+      --text: #e9f0fb;
+      --muted: #97a6be;
+      --border: rgba(148,163,184,.22);
+      --shadow: 0 14px 44px rgba(0,0,0,.6);
     }
     * { box-sizing: border-box; }
-    body { margin:0; font-family: 'Poppins', Arial, sans-serif; color: var(--text); background: var(--bg); }
+    body { margin:0; font-family: 'Poppins', Arial, sans-serif; color: var(--text); background:
+      radial-gradient(1200px 600px at 10% 10%, color-mix(in srgb, var(--accent) 10%, var(--bg)), var(--bg) 60%),
+      radial-gradient(1000px 520px at 90% 30%, color-mix(in srgb, var(--primary) 12%, var(--bg)), var(--bg) 60%),
+      var(--bg);
+    }
     a { text-decoration: none; }
     .container { width:min(1100px, 92%); margin:0 auto; }
     /* Navbar */
-    .navbar { position:sticky; top:0; z-index:50; display:flex; align-items:center; justify-content:space-between; padding:14px 0; padding-top:calc(14px + env(safe-area-inset-top)); backdrop-filter:saturate(140%) blur(8px); -webkit-backdrop-filter:saturate(140%) blur(8px); }
+    .navbar { position:sticky; top:0; z-index:50; display:flex; align-items:center; justify-content:space-between; padding:14px 0; padding-top:calc(14px + env(safe-area-inset-top)); backdrop-filter:saturate(160%) blur(10px); -webkit-backdrop-filter:saturate(160%) blur(10px); background: color-mix(in srgb, var(--surface) 60%, transparent); border-bottom:1px solid var(--border); border-radius:0 0 18px 18px; }
     .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.2rem; color: var(--text); }
     .brand img { height:36px; width:auto; }
     .nav-actions a { padding:10px 16px; border-radius:12px; font-weight:600; }
-    .btn-login { background:var(--primary); color:#fff; box-shadow:0 8px 24px color-mix(in srgb, var(--primary) 30%, transparent); }
-    .btn-login:hover { opacity:.95; }
+    .hamburger { display:none; background:transparent; border:1px solid var(--border); width:40px; height:40px; border-radius:10px; color:var(--text); align-items:center; justify-content:center; }
+    .hamburger svg { width:20px; height:20px; }
+    .mobile-menu { display:none; position:fixed; inset:auto 0 0 0; z-index:70; background: color-mix(in srgb, var(--surface) 92%, transparent); border-top:1px solid var(--border); box-shadow: var(--shadow); padding:12px 0 calc(12px + env(safe-area-inset-bottom)); }
+    .mobile-menu .menu-inner{ width:min(1100px, 92%); margin:0 auto; display:flex; flex-direction:column; gap:6px; }
+    .mobile-menu a{ padding:12px 10px; border-radius:10px; color: var(--text); font-weight:600; }
+    .btn-login { background: linear-gradient(90deg, var(--primary), var(--accent)); color:#fff; box-shadow: var(--glow); border:0; }
+    .btn-login:hover { filter: brightness(1.05); transform: translateY(-1px); }
     /* Hero */
-    .hero { position:relative; isolation:isolate; min-height:88vh; display:flex; align-items:center; }
+    .hero { position:relative; isolation:isolate; min-height:92vh; display:flex; align-items:center; }
     .hero::before { content:""; position:absolute; inset:0; background:
-      radial-gradient(1200px 600px at 10% 10%, var(--primary-soft), transparent 60%),
-      radial-gradient(900px 520px at 90% 30%, var(--secondary-soft), transparent 60%),
-      linear-gradient(180deg, color-mix(in srgb, var(--surface) 10%, var(--primary-soft)) 0%, color-mix(in srgb, var(--surface) 10%, var(--secondary-soft)) 60%, var(--bg) 100%);
+      radial-gradient(1200px 600px at 10% 10%, var(--accent-soft), transparent 60%),
+      radial-gradient(900px 520px at 90% 30%, var(--primary-soft), transparent 60%),
+      linear-gradient(180deg, color-mix(in srgb, var(--surface) 20%, var(--primary-soft)) 0%, color-mix(in srgb, var(--surface) 12%, var(--secondary-soft)) 60%, var(--bg) 100%);
       z-index:-1; }
-    .hero-inner { display:grid; grid-template-columns:1.2fr .8fr; gap:30px; align-items:center; padding:40px 0 30px; }
-    .hero-title { font-size: clamp(2rem, 4.5vw, 3.2rem); line-height:1.08; margin:0 0 12px; color: var(--text); letter-spacing:-0.02em; }
-    .hero-sub { font-size:1.08rem; color: var(--muted); margin-bottom:18px; }
-    .cta { display:inline-flex; align-items:center; gap:10px; padding:12px 18px; background:var(--primary); color:#fff; border-radius:14px; font-weight:700; box-shadow:0 14px 36px color-mix(in srgb, var(--primary) 35%, transparent); }
-    .cta:hover { transform: translateY(-1px); }
+    .hero-inner { display:grid; grid-template-columns:1.15fr .85fr; gap:34px; align-items:center; padding:52px 0 34px; }
+    .hero-title { font-size: clamp(2.2rem, 5vw, 3.6rem); line-height:1.02; margin:0 0 12px; color: var(--text); letter-spacing:-0.025em; text-shadow: 0 2px 30px color-mix(in srgb, var(--accent) 22%, transparent); }
+    .hero-sub { font-size:1.1rem; color: var(--muted); margin-bottom:20px; }
+    .cta { display:inline-flex; align-items:center; gap:10px; padding:12px 18px; background: linear-gradient(90deg, var(--primary), var(--accent)); color:#fff; border-radius:14px; font-weight:800; box-shadow: var(--glow); border:0; }
+    .cta:hover { transform: translateY(-2px) scale(1.01); }
     .hero-card { background: color-mix(in srgb, var(--surface) 86%, transparent); border:1px solid var(--border); backdrop-filter: blur(10px) saturate(130%); -webkit-backdrop-filter: blur(10px) saturate(130%); border-radius:18px; box-shadow: var(--shadow); min-height:280px; background-size:cover; background-position:center; color: var(--text); }
     /* Background Video */
     .bg-video { position:absolute; inset:0; z-index:-2; overflow:hidden; border-radius:0; }
     .bg-video video { position:absolute; top:50%; left:50%; min-width:100%; min-height:100%; width:auto; height:auto; transform: translate(-50%, -50%) scale(1.03); filter: blur(2px) saturate(110%); opacity:.45; object-fit:cover; }
     /* Sections */
-    .section { padding:36px 0; }
-    .section h2 { font-size:1.4rem; margin:0 0 12px; color: var(--text); }
+    .section { padding:44px 0; position:relative; }
+    .section::before { content:""; position:absolute; left:0; right:0; top:0; height:1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 30%, transparent), transparent); }
+    .section h2 { font-size:1.5rem; margin:0 0 12px; color: var(--text); background: linear-gradient(90deg, var(--text), color-mix(in srgb, var(--accent) 60%, var(--text))); -webkit-background-clip:text; background-clip:text; color: transparent; }
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:18px; }
     /* Vertical list layout for categories */
     .list { display:flex; flex-direction:column; gap:18px; width:100%; }
     .list-item { width:100%; }
-    .card { background: color-mix(in srgb, var(--surface) 88%, transparent); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow: var(--shadow); color: var(--text); }
+    /* Explore accordion cards */
+    .explore-item { background: color-mix(in srgb, var(--surface) 90%, transparent); border:1px solid var(--border); border-radius:16px; box-shadow: var(--shadow); overflow:hidden; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+    .explore-item:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 28%, var(--border)); box-shadow: 0 14px 44px color-mix(in srgb, var(--accent) 22%, transparent); }
+    .explore-item summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:12px; padding:14px 16px; }
+    .explore-item summary::-webkit-details-marker{ display:none; }
+    .explore-item .summary-row{ display:flex; align-items:center; gap:12px; width:100%; }
+    .explore-item .summary-title{ font-weight:700; color: var(--text); }
+    .explore-item .summary-sub{ color: var(--muted); font-size:.95rem; }
+    .explore-item .chevron{ margin-left:auto; transition: transform .2s ease; color: var(--muted); }
+    .explore-item[open] .chevron{ transform: rotate(90deg); }
+    .explore-item .panel{ padding:0 16px 16px; }
+    .card { background: color-mix(in srgb, var(--surface) 88%, transparent); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow: var(--shadow); color: var(--text); transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+    .card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--accent) 28%, var(--border)); box-shadow: 0 18px 56px color-mix(in srgb, var(--accent) 26%, transparent); }
     .muted { color: var(--muted); }
     /* Footer */
-    footer { background: var(--surface); color: var(--muted); padding:26px 0; margin-top:20px; border-top:1px solid var(--border); }
-    .footer-grid { display:grid; grid-template-columns: 2fr 1fr 1fr; gap:20px; }
-    .social a{ color: color-mix(in srgb, var(--secondary) 70%, var(--text)); margin-right:10px; }
+    footer { background: color-mix(in srgb, var(--surface) 96%, transparent); color: var(--text); margin-top:28px; border-top:1px solid var(--border); }
+    footer::before{ content:""; display:block; height:1px; width:100%; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--primary) 35%, transparent), transparent); }
+    .footer-top { padding: 34px 0 28px; }
+    .footer-grid { display:grid; grid-template-columns: 1.6fr 1fr 1fr; gap:26px; }
+    .footer-title { font-weight:700; font-size:1rem; margin:0 0 10px; color: var(--text); }
+    .footer-text { color: var(--muted); line-height:1.6; }
+    .footer-links { display:flex; flex-direction:column; gap:8px; }
+    .footer-links a{ color: color-mix(in srgb, var(--primary) 35%, var(--text)); font-weight:600; transition: color .2s ease; }
+    .footer-links a:hover{ color: var(--primary); text-decoration: underline; }
+    .footer-social { display:flex; gap:12px; }
+    .footer-social a{ display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:12px; color: var(--text); border:1px solid var(--border); background: color-mix(in srgb, var(--surface) 90%, transparent); transition: transform .2s ease, background .2s ease, border-color .2s ease; }
+    .footer-social a:hover{ transform: translateY(-2px); background: color-mix(in srgb, var(--primary) 8%, var(--surface)); border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
+    .footer-bottom { border-top:1px solid var(--border); padding: 14px 0; color: #94a3b8; font-size:.95rem; background: color-mix(in srgb, var(--surface) 98%, transparent); }
+    .back-to-top{ padding:8px 12px; border-radius:10px; border:1px solid var(--border); color: var(--text); background:transparent; }
+    .back-to-top:hover{ background: color-mix(in srgb, var(--surface) 88%, transparent); }
     @media (max-width: 900px){
       body{ padding-bottom:84px; }
       .navbar{ padding:10px 0; padding-top:calc(10px + env(safe-area-inset-top)); }
@@ -110,7 +147,7 @@
     .mobile-actions .bar{ display:flex; gap:12px; }
     .mobile-actions a{ flex:1; text-align:center; padding:12px 16px; border-radius:14px; font-weight:700; }
     .mobile-actions .btn-outline{ background:transparent; border:1px solid color-mix(in srgb, var(--secondary) 30%, var(--border)); color: var(--text); }
-    .mobile-actions .btn-primary{ background:var(--primary); color:#fff; box-shadow:0 10px 26px color-mix(in srgb, var(--primary) 35%, transparent); }
+    .mobile-actions .btn-primary{ background: linear-gradient(90deg, var(--primary), var(--accent)); color:#fff; box-shadow: var(--glow); }
 
     /* Floating theme toggle bubble for landing */
     .theme-toggle-bubble {
@@ -121,7 +158,7 @@
       border: 1px solid var(--border); box-shadow: var(--shadow); color: var(--text);
       cursor: pointer; transition: transform .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
     }
-    .theme-toggle-bubble:hover { transform: translateY(-2px); }
+    .theme-toggle-bubble:hover { transform: translateY(-2px) scale(1.02); box-shadow: var(--glow); }
     .theme-toggle-bubble svg { width: 22px; height: 22px; }
     .icon-sun { display: none; }
     [data-theme="dark"] .icon-sun { display: block; }
@@ -153,23 +190,45 @@
   
 </head>
 <body>
+  <header role="banner" aria-label="Site header">
   <div class="container navbar">
     <div class="brand">
       {% if settings and settings.logo %}
-        <img src="{{ settings.logo.url }}" alt="Logo" />
+        <img src="{{ settings.logo.url }}" alt="Logo" loading="lazy" />
       {% elif settings and settings.logo_url %}
-        <img src="{{ settings.logo_url }}" alt="Logo" />
+        <img src="{{ settings.logo_url }}" alt="Logo" loading="lazy" />
       {% endif %}
       <span>{{ school_name }}</span>
     </div>
-    <nav class="nav-links" style="display:flex; gap:16px; align-items:center;">
+    <nav class="nav-links" aria-label="Primary" style="display:flex; gap:16px; align-items:center;">
+      <a href="#about" class="nav-anchor" style="color: color-mix(in srgb, var(--primary) 40%, #cbd5e1); text-decoration:none; font-weight:600;">About</a>
       <a href="#explore" class="nav-anchor" style="color: color-mix(in srgb, var(--primary) 40%, #cbd5e1); text-decoration:none; font-weight:600;">Explore</a>
+      <a href="{{ settings.quicklink_admissions_url|default:'/login/' }}" style="color: color-mix(in srgb, var(--primary) 40%, #cbd5e1); text-decoration:none; font-weight:600;">Admissions</a>
+      <a href="{{ settings.quicklink_term_dates_url|default:'#' }}" style="color: color-mix(in srgb, var(--primary) 40%, #cbd5e1); text-decoration:none; font-weight:600;">Term Dates</a>
+      <a href="{{ settings.quicklink_downloads_url|default:'#' }}" style="color: color-mix(in srgb, var(--primary) 40%, #cbd5e1); text-decoration:none; font-weight:600;">Downloads</a>
+      <a href="#contact" class="nav-anchor" style="color: color-mix(in srgb, var(--primary) 40%, #cbd5e1); text-decoration:none; font-weight:600;">Contact</a>
     </nav>
     <div class="nav-actions">
       <a class="btn-login" href="{% url 'login' %}">Login to Portal</a>
     </div>
+    <button class="hamburger" id="menuToggle" aria-label="Open menu" aria-controls="mobileMenu" aria-expanded="false">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/></svg>
+    </button>
   </div>
+  <div id="mobileMenu" class="mobile-menu" hidden>
+    <div class="menu-inner" role="navigation" aria-label="Mobile menu">
+      <a href="#about" class="nav-anchor">About</a>
+      <a href="#explore" class="nav-anchor">Explore</a>
+      <a href="{{ settings.quicklink_admissions_url|default:'/login/' }}">Admissions</a>
+      <a href="{{ settings.quicklink_term_dates_url|default:'#' }}">Term Dates</a>
+      <a href="{{ settings.quicklink_downloads_url|default:'#' }}">Downloads</a>
+      <a href="#contact" class="nav-anchor">Contact</a>
+      <a href="{% url 'login' %}" style="background:var(--primary); color:#fff; text-align:center;">Login</a>
+    </div>
+  </div>
+  </header>
 
+  <main id="main" role="main">
   <section class="hero" id="hero">
     {% if settings.hero_video %}
     <div class="bg-video" aria-hidden="true">
@@ -188,13 +247,46 @@
       <div>
         <h1 class="hero-title">{{ settings.hero_title|default:'Welcome to Our School' }}</h1>
         <p class="hero-sub">{{ settings.hero_subtitle|default:school_aim }}</p>
-        <a class="cta" href="{{ settings.hero_cta_link|default:'/login/' }}">{{ settings.hero_cta_text|default:'Login to Portal' }}</a>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a class="cta" href="{{ settings.hero_cta_link|default:'/login/' }}">{{ settings.hero_cta_text|default:'Login to Portal' }}</a>
+          <a class="cta" style="background:transparent; color:var(--text); border:1px solid color-mix(in srgb, var(--secondary) 35%, var(--border)); box-shadow:none;" href="#contact">Contact Us</a>
+        </div>
       </div>
       {% if settings.hero_background_url %}
       <div class="hero-card" style="background-image:url('{{ settings.hero_background_url }}');"></div>
       {% else %}
       <div class="hero-card"></div>
       {% endif %}
+    </div>
+  </section>
+
+  {% if settings.hero_stats_enabled %}
+  <section class="section" style="padding-top:0;">
+    <div class="container">
+      <div class="grid" aria-label="Key stats">
+        <div class="card"><strong>{{ settings.stat_students|default:'1,200+' }}</strong><br><span class="muted">Students</span></div>
+        <div class="card"><strong>{{ settings.stat_teachers|default:'80+' }}</strong><br><span class="muted">Teachers</span></div>
+        <div class="card"><strong>{{ settings.stat_clubs|default:'25+' }}</strong><br><span class="muted">Clubs & Societies</span></div>
+        <div class="card"><strong>{{ settings.stat_passrate|default:'95%' }}</strong><br><span class="muted">Pass Rate</span></div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% comment %} Announcement banner (theme-aware, optional) {% endcomment %}
+  <section aria-label="Announcements">
+    <div class="container" style="margin-top:8px;">
+      <div id="announcementBar" class="card" style="display:flex; align-items:center; gap:10px;">
+        <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:var(--primary-soft); color:var(--primary);">⚑</span>
+        <div style="flex:1;">
+          <strong>Announcement:</strong>
+          <span class="muted">{{ settings.announcement_text|default:'Admissions for the new term are open. Visit the office or login to the portal for details.' }}</span>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <a href="{{ settings.announcement_cta_link|default:'/login/' }}" class="cta" style="padding:10px 14px; border-radius:12px; font-size:.95rem; box-shadow:none;">{{ settings.announcement_cta_text|default:'View Details' }}</a>
+          <button id="dismissAnnouncement" aria-label="Dismiss announcement" title="Dismiss" style="background:transparent; border:1px solid var(--border); width:36px; height:36px; border-radius:10px; color:var(--muted);">✕</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -219,20 +311,74 @@
     </div>
   </section>
 
+  {% comment %} Quick Links (admissions, term dates, downloads) {% endcomment %}
+  <section class="section" style="padding-top:0;" aria-label="Quick links">
+    <div class="container">
+      <h2>Quick Links</h2>
+      <div class="grid">
+        <a class="card" href="{{ settings.quicklink_admissions_url|default:'/login/' }}">
+          <strong>Admissions</strong><br>
+          <span class="muted">Join our community — learn how to apply.</span>
+        </a>
+        <a class="card" href="{{ settings.quicklink_term_dates_url|default:'#' }}">
+          <strong>Term Dates</strong><br>
+          <span class="muted">View the academic calendar and key events.</span>
+        </a>
+        <a class="card" href="{{ settings.quicklink_downloads_url|default:'#' }}">
+          <strong>Downloads</strong><br>
+          <span class="muted">Prospectus, fee structure, forms and more.</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
   {% if categories %}
   <section class="section" id="sections" style="padding-top:0;">
     <div class="container">
       <h2>Explore</h2>
       <div class="list">
         {% for c in categories %}
-          <div id="{{ c.name|slugify }}" class="list-item">
-            {% include c.template_path with c=c %}
-          </div>
+          <details id="{{ c.name|slugify }}" class="explore-item">
+            <summary>
+              <div class="summary-row">
+                <span aria-hidden="true" style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:var(--secondary-soft); color: var(--text);">📂</span>
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                  <span class="summary-title">{{ c.name|title }}</span>
+                  {% if c.description %}<span class="summary-sub">{{ c.description }}</span>{% endif %}
+                </div>
+                <span class="chevron" aria-hidden="true">›</span>
+              </div>
+            </summary>
+            <div class="panel">
+              {% include c.template_path with c=c %}
+            </div>
+          </details>
         {% endfor %}
       </div>
     </div>
   </section>
   {% endif %}
+
+  {% comment %} FAQ accordion (pure HTML/CSS/JS-light, no dependencies) {% endcomment %}
+  <section class="section" id="faq" style="padding-top:0;">
+    <div class="container">
+      <h2>Frequently Asked Questions</h2>
+      <div class="card" style="padding:0;">
+        <details style="padding:14px 16px; border-bottom:1px solid var(--border);">
+          <summary style="cursor:pointer; font-weight:600;">How do I access the parent/student portal?</summary>
+          <div class="muted" style="margin-top:8px;">Use the “Login to Portal” button above. Your credentials are provided by the school administration.</div>
+        </details>
+        <details style="padding:14px 16px; border-bottom:1px solid var(--border);">
+          <summary style="cursor:pointer; font-weight:600;">Can I apply online?</summary>
+          <div class="muted" style="margin-top:8px;">Yes. Visit the Admissions quick link. If online application is unavailable, contact the office for guidance.</div>
+        </details>
+        <details style="padding:14px 16px;">
+          <summary style="cursor:pointer; font-weight:600;">Where can I find fee information?</summary>
+          <div class="muted" style="margin-top:8px;">Check the Downloads link for the current fee structure. For specific queries, contact our finance office.</div>
+        </details>
+      </div>
+    </div>
+  </section>
 
   {% if gallery_images %}
   <section class="section" id="gallery" style="padding-top:0;">
@@ -241,7 +387,7 @@
       <div class="grid">
         {% for img in gallery_images %}
         <div class="card" style="padding:0; overflow:hidden;">
-          <img src="{{ img.image.url }}" alt="{{ img.title }}" style="width:100%; height:220px; object-fit:cover; display:block;" />
+          <img src="{{ img.image.url }}" alt="{{ img.title }}" loading="lazy" style="width:100%; height:220px; object-fit:cover; display:block;" />
           {% if img.title or img.caption %}
           <div style="padding:12px;">
             {% if img.title %}<strong>{{ img.title }}</strong><br>{% endif %}
@@ -255,29 +401,67 @@
   </section>
   {% endif %}
 
-  <footer>
+  </main>
+  <footer role="contentinfo" aria-label="Site footer">
     <a id="contact"></a>
-    <div class="container footer-grid">
-      <div>
-        <strong>{{ school_name }}</strong><br>
-        <span class="muted">"{{ school_motto }}"</span>
-      </div>
-      <div>
-        <strong>Contact</strong><br>
-        <div class="muted">{{ settings.contact_address }}</div>
-        <div class="muted">{{ settings.contact_phone }}</div>
-        <div class="muted">{{ settings.contact_email }}</div>
-      </div>
-      <div>
-        <strong>Follow</strong><br>
-        <div class="social">
-          {% if settings.facebook_url %}<a href="{{ settings.facebook_url }}" target="_blank">Facebook</a>{% endif %}
-          {% if settings.twitter_url %}<a href="{{ settings.twitter_url }}" target="_blank">Twitter</a>{% endif %}
-          {% if settings.instagram_url %}<a href="{{ settings.instagram_url }}" target="_blank">Instagram</a>{% endif %}
-        </div>
+    <div class="footer-top">
+      <div class="container footer-grid">
+        <section aria-label="About {{ school_name }}">
+          <h3 class="footer-title" style="display:flex; align-items:center; gap:10px;">
+            {% if settings and settings.logo %}
+              <img src="{{ settings.logo.url }}" alt="{{ school_name }} logo" style="height:26px; width:auto; border-radius:6px;"/>
+            {% elif settings and settings.logo_url %}
+              <img src="{{ settings.logo_url }}" alt="{{ school_name }} logo" style="height:26px; width:auto; border-radius:6px;"/>
+            {% endif %}
+            <span>{{ school_name }}</span>
+          </h3>
+          <p class="footer-text">“{{ school_motto }}”</p>
+          {% if settings.contact_email %}
+          <p class="footer-text" style="margin-top:8px;">Have questions? <a href="mailto:{{ settings.contact_email }}" class="nav-anchor">Email us</a></p>
+          {% endif %}
+        </section>
+        <section aria-label="Contact information">
+          <h3 class="footer-title">Contact</h3>
+          {% if settings.contact_address %}<div class="footer-text">{{ settings.contact_address }}</div>{% endif %}
+          {% if settings.contact_phone %}<div class="footer-text">{{ settings.contact_phone }}</div>{% endif %}
+          {% if settings.contact_email %}<div class="footer-text">{{ settings.contact_email }}</div>{% endif %}
+        </section>
+        <section aria-label="Quick links">
+          <h3 class="footer-title">Quick Links</h3>
+          <nav class="footer-links" aria-label="Footer quick links">
+            <a href="{{ settings.quicklink_admissions_url|default:'/login/' }}">Admissions</a>
+            <a href="{{ settings.quicklink_term_dates_url|default:'#' }}">Term Dates</a>
+            <a href="{{ settings.quicklink_downloads_url|default:'#' }}">Downloads</a>
+            <a href="#about" class="nav-anchor">About</a>
+            <a href="#explore" class="nav-anchor">Explore</a>
+            <a href="#faq" class="nav-anchor">FAQ</a>
+          </nav>
+        </section>
       </div>
     </div>
-    <div class="container" style="margin-top:14px; font-size:.9rem; color:#94a3b8;">{{ settings.footer_text|default:'&copy; ' }} {{ now|date:'Y' }}</div>
+    <div class="footer-bottom">
+      <div class="container" style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+        <nav aria-label="Social media" class="footer-social">
+          {% if settings.facebook_url %}
+            <a href="{{ settings.facebook_url }}" target="_blank" rel="noopener noreferrer" aria-label="Facebook" title="Facebook">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22 12a10 10 0 1 0-11.5 9.9v-7H8v-2.9h2.5V9.6c0-2.5 1.5-3.9 3.7-3.9 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.7-1.6 1.5v1.8H16l-.4 2.9h-2.2v7A10 10 0 0 0 22 12z"/></svg>
+            </a>
+          {% endif %}
+          {% if settings.twitter_url %}
+            <a href="{{ settings.twitter_url }}" target="_blank" rel="noopener noreferrer" aria-label="Twitter" title="Twitter">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22 5.8c-.7.3-1.4.5-2.1.6.8-.5 1.4-1.2 1.7-2.1-.7.5-1.6.8-2.5 1-1.5-1.6-4.1-1.4-5.4.5a3.9 3.9 0 0 0-.5 3.3C10 9 7.2 7.6 5.3 5.3c-1 1.9-.5 4.3 1.3 5.6-.6 0-1.2-.2-1.7-.5 0 2 1.4 3.8 3.4 4.2-.6.2-1.2.2-1.8.1.5 1.7 2.1 3 3.9 3-1.8 1.4-4 2-6.2 1.7a11 11 0 0 0 6 1.8c7.2 0 11.3-6 11.1-11.3.8-.5 1.5-1.2 2-2z"/></svg>
+            </a>
+          {% endif %}
+          {% if settings.instagram_url %}
+            <a href="{{ settings.instagram_url }}" target="_blank" rel="noopener noreferrer" aria-label="Instagram" title="Instagram">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm10 2H7a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3zm-5 3.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2a3.5 3.5 0 1 0 .001 7.001A3.5 3.5 0 0 0 12 9.5zM18 6.3a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4z"/></svg>
+            </a>
+          {% endif %}
+        </nav>
+        <div class="footer-text">{{ settings.footer_text|default:'\u00a9 All rights reserved.' }} {{ now|date:'Y' }}</div>
+        <div><a href="#hero" class="nav-anchor back-to-top" aria-label="Back to top">Back to top ↑</a></div>
+      </div>
+    </div>
   </footer>
 
   <script>
@@ -303,6 +487,38 @@
           }
         });
       });
+
+      // Mobile menu toggle
+      const menuToggle = document.getElementById('menuToggle');
+      const mobileMenu = document.getElementById('mobileMenu');
+      if (menuToggle && mobileMenu) {
+        menuToggle.addEventListener('click', function() {
+          const isOpen = mobileMenu.hasAttribute('hidden') === false;
+          if (isOpen) {
+            mobileMenu.setAttribute('hidden', 'hidden');
+            this.setAttribute('aria-expanded', 'false');
+          } else {
+            mobileMenu.removeAttribute('hidden');
+            this.setAttribute('aria-expanded', 'true');
+          }
+        });
+      }
+
+      // Dismissible announcement
+      const bar = document.getElementById('announcementBar');
+      const dismissBtn = document.getElementById('dismissAnnouncement');
+      if (bar && dismissBtn) {
+        const key = 'announcement.dismissed';
+        try {
+          if (localStorage.getItem(key) === '1') {
+            bar.style.display = 'none';
+          }
+        } catch (e) {}
+        dismissBtn.addEventListener('click', function(){
+          bar.style.display = 'none';
+          try { localStorage.setItem(key, '1'); } catch (e) {}
+        });
+      }
 
       // Theme toggle
       const toggleBtn = document.getElementById('themeToggle');

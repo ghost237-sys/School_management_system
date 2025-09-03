@@ -56,7 +56,22 @@ def _send_idle_login_link(request, email: str) -> None:
         f"Click this one-time link to log back in: {url}\n\n"
         "This link expires in 15 minutes. If you did not request this, you can ignore this email."
     )
-    send_mail(subject, message, getattr(settings, 'DEFAULT_FROM_EMAIL', None), [email], fail_silently=True)
+    try:
+        send_mail(
+            subject,
+            message,
+            getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+            [email],
+            fail_silently=False,
+        )
+        # Helpful for testing: also show link when DEBUG is on
+        if getattr(settings, 'DEBUG', False):
+            messages.info(request, f"Debug login link: {url}")
+    except Exception as e:
+        # Surface failure and provide the link inline so user can continue even if SMTP is blocked
+        messages.error(request, f"Failed to send login link email: {e}")
+        messages.info(request, f"Use this one-time link to continue: {url}")
+        return
 
 
 def idle_login(request, token: str):
@@ -129,7 +144,22 @@ def send_email_login_link(request, user, request_id: str | None = None):
         f"Click this one-time link to confirm and complete login: {url}\n\n"
         "This link expires in 15 minutes. If this wasn't you, please ignore this email."
     )
-    send_mail(subject, message, getattr(settings, 'DEFAULT_FROM_EMAIL', None), [user.email], fail_silently=True)
+    try:
+        send_mail(
+            subject,
+            message,
+            getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+            [user.email],
+            fail_silently=False,
+        )
+        # Helpful for testing: also show link when DEBUG is on
+        if getattr(settings, 'DEBUG', False):
+            messages.info(request, f"Debug login link: {url}")
+    except Exception as e:
+        # Surface failure and provide the link inline so user can continue even if SMTP is blocked
+        messages.error(request, f"Failed to send login link email: {e}")
+        messages.info(request, f"Use this one-time link to continue: {url}")
+        return
 
 
 def email_login_confirm(request, token: str):
@@ -285,9 +315,21 @@ def send_action_otp(request):
         if email:
             subject = f"{getattr(settings, 'SCHOOL_NAME', 'School')} Verification Code"
             msg = f"Your verification code is {code}. It expires in 10 minutes."
-            send_mail(subject, msg, getattr(settings, 'DEFAULT_FROM_EMAIL', None), [email], fail_silently=True)
-    except Exception:
-        pass
+            send_mail(
+                subject,
+                msg,
+                getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                [email],
+                fail_silently=False,
+            )
+            # Helpful for testing: also show link when DEBUG is on
+            if getattr(settings, 'DEBUG', False):
+                messages.info(request, f"Debug verification code: {code}")
+    except Exception as e:
+        # Surface failure and provide the code inline so user can continue even if SMTP is blocked
+        messages.error(request, f"Failed to send verification code email: {e}")
+        messages.info(request, f"Use this one-time code to continue: {code}")
+        return
     return JsonResponse({'ok': True})
 
 

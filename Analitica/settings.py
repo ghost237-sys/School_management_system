@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 import os
 from datetime import timedelta
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -31,9 +32,9 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'true').lower() == 'true'
 
-# Comma-separated hostnames/IPs in env; safe defaults for local dev incl. ngrok
+# Comma-separated hostnames/IPs in env; safe defaults for local dev and Render
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get(
-    'DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,::1,.ngrok-free.app'
+    'DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,::1,.ngrok-free.app,.onrender.com'
 ).split(',') if h.strip()]
 
 
@@ -66,6 +67,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     # Render custom 404 template even in DEBUG
@@ -80,6 +82,13 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Redirect plain 403 responses back to previous safe page
     'core.middleware.ForbiddenRedirectMiddleware',
+]
+
+AUTHENTICATION_BACKENDS = [
+    # Use django-axes standalone backend for lockout checks (v5+)
+    'axes.backends.AxesStandaloneBackend',
+    # Default Django auth backend
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 ROOT_URLCONF = 'Analitica.urls'
@@ -120,6 +129,14 @@ DATABASES = {
     }
 }
 
+# If DATABASE_URL is provided (e.g., on Render with Postgres), use it
+_db_url = os.environ.get('DATABASE_URL')
+if _db_url:
+    DATABASES['default'] = dj_database_url.config(
+        default=_db_url,
+        conn_max_age=600,
+    )
+
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -158,6 +175,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files (user uploads)
 MEDIA_URL = '/media/'
@@ -213,17 +231,23 @@ else:
 DATA_UPLOAD_MAX_NUMBER_FIELDS = int(os.environ.get('DATA_UPLOAD_MAX_NUMBER_FIELDS', '20000'))
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', '52428800'))  # 50 MB
 
-# Email backend configuration
-# Force SMTP backend to send real emails (override console backend)
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+# Email backend configuration: prefer Resend HTTPS API if API key provided; fallback to SMTP
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+if RESEND_API_KEY:
+    EMAIL_BACKEND = 'core.email_backends.ResendEmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 
-# SMTP Configuration
+# SMTP Configuration (Gmail)
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+# Default to STARTTLS on 587 since many networks block implicit SSL 465
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').lower() == 'true'
 EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'false').lower() == 'true'
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'sevenforksprimaryschool@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'jwuw grhy epvt lqcf')  # Gmail App Password
+# Gmail App Password: Google displays it with spaces for readability, but SMTP requires it WITHOUT spaces.
+# Remove any spaces defensively so copied values like "abcd efgh ijkl mnop" still work.
+EMAIL_HOST_PASSWORD = (os.environ.get('EMAIL_HOST_PASSWORD', 'jwuw grhy epvt lqcf') or '').replace(' ', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 # Email timeout and connection settings
@@ -292,7 +316,9 @@ LOGOUT_REDIRECT_URL = 'login'
 AXES_FAILURE_LIMIT = int(os.environ.get('AXES_FAILURE_LIMIT', '5'))
 # Cooloff period for failed logins; configured as timedelta for compatibility
 AXES_COOLOFF_TIME = timedelta(seconds=int(os.environ.get('AXES_COOLOFF_TIME', str(60 * 15))))
-AXES_ONLY_USER_FAILURES = os.environ.get('AXES_ONLY_USER_FAILURES', 'false').lower() == 'true'
+# AXES_ONLY_USER_FAILURES is deprecated in django-axes 5.0+; use AXES_LOCKOUT_PARAMETERS instead
+# Emulate "only user failures" by locking out based solely on the username
+AXES_LOCKOUT_PARAMETERS = ['username']
 AXES_LOCK_OUT_AT_FAILURE = True
 AXES_RESET_ON_SUCCESS = True
 AXES_ENABLED = os.environ.get('AXES_ENABLED', 'true').lower() == 'true'
